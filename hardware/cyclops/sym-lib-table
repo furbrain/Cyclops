@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "Connector-ML")(type "Legacy")(uri "${KIPRJMOD}/symbols/Connector-ML.lib")(options "")(descr ""))
+  (lib (name "Cyclops")(type "KiCad")(uri "${KIPRJMOD}/Cyclops.kicad_sym")(options "")(descr ""))
+)

@@ -1,0 +1,60 @@
+# files
+
+drill=./meta/cyclops.drl
+front=./meta/cyclops-F_Cu.gbr
+outline=./meta/cyclops-Edge_Cuts.gbr
+output-dir=./gcode
+
+# sides
+drill-side=front
+cut-side=front
+
+#tiling
+tile-x=1
+tile-y=1
+
+# output types
+metric=true
+metricoutput=true
+mirror-absolute=true
+
+# command set
+nog64=true
+nog81=true
+nog91-1=true
+
+#Etching
+tolerance=0.0100
+zchange=1.5000
+zchange-absolute=false
+zero-start=true
+zsafe=1.5000
+extra-passes=1
+mill-feed=100
+mill-speed=10000
+offset=0.2000
+voronoi=false
+zwork=-0.0800
+preserve-thermal-reliefs=true
+
+# drilling
+milldrill-diameter=1.0000
+drill-feed=50
+drill-speed=10000
+milldrill=true
+onedrill=false
+drills-available=0.5mm:0.1mm,1.0mm:0.2mm
+min-milldrill-hole-diameter=1.1mm
+zdrill=-2.5000
+
+# outline
+cutter-diameter=1.0000
+bridges=0.5000
+bridgesnum=2
+cut-feed=100
+cut-infeed=0.8000
+cut-speed=10000
+fill-outline=true
+zbridges=-0.0000
+zcut=-2.0000
+
