@@ -16,7 +16,7 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 import struct
 
-DUMMY = True
+DUMMY = False
 
 if DUMMY:
     try:
@@ -27,6 +27,7 @@ if DUMMY:
 else:
     import board
     import adafruit_icm20x
+    import digitalio
 
 OCAPS = Gst.Caps.from_string ('video/x-raw, format=GRAY8, width=16, height=16, framerate=[10/1,60/1]')
 
@@ -42,9 +43,11 @@ class IMUDataSrc(GstBase.PushSrc):
                                            OCAPS)
 
     def __init__(self):
+        self.en_pin = digitalio.DigitalInOut(board.D4)
+        self.en_pin.switch_to_output(False)
         if not DUMMY:
-            self.bus = board.I2C()
-            self.device = adafruit_icm20x.ICM20948(self.bus)
+            self.i2c_bus = board.I2C()
+            self.device = adafruit_icm20x.ICM20948(self.i2c_bus)
         GstBase.PushSrc.__init__(self)
         self.info = GstVideo.VideoInfo()
         self.set_live(True)
@@ -55,10 +58,11 @@ class IMUDataSrc(GstBase.PushSrc):
         self.info.from_caps(caps)
         self.set_blocksize(self.info.size)
         self.set_do_timestamp(True)
-        self.framerate = self.info.fps_n / self.info.fps_d
+        self.framerate = self.info.fps_n // self.info.fps_d
         if not DUMMY:
             self.device.gyro_data_rate = self.framerate
-            self.device.accelerometer_data_rate = self.framerate
+            accel_rate = (1125-self.framerate) // self.framerate
+            self.device.accelerometer_data_rate = accel_rate
             if self.framerate > 50:
                 mag_rate = adafruit_icm20x.MagDataRate.RATE_100HZ
             elif self.framerate > 20:
