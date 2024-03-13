@@ -13,11 +13,7 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import GstVideo
 from imu import IMUTracker
 
-spec = """filesrc location="combined.mkv" name=fsrc ! matroskademux name=demux ! 
-          queue ! video/x-h264 ! decodebin ! autovideosink
-          demux. ! queue ! video/x-raw ! appsink name=telemetry sync=false"""
-
-spec_simple = """filesrc location="combined.mkv" name=fsrc ! matroskademux name=demux !  
+spec_simple = """filesrc location="imu_only.mkv" name=fsrc ! matroskademux name=demux !  
                  video/x-raw ! appsink name=telemetry sync=false"""
 
 
