@@ -1,13 +1,16 @@
-from skinematics import rotmat
-from skinematics.sensors.manual import MyOwnSensor
+#from skinematics import rotmat
+#from skinematics.sensors.manual import MyOwnSensor
 
-import csv
+import imu
 import numpy as np
 np.set_printoptions(suppress=True)
 RATE=100
 
 data = np.loadtxt("telemetry.csv", delimiter=",", skiprows=1)
 timestamps = data[:,0]
+imu.plot_trajectory(data[:,1:])
+exit()
+
 mag = data[:,1:4]
 accel = data[:,4:7]
 gyro = data[:,7:10]
