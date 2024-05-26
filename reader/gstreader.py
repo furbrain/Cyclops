@@ -4,6 +4,8 @@ import struct
 import gi
 import numpy as np
 
+TS_PER_S = 1_000_000_000
+
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, GLib
 
@@ -92,7 +94,7 @@ class GstReader:
             buf = sample.get_buffer()
             buffer_copy = buf.extract_dup(0, buf.get_size())
             result = self.converter(buffer_copy)
-            tm = buf.pts/1_000_000_000
+            tm = buf.pts / TS_PER_S
             output = tm, result
         else:
             output = None, None
@@ -101,6 +103,11 @@ class GstReader:
             self.eos = True
             self.close()
         return output
+
+    def seek(self, t:float):
+        self.get_frame()
+        t *= TS_PER_S
+        self.sink.seek_simple(Gst.Format.TIME, (Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE), t)
         
         
 class IMUReader(GstReader):
