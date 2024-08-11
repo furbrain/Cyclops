@@ -1,0 +1,6 @@
+This document is for me to work out how to do the calibration
+
+1) Calibrate camera lens with chessboard - should only need doing once
+2) Get static frames from calibration video, including IMU data
+3) Isolate rotation on z-axis frames for each frame get c_x (camera rotation, first is I) and g_x
+4) calculate q, such that g_0 * q * c_x * q^-1 = g_x

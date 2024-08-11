@@ -1,23 +1,50 @@
 import collections
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence, Callable
 
+import cv2
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import cv2
 
 from gstreader import IMUReader, VidReader
+from reader.IMUCalibration import IMUCalibration
+from reader.LensCalibration import Lens
+
 Period = collections.namedtuple("Period", ["start", "end"])
+
+
+def get_optical_flow_points(a, b):
+    feature_params = dict(maxCorners=100,
+                          qualityLevel=0.3,
+                          minDistance=7,
+                          blockSize=7)
+    lk_params = dict(winSize=(15, 15),
+                     maxLevel=2,
+                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+
+    a_points = cv2.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
+    b_points, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+    if b_points is not None:
+        good_new = a_points[st == 1]
+        good_old = b_points[st == 1]
+        return good_new, good_old
+    return None, None
+
 
 class CyclopsReader:
     """A reader for files created with cyclops. Can read video and IMU readings"""
-    def __init__(self, filename: str, truncate_at:Optional[float] = None):
+    def __init__(self, filename: str, lens_cal_file: str = "", truncate_at:Optional[float] = None):
         self.filename = filename
         self.truncate_at = truncate_at
         self.imu_spec = f"""filesrc location="{filename}" name=fsrc ! matroskademux name=demux !  
                             video/x-raw ! appsink name=telemetry sync=false"""
         self.vid_spec = f"""filesrc location="{filename}" ! matroskademux ! video/x-h264 ! decodebin ! 
                             videoconvert ! video/x-raw,format=GRAY8 ! appsink sync=false"""
+        if lens_cal_file:
+            self.lens = Lens.load(lens_cal_file)
+            print("cam: ", self.lens.K)
+        else:
+            self.lens = Lens()
+        self.imu_cal = IMUCalibration()
 
     def telemetry_generator(self):
         with IMUReader(self.imu_spec) as imu:
@@ -75,20 +102,11 @@ class CyclopsReader:
                 periods.append(Period(first_true, last_true))
         return periods
 
+
     @staticmethod
-    def opticalFlow(a: np.ndarray, b: np.ndarray) -> Optional[float]:
-        feature_params = dict(maxCorners=100,
-            qualityLevel=0.3,
-            minDistance=7,
-            blockSize=7)
-        lk_params = dict(winSize=(15, 15),
-            maxLevel=2,
-            criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
-        a_corners = cv2.goodFeaturesToTrack(a, mask=None, **feature_params)
-        b_corners, st, err = cv2.calcOpticalFlowPyrLK(a, b, a_corners, None, **lk_params)
-        if b_corners is not None:
-            good_a = b_corners[st == 1]
-            good_b = a_corners[st == 1]
+    def opticalFlowPoints(a: np.ndarray, b: np.ndarray) -> Optional[float]:
+        good_a, good_b = get_optical_flow_points(a, b)
+        if good_a is not None:
             distance2 = np.sqrt(np.sum((good_a - good_b) ** 2, axis=1))
             return np.mean(distance2)
         return None
@@ -129,7 +147,7 @@ class CyclopsReader:
                 outputs.append((tms.mean(),metrics.mean()))
         return outputs
 
-    def get_snaphots(self, periods: Sequence[Period], imu: pd.DataFrame):
+    def get_snaphots(self, periods: Sequence[Period], imu: pd.DataFrame) -> pd.DataFrame:
         frames = pd.Series(dtype="object", name="Frame")
         with VidReader(self.vid_spec) as vid:
             for tm in ((p.start + p.end) / 2 for p in periods):
@@ -149,6 +167,10 @@ class CyclopsReader:
 
     def get_stable_images(self):
         print("Get frame diffs")
+        try:
+            return pd.read_pickle(f"{self.filename}.stable.pkl")
+        except IOError:
+            pass
         frame_diffs = np.array(self.read_video(self.opticalFlow, 5))
         df = pd.DataFrame({"motion": frame_diffs[:, 1]}, index=frame_diffs[:, 0])
         df['static'] = df['motion'] < 8.0
@@ -160,56 +182,19 @@ class CyclopsReader:
         periods_imu = self.get_static_periods(tel['static'])
         periods = self.get_agreed_periods(periods_cam, periods_imu)
         snaps = self.get_snaphots(periods, tel)
+        snaps.to_pickle(f"{self.filename}.stable.pkl")
         return snaps
 
+    def calibrate_lens(self, show_results: bool = False):
+        results = self.get_stable_images()
+        l = len(results['Frame'])
+        if l == 0:
+            raise ValueError("No Stable Frames found")
+        if l < 6:
+            raise ValueError(f"Only {l} stable frames found, need at least 6")
+        self.lens.calibrate(results['Frame'], show_results)
 
-
-
-def make_interrupted_lines(xs: Sequence[Period], y:float=-5):
-    result_x = []
-    result_y = []
-    for x in xs:
-        result_x.extend([x.start, x.end, None])
-        result_y.extend([y,y,None])
-    return result_x, result_y
-
-
-if __name__=="__main__":
-    CHECKERBOARD = (6, 9)
-    subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
-    calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_CHECK_COND + cv2.fisheye.CALIB_FIX_SKEW
-    objp = np.zeros((1, CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
-    objp[0, :, :2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
-    objpoints = []
-    imgpoints = []
-    cyclops = CyclopsReader("../footage/vid0.mkv")
-    results = cyclops.get_stable_images()
-    for frame in results['Frame']:
-        # Find the chess board corners
-        ret, corners = cv2.findChessboardCorners(frame, CHECKERBOARD,
-                                                 cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE)
-        # If found, add object points, image points (after refining them)
-        if ret == True:
-            print("chessboard found")
-            objpoints.append(objp)
-            cv2.cornerSubPix(frame, corners, (3, 3), (-1, -1), subpix_criteria)
-            imgpoints.append(corners)
-        cv2.imshow("main", frame)
-        cv2.waitKey(500)
-    K = np.zeros((3, 3))
-    D = np.zeros((4, 1))
-    retval, K, D, rvecs, tvecs = cv2.fisheye.calibrate(
-        objpoints,
-        imgpoints,
-        frame.shape[::-1],
-        K,
-        D,
-        flags=calibration_flags,
-        criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6))
-    new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(K, D, frame.shape[::-1], np.eye(3), balance=0.5)
-    map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), new_K, frame.shape[::-1], cv2.CV_32FC1)
-    # and then remap:
-    for frame in results['Frame']:
-        undistorted_img = cv2.remap(frame, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-        cv2.imshow("undistort", undistorted_img)
-        cv2.waitKey(1000)
+    def calibrate_imu(self):
+        snapshots = self.get_stable_images()
+        snapshots['undistorted'] = self.lens.undistort(snapshots['Frame'])
+        self.imu_cal.calibrate(snapshots, self.lens)

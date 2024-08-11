@@ -61,7 +61,11 @@ class GstReader:
         Gst.init([sys.argv[0]])
         self.pipeline = Gst.parse_launch(spec)
         self.bus = self.pipeline.get_bus()
-        self.sink = list(self.pipeline.iterate_sinks()).pop(0)
+        try:
+            self.sink = list(self.pipeline.iterate_sinks()).pop(0)
+        except TypeError:
+            _, self.sink = self.pipeline.iterate_sinks().next()
+            print(dir(self.sink))
         self.caps = None
         self.eos = False
         if autostart:

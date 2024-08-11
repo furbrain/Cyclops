@@ -1,8 +1,10 @@
 from typing import Tuple, Callable, Sequence
 
 import numpy as np
+import pandas
 import scipy.optimize
 from scipy.spatial.transform import Rotation, Slerp
+import matplotlib.pyplot as plt
 
 ### this file is to test my calibration routine
 # angle system is yaw, pitch, roll (xzy)
@@ -38,27 +40,20 @@ def get_test_sensor_orientations(count, yaw, pitch):
     return Rotation.from_euler("ZXY", np.deg2rad(angles))
 
 
-def get_camera_orientations(rots: Rotation, offset_transform: Rotation) -> Tuple[Rotation, Rotation]:
+def get_camera_orientations(rots: Rotation, offset_transform: Rotation, error_size:float) -> Tuple[Rotation, Rotation]:
     reals: Rotation = rots * offset_transform
 
-    offsets = np.random.uniform(-1.0, 1.0, (len(reals), 3))
+    offsets = np.random.uniform(-error_size, error_size, (len(reals), 3))
     offsets = Rotation.from_euler("ZXY", np.deg2rad(offsets))
-    reals = offsets * reals
+    reals = reals * offsets
     relatives = reals[0].inv() * reals
     return reals, relatives
 
 
-def solve_my_problem_bad(sensor_data: Rotation, camera_data: Rotation):
-    s = sensor_data[0].inv() * sensor_data
-    s = np.hstack(s[1:].as_matrix()).T
-    c = np.hstack(camera_data[1:].as_matrix()).T
-    r, fit = Rotation.align_vectors(s, c)
-    print(np.rad2deg(r.as_euler("ZXY")))
-
-
-def solve_my_problem_iterative(sensor_data: Rotation, camera_data: Rotation):
+def iterative(sensor_data: Rotation, camera_data: Rotation):
     res = scipy.optimize.minimize(value_function, (1.0, 1.0, 1.0), args=(sensor_data, camera_data))
-    return Rotation.from_euler("ZXY", np.deg2rad(res.x))
+    rot = Rotation.from_euler("ZXY", np.deg2rad(res.x))
+    return rot, None, None
 
 
 def value_function(angles, s: Rotation, c: Rotation):
@@ -67,77 +62,96 @@ def value_function(angles, s: Rotation, c: Rotation):
     return np.rad2deg(np.sqrt(np.mean(output_rots.magnitude() ** 2)))
 
 
-def solve_my_problem_with_complex_eigenvectors(sensor_data: Rotation, camera_data: Rotation):
-    s = sensor_data[0].inv() * sensor_data[1:]
-    c = camera_data[1:]
-    Q_all = []
-    for sx, cx in zip(s, c):
-        Rs, Ds = diagonalize(sx.as_matrix())
-        Rc, Dc = diagonalize(cx.as_matrix())
-        print("Rs: ", Ds)
-        print("Rc: ", Dc)
-        Qm = Rs @ np.linalg.inv(Rc)
-        print("Qm: ", Qm)
-        Qr = Rotation.from_matrix(Qm)
-        print(np.rad2deg(Qr.as_euler("ZXY")))
-        Q_all.append(Qr)
-    Q = Rotation.concatenate(Q_all)
-    return Q.mean()
-
-
-def solve_with_kabsch_on_rotvecs(sensor_data: Rotation, camera_data: Rotation):
+def rotvecs(sensor_data: Rotation, camera_data: Rotation):
     # annoyingly, this works...
     s = sensor_data[0].inv() * sensor_data[1:]
     c = camera_data[1:]
     sr = s.as_rotvec()
-    #sr = sr / np.atleast_2d(np.linalg.norm(sr, axis=1)).T
     cr = c.as_rotvec()
-    #cr = cr / np.atleast_2d(np.linalg.norm(cr, axis=1)).T
     rot, resid = Rotation.align_vectors(sr, cr)
-    return rot
+    diffs = rot.apply(cr) - sr
+    norms = np.linalg.norm(diffs, axis=1)
+    rssd_calculated = np.mean(norms)
+    return rot, rssd_calculated, resid
 
 
-def solve_with_kabsch_on_rotvecs_normed(sensor_data: Rotation, camera_data: Rotation):
+def rotvecs_normed(sensor_data: Rotation, camera_data: Rotation):
     # annoyingly, this works...
     s = sensor_data[0].inv() * sensor_data[1:]
     c = camera_data[1:]
     sr = s.as_rotvec()
-    sr = sr / np.atleast_2d(np.linalg.norm(sr, axis=1)).T
+    norm_sr = sr / np.atleast_2d(np.linalg.norm(sr, axis=1)).T
+    norm_sr[norm_sr[:,1]<-0.5] *= -1
     cr = c.as_rotvec()
-    cr = cr / np.atleast_2d(np.linalg.norm(cr, axis=1)).T
-    rot, resid = Rotation.align_vectors(sr, cr)
-    return rot
+    norm_cr = cr / np.atleast_2d(np.linalg.norm(cr, axis=1)).T
+    norm_cr[norm_cr[:,1]<-0.5] *= -1
+    rot, resid = Rotation.align_vectors(norm_sr, norm_cr)
+    diffs = rot.apply(norm_cr) - norm_sr
+    norms = np.linalg.norm(diffs, axis=1)
+    rssd_calculated = np.mean(norms)
+    return rot, rssd_calculated, resid
 
 
 def tester(yaw: float, pitch: float, count: int, offset_transform: Rotation,
            functions: Sequence[Callable[[Rotation, Rotation], Rotation]]):
     s = get_test_sensor_orientations(count, yaw, pitch)
-    g, c = get_camera_orientations(s, offset_transform)
+    g, c = get_camera_orientations(s, offset_transform, 1.0)
     errors = []
     for function in functions:
-        rot = function(s, c)
+        rot, _ = function(s, c)
         degs = np.rad2deg(rot.as_euler("ZXY"))
+        #print(offset_transform.as_euler("ZXY"), rot.as_euler("ZXY"))
         true_error = np.rad2deg((offset_transform * rot.inv()).magnitude())
-        #print(f"{function.__name__}: {degs}, {value_function(degs, s, c)}, {true_error}")
         errors.append(true_error)
     return errors
 
+def plotter(yaw: float, pitch: float, count: int, offset_transform: Rotation, error_size):
+    s = get_test_sensor_orientations(count, yaw, pitch)
+    g, c = get_camera_orientations(s, offset_transform, error_size)
+    errors = []
+    for function in (rotvecs, rotvecs_normed, iterative):
+        fname = function.__name__
+        rot, rssd, resid = function(s, c)
+        true_error = np.rad2deg((offset_transform * rot.inv()).magnitude())
+        computed_error = value_function(np.rad2deg(rot.as_euler("ZXY")), s, c)
+        l = locals()
+        errors.append({x: l[x] for x in "fname true_error computed_error resid error_size count rssd".split()})
+    return errors
 
-all_errors = []
-for _ in range(300):
-    yaw = np.random.randint(0, 360)
-    pitch = np.random.randint(-90, 90)
-    count = 100
-    offset_yaw = np.random.randint(0, 360)
-    offset_pitch = np.random.randint(-90, 90)
-    offset_roll = np.random.randint(0, 360)
+def curve_fn(x, a, pow):
+    return a * x[:,0] * (x[:, 1] ** pow)
 
-    offset_transform = Rotation.from_euler("ZXY", np.deg2rad((offset_yaw, offset_pitch, offset_roll)))
 
-    #print(f"{offset_yaw}, {offset_pitch}, {offset_roll} x {count}")
-    errors = tester(yaw, pitch, count, offset_transform, [solve_my_problem_iterative,
-                                                 solve_with_kabsch_on_rotvecs,
-                                                 solve_with_kabsch_on_rotvecs_normed])
-    all_errors.append(errors)
-all_errors = np.array(all_errors)
-print(np.mean(all_errors, axis=0))
+def generate_data():
+    all_errors = []
+    for _ in range(10000):
+        yaw = np.random.randint(0, 360)
+        pitch = np.random.randint(-30, 30)
+        offset_yaw = np.random.randint(-10, 10)
+        offset_pitch = np.random.randint(-10, 10)
+        offset_roll = np.random.randint(-10, 10)
+        count = np.random.randint(5, 20)
+        # count = 30
+        offset_transform = Rotation.from_euler("ZXY", np.deg2rad((offset_yaw, offset_pitch, offset_roll)))
+
+        error_size = np.random.uniform(0, 6.0)
+        # print(f"{offset_yaw}, {offset_pitch}, {offset_roll} x {count}")
+        errors = plotter(yaw, pitch, count, offset_transform, error_size)
+        all_errors.extend(errors)
+    return pandas.DataFrame(all_errors)
+
+
+#data = generate_data()
+data = pandas.read_csv("test_data.csv")
+data.groupby("fname").plot.scatter("error_size","true_error")
+plt.show()
+for f in data['fname'].unique():
+    # plot mean of accuracy against a) count and b) error_size
+    subdata = data[data['fname']==f]
+    print(f)
+    print(subdata.groupby("count")['true_error'].mean())
+
+
+
+
+
