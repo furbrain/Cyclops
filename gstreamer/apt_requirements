@@ -1,0 +1,7 @@
+Needs blinka installed for recorder inside a venv
+needs mag_cal
+needs gstreamer1.0-tools gstreamer1.0-libcamera gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-python3-plugin-loader python3-gi python3-gst-1.0
+
+may need to clear the cache at ~/.cache/gstream* - can get corrupted if run before activating the .venv
+
+code needs to run inside venv
