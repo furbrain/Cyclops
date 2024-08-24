@@ -2,3 +2,4 @@
 .xdp_*
 /test.mkv
 *.mkv
+/.venv
