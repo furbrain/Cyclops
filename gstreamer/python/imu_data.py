@@ -14,7 +14,6 @@ gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
 
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
-import mag_cal
 import struct
 import json
 
@@ -51,9 +50,6 @@ class IMUDataSrc(GstBase.PushSrc):
             self.en_pin.switch_to_output(False)
             self.i2c_bus = busio.I2C(board.SCL, board.SDA, frequency=400_000)
             self.device = icm.ICM20948(self.i2c_bus)
-            with open("calibration.json") as f:
-                cal = json.load(f)
-            self.sensor = mag_cal.Sensor.from_dict(cal)
         GstBase.PushSrc.__init__(self)
         self.info = GstVideo.VideoInfo()
         self.set_live(True)
@@ -61,7 +57,7 @@ class IMUDataSrc(GstBase.PushSrc):
         self.accumulator = 0
 
     def do_set_caps(self, caps):
-        self.info.from_caps(caps)
+        self.info.new_from_caps(caps)
         self.set_blocksize(self.info.size)
         self.set_do_timestamp(True)
         self.framerate = self.info.fps_n // self.info.fps_d
@@ -134,7 +130,7 @@ class IMUDataSrc(GstBase.PushSrc):
                 randoms = np.random.random(9)
                 data = struct.pack("<9d",*randoms)
             else:
-                mag = self.sensor.apply(self.device.magnetic)
+                mag = self.device.magnetic
                 accel = self.device.acceleration
                 gyro = self.device.gyro
                 data = struct.pack("<9d", *mag, *accel, *gyro)
