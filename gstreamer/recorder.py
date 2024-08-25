@@ -46,6 +46,7 @@ while True:
          os.killpg(os.getpgid(beeper_process.pid), signal.SIGTERM)
          subprocess.Popen("sudo shutdown -h now", shell=True)
          time.sleep(60)
+         break
     beeper.beep(SHORT)
     print("Recording")
     cmd = THIS_DIR / "test.sh"
@@ -56,7 +57,15 @@ while True:
     os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
     beeper.beep(LONG)
     time.sleep(1)
-    shutil.move("/home/pi/combined.mkv", f"/home/pi/vid{vid_count}.mkv")
-    vid_count += 1
+    while True:
+        # find next unused file
+        fname = f"/home/pi/vid{vid_count:03d}.mkv"
+        if not Path(fname).exists():
+            break
+        vid_count += 1
+    try:
+        shutil.move("/home/pi/combined.mkv", fname)
+    except IOError:
+        print("vid file not found, couldn't move")
     print("Finished recording")
 
