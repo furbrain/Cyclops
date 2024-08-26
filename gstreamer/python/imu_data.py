@@ -6,6 +6,10 @@ Example pipeline:
 gst-launch-1.0 py_imu_data ! video/x-raw,framerate=50 ! videoconvert ! autovideosink
 '''
 import time
+from xmlrpc.client import  ServerProxy
+from threading import Thread
+from queue import Queue
+import numpy as np
 
 import gi
 
@@ -32,6 +36,40 @@ else:
     import busio
 
 OCAPS = Gst.Caps.from_string ('video/x-raw, format=GRAY8, width=16, height=16, framerate=[10/1,100/1]')
+HAPPY = (("C6", 0.1), ("E6", 0.1), ("G6", 0.1), ("C7", 0.1))
+BIP = (("C7",0.1),)
+
+class Beeper(Thread):
+    def __init__(self, queue: Queue):
+        super().__init__()
+        self._queue = queue
+        self._beeper = ServerProxy("http://localhost:8000", allow_none=True)
+        
+    def run(self):
+        while True:
+            seq = self._queue.get()
+            try:
+                self._beeper.beep(seq)
+            except ConnectionError:
+                pass
+
+class MovementDetector:
+    NUM_READINGS = 15
+    MAX_READINGS = np.array([0.78868562, 0.76723892, 0.8220638,  0.03392057, 0.04504494, 0.03118985, 0.00269039, 0.00254637, 0.00263502]) * 10
+    def __init__(self):
+        self.index = 0
+        self.matrix = np.zeros((self.NUM_READINGS, 9))
+        self.full = False
+    
+    def add(self, values):
+        self.matrix[self.index] = values
+        self.index += 1
+        std = np.std(self.matrix, axis=0)
+        if self.index >= self.NUM_READINGS:
+            self.full = True
+            self.index = 0
+        return (std > self.MAX_READINGS).any()
+   
 
 class IMUDataSrc(GstBase.PushSrc):
     __gstmetadata__ = ('IMU Data','Src', \
@@ -55,33 +93,45 @@ class IMUDataSrc(GstBase.PushSrc):
         self.set_live(True)
         self.set_format(Gst.Format.BYTES)
         self.accumulator = 0
+        self.beep_queue = Queue()
+        self.beep_task = Beeper(self.beep_queue)
+        self.beep_task.start()
+        self.start_beep_done = False
+        self.next_beep_due = 0
+        self.movement = MovementDetector()
+
 
     def do_set_caps(self, caps):
         self.info.new_from_caps(caps)
         self.set_blocksize(self.info.size)
         self.set_do_timestamp(True)
         self.framerate = self.info.fps_n // self.info.fps_d
-        if not DUMMY and False:
+        if self.framerate==0:
+            self.framerate = 30
+        Gst.info(f"Framerate: {self.framerate} , {self.info.fps_n}, {self.info.fps_d}")
+        if not DUMMY:
             self.device.gyro_data_rate = self.framerate
             accel_rate = (1125-self.framerate) // self.framerate
             self.device.accelerometer_data_rate = accel_rate
             if self.framerate > 50:
-                mag_rate = adafruit_icm20x.MagDataRate.RATE_100HZ
+                mag_rate = icm.MagDataRate.RATE_100HZ
             elif self.framerate > 20:
-                mag_rate = adafruit_icm20x.MagDataRate.RATE_50HZ
+                mag_rate = icm.MagDataRate.RATE_50HZ
             elif self.framerate > 10:
-                mag_rate = adafruit_icm20x.MagDataRate.RATE_20HZ
+                mag_rate = icm.MagDataRate.RATE_20HZ
             else:
-                mag_rate = adafruit_icm20x.MagDataRate.RATE_10HZ
+                mag_rate = icm.MagDataRate.RATE_10HZ
             self.device.magnetometer_data_rate = mag_rate
         self.next_frame_due = None
         return True
 
 
     def do_get_property(self, prop):
+        Gst.info(f"Not Getting prop: {prop.name}")
         raise AttributeError('unknown property %s' % prop.name)
 
     def do_set_property(self, prop, value):
+        Gst.info(f"Not Setting prop: {prop.name}")
         raise AttributeError('unknown property %s' % prop.name)
 
     def do_start(self):
@@ -114,8 +164,11 @@ class IMUDataSrc(GstBase.PushSrc):
     def do_is_seekable(self):
         return False
 
-    def do_gst_push_src_fill(self, buf):
-        # work out what to do with pts...
+    def do_gst_base_src_create(self, offset, length, buf):
+        if not self.start_beep_done:
+            self.start_beep_done = True
+            self.beep_queue.put(HAPPY)
+            self.next_beep_due = time.time() + 3
         if self.next_frame_due is None:
             self.next_frame_due = time.time() + 1 / self.framerate
         else:
@@ -125,21 +178,23 @@ class IMUDataSrc(GstBase.PushSrc):
             else:
                 self.next_frame_due = now
             self.next_frame_due += 1 / self.framerate
-        try:
-            if DUMMY:
-                randoms = np.random.random(9)
-                data = struct.pack("<9d",*randoms)
-            else:
-                mag = self.device.magnetic
-                accel = self.device.acceleration
-                gyro = self.device.gyro
-                data = struct.pack("<9d", *mag, *accel, *gyro)
-            buf.fill(0, data)
-        except Exception as e:
-            Gst.error("Mapping error: %s" % e)
-            return Gst.FlowReturn.ERROR
+        if DUMMY:
+            randoms = np.random.random(9)
+            data = struct.pack("<9d",*randoms)
+        else:
+            mag = self.device.magnetic
+            accel = self.device.acceleration
+            gyro = self.device.gyro
+            movement = self.movement.add((*mag, *accel, *gyro))
+            if not movement and time.time()> self.next_beep_due:
+                self.beep_queue.put(BIP)
+                self.next_beep_due = time.time() + 1
+            data = bytearray(256)
+            struct.pack_into("<9d?", data, 0, *mag, *accel, *gyro, movement)
+        buf = Gst.Buffer.new_wrapped(data)
 
         return Gst.FlowReturn.OK, buf
+
 
 
 __gstelementfactory__ = ("py_imu_data", Gst.Rank.NONE, IMUDataSrc)
