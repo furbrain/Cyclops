@@ -1,0 +1,45 @@
+So I've ordered a TOF camera from the Pi Hut - and also a low light camera as well
+
+General plan
+
+We have both cameras and the IMU contributing to a single video file - need to do some gnarly
+gstreamer stuff.
+
+General 3d reconstruction pipeline:
+
+Generate trajectory from IMU data - should have reasonably good pose estimation, but
+may have bad translation errors. Use this with TOF data to produce a low-res model of the cave.
+Can also do a first correction on the trajectory at this point.
+we can possibly do the bit up to here on pi zero to allow sanity check before leaving cave
+
+
+We can then use the visible camera images to get further away pixel data and "fill in the blanks",
+may include a further trajectory correction. This bit would be just using feature matching again,
+so still fairly low res model.
+
+Finally can do higher res dense model using sparse model and (hopefully now quite accurate)
+trajectory
+
+
+Calibration requirements: IMU needs calibrating. Need registration between TOF and low light
+cameras
+
+
+Challenges: Can we just stream proper raw data to the video file?
+Can we then process that raw data later and extract depth and confidence info. Alternatively,
+if we can just stream pure depth data, would that be satisfactory
+
+Ok, looks like we can do this - need to use the arducamdevice in c++ - no python binding
+
+How fast would motion collation be on pi zero - could we process on phone instead???
+Could decimate depth images before processing on pi zero - lower quality and risk of more gaps...
+
+
+Power: TOF cam uses 3.5W, low light cam uses 1.5W pizero2 uses ... some. COuld possibly do with
+formal testing and mybe just a bigger battery; could still use with waveshare board though...
+
+
+Tasks:
+
+* make gstreamer raw grayscale source
+* get all the muxing working and make our beautiful files.
