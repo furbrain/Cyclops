@@ -17,7 +17,7 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 
 
-OCAPS = Gst.Caps.from_string('video/x-raw,format=I420,width=960,height=180,framerate=[30/1,31/1]')
+OCAPS = Gst.Caps.from_string('video/x-raw,format=I420,width=960,height=240,framerate=[30/1,31/1]')
 
 def raw2I420(data: np.ndarray):
     #data is a numpy array of int16
@@ -28,9 +28,10 @@ def raw2I420(data: np.ndarray):
     #left shift
     data >>= 4
     y = data.astype("uint8")
-    nibbles = (data >> 8).astype("uint8")
-    uv = nibbles[:height//2] + (nibbles[height//2:] << 4)
-    out = np.vstack((y,uv))
+    nibbles = (data >> 4).astype("uint8") & 0xf0
+#    uv = nibbles[:height//2] + (nibbles[height//2:] << 4)
+#    out = np.vstack((y,uv))
+    out = np.vstack((y,nibbles))
     return out
     
 def I4202raw(data: np.ndarray, visualise: bool):
@@ -136,10 +137,10 @@ class TOFCamSrc(GstBase.PushSrc):
             self.next_frame_due += 1 / self.framerate
         frame = self.cam.requestFrame(2000)
         if frame is not None and isinstance(frame, ac.RawData):
-            data = frame.getRawData()
+            data = frame.getRawData().copy()
+            self.cam.releaseFrame(frame)
             data = np.reshape(data, (180,960))
             data = raw2I420(data)
-            self.cam.releaseFrame(frame)
         else:
             Gst.error("Failed to get frame")
         buf = Gst.Buffer.new_wrapped(bytes(data))

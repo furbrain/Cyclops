@@ -2,7 +2,9 @@
 source /home/pi/Cyclops/.venv/bin/activate
 export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:$PWD
 export GST_DEBUG=python:6
-gst-launch-1.0 \
-    libcamerasrc ! video/x-raw,width=1920,height=1080,framerate=30/1,format=YUY2,interlace-mode=progressive,colorimetry=bt709 ! \
-    v4l2h264enc extra-controls="controls,video_bitrate_mode=0,h264_minimum_qp_value=25,h264_maximum_qp_value=35,h264_i_frame_period=30,h264_profile=3,h264_level=11;" ! video/x-h264,level="(string)4" ! h264parse ! queue ! matroskamux name=mux ! filesink location="/home/pi/combined.mkv" \
-    py_imu_data  ! video/x-raw,framerate=30/1 ! queue ! mux.
+IMU_STREAM="py_imu_data  ! video/x-raw,framerate=30/1 ! queue ! mux."
+TOF_STREAM="py_TOF_Cam ! video/x-raw,width=960,height=240,framerate=30/1,format=I420 ! queue ! mux."
+AUDIO_STREAM="alsasrc device=hw:0 ! queue ! audioconvert ! vorbisenc ! queue ! mux."
+VIDEO_STREAM="v4l2src device=\"/dev/video3\" ! video/x-h264,width=1280,height=720 ! h264parse ! queue ! mux."
+MUXER="matroskamux name=mux ! filesink location=\"/home/pi/combined.mkv\""
+gst-launch-1.0 $IMU_STREAM $TOF_STREAM $AUDIO_STREAM $VIDEO_STREAM $MUXER
