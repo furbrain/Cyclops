@@ -41,5 +41,28 @@ formal testing and mybe just a bigger battery; could still use with waveshare bo
 
 Tasks:
 
-* make gstreamer raw grayscale source
-* get all the muxing working and make our beautiful files.
+* make gstreamer raw grayscale source - doesn't like GRAY12 or Gray16_LE
+* got encoding raw to I420 format working
+* use hardware h264 encoding - loses data in low bits. does not seem to do lossless on v4l2
+* working going in to matroska - can decode coming out nicely
+* next step is to get (fake)I420 -> GRAY16_LE working - test visually via opencv on laptop
+* then need to get ArducamDevice processing working...
+
+Notes:
+
+needs numpy < 2.0.0 in .venv for arducam python stuff
+
+device type is TOFDeviceType.HQVGA: 1
+RAW: 720 height 240 width type TOFOutput.RAW #note should be 180,960 shape
+DEPTH : 180 height 240 width type TOFOutput.DEPTH
+
+
+cache -> raw
+abcd -> eab0  c is discarded d is transformed to e according to 0123|89ab -> 0123 4567|cdef -> cdef
+(or have I confused myself with endiannnessss nonsensseeee)
+Cache is 240*180*4*2, but last 480 bytes are unused
+
+Raw is 960*180
+First 720 are blank, as are last 240
+
+Next job is to create dummy sensor to open...

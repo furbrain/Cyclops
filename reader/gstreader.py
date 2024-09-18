@@ -1,6 +1,8 @@
 """A simple class that takes a gstreamer input pipeline. Allows reading and seeking"""
 import sys
 import struct
+
+import cv2
 import gi
 import numpy as np
 
@@ -140,3 +142,36 @@ class VidReader(GstReader):
         data = data[:]
         array = np.ndarray(shape=(self.size[1], self.size[0], self.channels), buffer=data, dtype=self.dtype)
         return np.squeeze(array)
+
+class TOFReader(GstReader):
+
+    def __init__(self, spec: str, autostart: bool=True, as_uint8: bool = False):
+        super().__init__(spec, autostart)
+        self.as_uint8 = as_uint8
+
+    @staticmethod
+    def I4202raw(data: np.ndarray, visualise: bool):
+        half_height = data.shape[0] // 2
+        y = data[:half_height]
+        uv = data[half_height:]
+        #nibs_lower = uv >> 4
+        #nibs_upper = uv & 0xf
+        #nibbles = np.vstack((nibs_upper, nibs_lower))
+        uv = np.round(uv / 16).astype("uint16")
+        out = ((uv << 8) & 0xff00) + y
+        out <<= 4
+        if not visualise:
+            out = (out - 0x8000).astype("int16")
+            return out
+        else:
+            return out.astype("uint16")
+
+    def converter(self, data):
+        data = np.ndarray(shape = (360,960), buffer=data, dtype="uint8")
+        if self.as_uint8:
+            data = self.I4202raw(data, True)
+            output = np.zeros_like(data, dtype="uint8")
+            output = cv2.normalize(data, output, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        else:
+            output = self.I4202raw(data, False)
+        return output
