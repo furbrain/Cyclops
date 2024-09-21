@@ -42,11 +42,13 @@ formal testing and mybe just a bigger battery; could still use with waveshare bo
 Tasks:
 
 * make gstreamer raw grayscale source - doesn't like GRAY12 or Gray16_LE
-* got encoding raw to I420 format working
+* got encoding raw to I420 format working - currently not as tightly packed as could - may be possible
+to rejig...
 * use hardware h264 encoding - loses data in low bits. does not seem to do lossless on v4l2
 * working going in to matroska - can decode coming out nicely
-* next step is to get (fake)I420 -> GRAY16_LE working - test visually via opencv on laptop
-* then need to get ArducamDevice processing working...
+* next step is to get (fake)I420 -> GRAY16_LE working - test visually via opencv on laptop DONE
+* then need to get ArducamDevice processing working... DONE in numpy, giving up on nasty hacking...
+
 
 Notes:
 

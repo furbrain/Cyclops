@@ -67,9 +67,10 @@ class GstReader:
             self.sink = list(self.pipeline.iterate_sinks()).pop(0)
         except TypeError:
             _, self.sink = self.pipeline.iterate_sinks().next()
-            print(dir(self.sink))
         self.caps = None
         self.eos = False
+        self.channels = None
+        self.dtype = None
         if autostart:
             self.start()
 
@@ -84,11 +85,21 @@ class GstReader:
     
     def close(self):
         self.pipeline.set_state(Gst.State.NULL)
-        
+
+    def get_caps(self):
+        caps_format = self.caps.get_structure(0)
+        frmt_str = caps_format.get_value('format')
+        video_format = GstVideo.VideoFormat.from_string(frmt_str)
+        self.size = caps_format.get_value('width'), caps_format.get_value('height')
+        self.channels = max(get_num_channels(video_format),1)
+        self.dtype = get_np_dtype(video_format)
+
     
-    @staticmethod
-    def converter(data):
-        return data.copy()
+    def converter(self, data):
+        self.get_caps()
+        data = data[:]
+        array = np.ndarray(shape=(self.size[1], self.size[0], self.channels), buffer=data, dtype=self.dtype)
+        return np.squeeze(array)
         
     def get_frame(self):
         if self.eos:
@@ -122,26 +133,8 @@ class IMUReader(GstReader):
         return struct.unpack('<9d', data[:72])
         
 class VidReader(GstReader):
-    def __init__(self, spec: str, autostart: bool=True):
-        super().__init__(spec, autostart)
-        self.vid_size = None
-        self.channels = None
-        self.dtype = None
+    pass
 
-    def get_caps(self):
-        caps_format = self.caps.get_structure(0)
-        frmt_str = caps_format.get_value('format') 
-        video_format = GstVideo.VideoFormat.from_string(frmt_str)
-        self.size = caps_format.get_value('width'), caps_format.get_value('height')
-        self.channels = get_num_channels(video_format)
-        self.dtype = get_np_dtype(video_format)     
-
-    def converter(self, data):
-        if self.vid_size is None:
-            self.get_caps()
-        data = data[:]
-        array = np.ndarray(shape=(self.size[1], self.size[0], self.channels), buffer=data, dtype=self.dtype)
-        return np.squeeze(array)
 
 class TOFReader(GstReader):
 
@@ -167,11 +160,15 @@ class TOFReader(GstReader):
             return out.astype("uint16")
 
     def converter(self, data):
-        data = np.ndarray(shape = (360,960), buffer=data, dtype="uint8")
-        if self.as_uint8:
-            data = self.I4202raw(data, True)
-            output = np.zeros_like(data, dtype="uint8")
-            output = cv2.normalize(data, output, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        self.get_caps()
+        if self.size[1] == 960:
+            data = np.ndarray(shape = (360,960), buffer=data, dtype="uint8")
+            if self.as_uint8:
+                data = self.I4202raw(data, True)
+                output = np.zeros_like(data, dtype="uint8")
+                output = cv2.normalize(data, output, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            else:
+                output = self.I4202raw(data, False)
+                return output
         else:
-            output = self.I4202raw(data, False)
-        return output
+            return super().converter(data)
