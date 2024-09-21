@@ -1,0 +1,3 @@
+Needs numpy < 2.0
+linuxpy
+pyalsaaudio

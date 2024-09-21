@@ -17,7 +17,33 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 
 
-OCAPS = Gst.Caps.from_string('video/x-raw,format=I420,width=960,height=240,framerate=[30/1,31/1]')
+OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=480,height=180,framerate=[30/1,31/1]')
+DEFAULT_DEV = 0
+
+def get_upper_byte_rounded(d: np.array):
+    return ((d+128) // 256).astype("int8")
+
+
+def mungulator(d: np.ndarray):
+    d = d.astype("int32")
+    phase = [d[:,i*240:(i+1)*240] for i in range(4)]
+    Q = phase[1] - phase[3]
+    I = phase[2] - phase[0]
+    magnitude = Q**2 + I**2
+    bad_pixels = magnitude < 300
+    stack = np.dstack((Q,I))
+    mx = np.maximum(np.abs(Q), np.abs(I))
+    mx = np.maximum(mx, 1)
+    multiplier = (32700 / mx).astype("int16")
+    multiplier = np.minimum(multiplier, 255)
+    Q = get_upper_byte_rounded(Q * multiplier)
+    I = get_upper_byte_rounded(Q * multiplier)
+    Q[bad_pixels] = 0
+    I[bad_pixels] = 0
+    output = np.hstack((Q,I))
+    return output
+
+
 
 def raw2I420(data: np.ndarray):
     #data is a numpy array of int16
@@ -53,7 +79,16 @@ class TOFCamSrc(GstBase.PushSrc):
     __gstmetadata__ = ('TOF Cam','Src', \
                       'Arducam TOF Camera source', 'Phil Underwood')
 
-    __gproperties__ = {}
+    __gproperties__ = {
+        "device": (int,
+                 "Device",
+                 "Index of v4l2 TOF device",
+                 0,
+                 GLib.MAXINT,
+                 DEFAULT_DEV,
+                 GObject.ParamFlags.READWRITE
+                ),
+    }
 
     __gsttemplates__ = Gst.PadTemplate.new("src",
                                            Gst.PadDirection.SRC,
@@ -62,14 +97,12 @@ class TOFCamSrc(GstBase.PushSrc):
 
     def __init__(self):
         self.cam = ac.ArducamCamera()
-        ret = self.cam.open(ac.TOFConnect.CSI, 0)
-        if ret != 0:
-            Gst.error("TOF initialization failed. Error code:", ret)
         GstBase.PushSrc.__init__(self)
         self.info = GstVideo.VideoInfo()
         self.set_live(True)
         self.set_format(Gst.Format.BYTES)
         self.accumulator = 0
+        self.device = DEFAULT_DEV
 
 
     def do_set_caps(self, caps):
@@ -81,6 +114,10 @@ class TOFCamSrc(GstBase.PushSrc):
             self.framerate = 30
         Gst.info(f"Framerate: {self.framerate} , {self.info.fps_n}, {self.info.fps_d}")
         self.next_frame_due = None
+        ret = self.cam.open(ac.TOFConnect.CSI, self.device)
+        if ret != 0:
+            print("TOF initialization failed. Error code:", ret)
+            return
         ret = self.cam.start(ac.TOFOutput.RAW)
         if ret != 0:
             Gst.error("TOF start failed. Error code:", ret)
@@ -88,12 +125,16 @@ class TOFCamSrc(GstBase.PushSrc):
 
 
     def do_get_property(self, prop):
-        Gst.info(f"Not Getting prop: {prop.name}")
-        raise AttributeError('unknown property %s' % prop.name)
+        if prop.name == 'device':
+            return self.device
+        else:
+            raise AttributeError('unknown property %s' % prop.name)
 
     def do_set_property(self, prop, value):
-        Gst.info(f"Not Setting prop: {prop.name}")
-        raise AttributeError('unknown property %s' % prop.name)
+        if prop.name == 'device':
+            self.device = value
+        else:
+            raise AttributeError('unknown property %s' % prop.name)
 
     def do_start(self):
         return True
@@ -140,7 +181,7 @@ class TOFCamSrc(GstBase.PushSrc):
             data = frame.getRawData().copy()
             self.cam.releaseFrame(frame)
             data = np.reshape(data, (180,960))
-            data = raw2I420(data)
+            data = mungulator(data)
         else:
             Gst.error("Failed to get frame")
         buf = Gst.Buffer.new_wrapped(bytes(data))
