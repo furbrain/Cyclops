@@ -17,8 +17,9 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 
 
-OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=480,height=180,framerate=[30/1,31/1]')
+OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=480,height=180,framerate=[15/1,30/1]')
 DEFAULT_DEV = 0
+DEFAULT_ABSOLUTE=False
 
 def get_upper_byte_rounded(d: np.array):
     return ((d+128) // 256).astype("int8")
@@ -30,51 +31,28 @@ def mungulator(d: np.ndarray):
     Q = phase[1] - phase[3]
     I = phase[2] - phase[0]
     magnitude = Q**2 + I**2
-    bad_pixels = magnitude < 300
+    bad_pixels = magnitude < 900
     stack = np.dstack((Q,I))
     mx = np.maximum(np.abs(Q), np.abs(I))
     mx = np.maximum(mx, 1)
     multiplier = (32700 / mx).astype("int16")
     multiplier = np.minimum(multiplier, 255)
     Q = get_upper_byte_rounded(Q * multiplier)
-    I = get_upper_byte_rounded(Q * multiplier)
+    I = get_upper_byte_rounded(I * multiplier)
     Q[bad_pixels] = 0
     I[bad_pixels] = 0
     output = np.hstack((Q,I))
     return output
 
-
-
-def raw2I420(data: np.ndarray):
-    #data is a numpy array of int16
-    #first convert to uint16 nicely
-    height = data.shape[0]
-    data  = (data+0x8000).astype("uint16")
-    #data  = data.astype("uint16")
-    #left shift
-    data >>= 4
-    y = data.astype("uint8")
-    nibbles = (data >> 4).astype("uint8") & 0xf0
-#    uv = nibbles[:height//2] + (nibbles[height//2:] << 4)
-#    out = np.vstack((y,uv))
-    out = np.vstack((y,nibbles))
-    return out
+def absolutor(d: np.ndarray):
+    d = d.astype("int32")
+    phase = [d[:,i*240:(i+1)*240] for i in range(4)]
+    Q = phase[1] - phase[3]
+    I = phase[2] - phase[0]
+    magnitude = (np.abs(Q)+np.abs(I))//4
+    return magnitude.astype("int16")
     
-def I4202raw(data: np.ndarray, visualise: bool):
-    third_height = data.shape[0]//3
-    sixth_height = third_height//2
-    y = data[:third_height*2]
-    uv = data[third_height*2:]
-    nibs_lower = uv >> 4
-    nibs_upper = uv & 0xf
-    nibbles = np.vstack((nibs_upper, nibs_lower))
-    out = (nibbles.astype("uint16") << 8) + y
-    out <<=4
-    if not visualise:
-        out = (out-0x8000).astype("int16")
-    return out.astype("int16")
-   
-
+    
 class TOFCamSrc(GstBase.PushSrc):
     __gstmetadata__ = ('TOF Cam','Src', \
                       'Arducam TOF Camera source', 'Phil Underwood')
@@ -86,6 +64,12 @@ class TOFCamSrc(GstBase.PushSrc):
                  0,
                  GLib.MAXINT,
                  DEFAULT_DEV,
+                 GObject.ParamFlags.READWRITE
+                ),
+        "absolute": (bool,
+                 "Absolute",
+                 "Generate absolute data (rather than depth datas)",
+                 DEFAULT_ABSOLUTE,
                  GObject.ParamFlags.READWRITE
                 ),
     }
@@ -103,16 +87,17 @@ class TOFCamSrc(GstBase.PushSrc):
         self.set_format(Gst.Format.BYTES)
         self.accumulator = 0
         self.device = DEFAULT_DEV
+        self.absolute = DEFAULT_ABSOLUTE
 
 
     def do_set_caps(self, caps):
-        self.info.new_from_caps(caps)
+        self.info = GstVideo.VideoInfo.new_from_caps(caps)
         self.set_blocksize(self.info.size)
         self.set_do_timestamp(True)
         self.framerate = self.info.fps_n // self.info.fps_d
         if self.framerate==0:
             self.framerate = 30
-        Gst.info(f"Framerate: {self.framerate} , {self.info.fps_n}, {self.info.fps_d}")
+        Gst.info(f"Framerate: {self.framerate} , Supplied: {self.info.fps_n} / {self.info.fps_d}")
         self.next_frame_due = None
         ret = self.cam.open(ac.TOFConnect.CSI, self.device)
         if ret != 0:
@@ -127,12 +112,16 @@ class TOFCamSrc(GstBase.PushSrc):
     def do_get_property(self, prop):
         if prop.name == 'device':
             return self.device
+        elif prop.name == 'absolute':
+            return self.absolute
         else:
             raise AttributeError('unknown property %s' % prop.name)
 
     def do_set_property(self, prop, value):
         if prop.name == 'device':
             self.device = value
+        elif prop.name == 'absolute':
+            self.absolute = value
         else:
             raise AttributeError('unknown property %s' % prop.name)
 
@@ -181,7 +170,10 @@ class TOFCamSrc(GstBase.PushSrc):
             data = frame.getRawData().copy()
             self.cam.releaseFrame(frame)
             data = np.reshape(data, (180,960))
-            data = mungulator(data)
+            if self.absolute:
+                data = absolutor(data)
+            else:
+                data = mungulator(data)
         else:
             Gst.error("Failed to get frame")
         buf = Gst.Buffer.new_wrapped(bytes(data))

@@ -102,13 +102,13 @@ class IMUDataSrc(GstBase.PushSrc):
 
 
     def do_set_caps(self, caps):
-        self.info.new_from_caps(caps)
+        self.info = GstVideo.VideoInfo.new_from_caps(caps)
         self.set_blocksize(self.info.size)
         self.set_do_timestamp(True)
         self.framerate = self.info.fps_n // self.info.fps_d
         if self.framerate==0:
             self.framerate = 30
-        Gst.info(f"Framerate: {self.framerate} , {self.info.fps_n}, {self.info.fps_d}")
+        Gst.info(f"Framerate: {self.framerate} , Supplied: {self.info.fps_n} / {self.info.fps_d}")
         if not DUMMY:
             self.device.gyro_data_rate = self.framerate
             accel_rate = (1125-self.framerate) // self.framerate
