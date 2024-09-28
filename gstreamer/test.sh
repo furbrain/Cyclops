@@ -10,7 +10,7 @@ read TOF_DEVICE USB_DEVICE < <(./find_cameras.py)
 QUEUE="queue"
 FILE_QUEUE="queue !"
 IMU_STREAM="py_imu_data  ! video/x-raw,framerate=30/1 ! $QUEUE name=q_imu ! mux."
-TOF_STREAM="py_TOF_Cam device=$TOF_DEVICE ! video/x-raw,width=480,height=180,framerate=30/1,format=GRAY8 ! $QUEUE name=q_tof ! mux."
+TOF_STREAM="py_TOFD_Cam device=$TOF_DEVICE ! video/x-raw,width=240,height=180,framerate=15/1,format=GRAY8 ! $QUEUE name=q_tof ! mux."
 #AUDIO_STREAM="alsasrc device=default:CARD=Camera ! audio/x-raw,format=F32LE,rate=8000 ! queue !  avenc_aac ! $QUEUE name=q_audio ! mux."
 VIDEO_STREAM="v4l2src device=/dev/video$USB_DEVICE ! video/x-h264,width=1280,height=720 ! h264parse ! $QUEUE name=q_vid ! mux."
 MUXER="matroskamux name=mux ! $FILE_QUEUE filesink location=\"/home/pi/combined.mkv\""

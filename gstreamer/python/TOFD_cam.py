@@ -17,47 +17,13 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 
 
-OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=480,height=180,framerate=[15/1,30/1]')
+OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=240,height=180,framerate=[15/1,30/1]')
 DEFAULT_DEV = 0
 DEFAULT_ABSOLUTE=False
 
-def get_upper_byte_rounded(d: np.array):
-    return ((d+128) // 256).astype("int8")
-
-
-def mungulator(d: np.ndarray):
-    d = d.astype("int32")
-    phase = [d[:,i*240:(i+1)*240] for i in range(4)]
-    Q = phase[1] # - phase[3]
-    I = phase[2] # - phase[0]
-    #magnitude = Q**2 + I**2
-    #bad_pixels = magnitude < 900
-    #mx = np.maximum(np.abs(Q), np.abs(I))
-    #mx = np.maximum(mx, 1)
-    #multiplier = (32700 / mx).astype("int16")
-    #multiplier = np.minimum(multiplier, 255)
-    #multiplier = np.maximum(multiplier, 1)
-    #Q = get_upper_byte_rounded(Q) # * multiplier)
-    #I = get_upper_byte_rounded(I) # * multiplier)
-    #Q[bad_pixels] = 0
-    #I[bad_pixels] = 0
-    Q = (Q >> 8).astype("int8")
-    I = (I // 256).astype("int8")
-    output = np.hstack((Q,I))
-    return output
-
-def absolutor(d: np.ndarray):
-    d = d.astype("int32")
-    phase = [d[:,i*240:(i+1)*240] for i in range(4)]
-    Q = phase[1] - phase[3]
-    I = phase[2] - phase[0]
-    magnitude = (np.abs(Q)+np.abs(I))//4
-    return magnitude.astype("int16")
-    
-    
-class TOFCamSrc(GstBase.PushSrc):
-    __gstmetadata__ = ('TOF Cam','Src', \
-                      'Arducam TOF Camera source', 'Phil Underwood')
+class TOFDCamSrc(GstBase.PushSrc):
+    __gstmetadata__ = ('TOFD Cam','Src', \
+                      'Arducam TOF Camera Depth source', 'Phil Underwood')
 
     __gproperties__ = {
         "device": (int,
@@ -66,12 +32,6 @@ class TOFCamSrc(GstBase.PushSrc):
                  0,
                  GLib.MAXINT,
                  DEFAULT_DEV,
-                 GObject.ParamFlags.READWRITE
-                ),
-        "absolute": (bool,
-                 "Absolute",
-                 "Generate absolute data (rather than depth datas)",
-                 DEFAULT_ABSOLUTE,
                  GObject.ParamFlags.READWRITE
                 ),
     }
@@ -105,7 +65,7 @@ class TOFCamSrc(GstBase.PushSrc):
         if ret != 0:
             print("TOF initialization failed. Error code:", ret)
             return
-        ret = self.cam.start(ac.TOFOutput.RAW)
+        ret = self.cam.start(ac.TOFOutput.DEPTH)
         if ret != 0:
             Gst.error("TOF start failed. Error code:", ret)
         return True
@@ -168,14 +128,13 @@ class TOFCamSrc(GstBase.PushSrc):
                 self.next_frame_due = now
             self.next_frame_due += 1 / self.framerate
         frame = self.cam.requestFrame(2000)
-        if frame is not None and isinstance(frame, ac.RawData):
-            data = frame.getRawData().copy()
+        if frame is not None and isinstance(frame, ac.DepthData):
+            data = frame.getDepthData().copy()
             self.cam.releaseFrame(frame)
-            data = np.reshape(data, (180,960))
-            if self.absolute:
-                data = absolutor(data)
-            else:
-                data = mungulator(data)
+            data = np.reshape(data, (180,240))
+            print(np.max(data), np.min(data))
+            data = data * 255/4000.0
+            data = data.astype("uint8")
         else:
             Gst.error("Failed to get frame")
         buf = Gst.Buffer.new_wrapped(bytes(data))
@@ -184,4 +143,4 @@ class TOFCamSrc(GstBase.PushSrc):
 
 
 
-__gstelementfactory__ = ("py_TOF_Cam", Gst.Rank.NONE, TOFCamSrc)
+__gstelementfactory__ = ("py_TOFD_Cam", Gst.Rank.NONE, TOFDCamSrc)
