@@ -68,3 +68,12 @@ Raw is 960*180
 First 720 are blank, as are last 240
 
 Next job is to create dummy sensor to open...
+
+Data usage for 10s:
+IMU: 78k
+TOF: 25M (glitches when run solo)
+     17M at 20fps, no glitches
+Audio: 54k
+Video: 12M (no glitches when run solo)
+
+Glitches at 20fps + video

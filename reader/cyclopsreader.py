@@ -21,8 +21,8 @@ def get_optical_flow_points(a, b):
                      maxLevel=2,
                      criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
-    a_points = cv2.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
-    b_points, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+    a_points = cv2.goodFeaturesToTrack(a, mask = None, **feature_params)
+    b_points, st, err = cv2.calcOpticalFlowPyrLK(a, b, a_points, None, **lk_params)
     if b_points is not None:
         good_new = a_points[st == 1]
         good_old = b_points[st == 1]
@@ -35,10 +35,6 @@ class CyclopsReader:
     def __init__(self, filename: str, lens_cal_file: str = "", truncate_at:Optional[float] = None):
         self.filename = filename
         self.truncate_at = truncate_at
-        self.imu_spec = f"""filesrc location="{filename}" name=fsrc ! matroskademux name=demux !  
-                            video/x-raw ! appsink name=telemetry sync=false"""
-        self.vid_spec = f"""filesrc location="{filename}" ! matroskademux ! video/x-h264 ! decodebin ! 
-                            videoconvert ! video/x-raw,format=GRAY8 ! appsink sync=false"""
         if lens_cal_file:
             self.lens = Lens.load(lens_cal_file)
             print("cam: ", self.lens.K)
@@ -47,24 +43,19 @@ class CyclopsReader:
         self.imu_cal = IMUCalibration()
 
     def telemetry_generator(self):
-        with IMUReader(self.imu_spec) as imu:
-            while True:
-                tm, floats = imu.get_frame()
-                if tm is None or self.truncate_at is not None and tm > self.truncate_at:
+        with IMUReader.from_filename(self.filename) as imu:
+            for tm, floats in imu:
+                if self.truncate_at is not None and tm > self.truncate_at:
                     break
                 else:
                     yield tm, floats
 
     def video_generator(self):
-        with VidReader(self.vid_spec) as vid:
-            while True:
-                tm, frame = vid.get_frame()
+        with VidReader.from_filename(self.filename, gray=True) as vid:
+            for tm, frame in vid:
                 if self.truncate_at is not None and tm > self.truncate_at:
                     break
-                if tm is None:
-                    break
-                else:
-                    yield tm, frame
+                yield tm, frame
 
     @staticmethod
     def get_max_abs_gyro(data):
@@ -73,7 +64,7 @@ class CyclopsReader:
     def get_all_telemetry_as_dataframe(self):
         df = pd.DataFrame(columns=["Mx", "My", "Mz", "Ax", "Ay", "Az", "Gx", "Gy", "Gz"])
         for tm, floats in self.telemetry_generator():
-            df.at[tm, :] = floats
+            df.loc[tm] = floats
         df['GMax'] = df[['Gx', 'Gy', 'Gz']].apply(self.get_max_abs_gyro, axis=1, raw=True) * 20
         df['static'] = df['GMax'] <= 6
         return df
@@ -149,7 +140,7 @@ class CyclopsReader:
 
     def get_snaphots(self, periods: Sequence[Period], imu: pd.DataFrame) -> pd.DataFrame:
         frames = pd.Series(dtype="object", name="Frame")
-        with VidReader(self.vid_spec) as vid:
+        with VidReader.from_filename(self.filename, gray=True) as vid:
             for tm in ((p.start + p.end) / 2 for p in periods):
                 vid.seek(tm - 1)
                 while True:
@@ -166,21 +157,22 @@ class CyclopsReader:
         return result
 
     def get_stable_images(self):
-        print("Get frame diffs")
         try:
             return pd.read_pickle(f"{self.filename}.stable.pkl")
         except IOError:
             pass
-        frame_diffs = np.array(self.read_video(self.opticalFlow, 5))
-        df = pd.DataFrame({"motion": frame_diffs[:, 1]}, index=frame_diffs[:, 0])
-        df['static'] = df['motion'] < 8.0
-        print("getting statics")
-        periods_cam = self.get_static_periods(df['static'])
-
         print("Reading IMU data")
         tel = self.get_all_telemetry_as_dataframe()
         periods_imu = self.get_static_periods(tel['static'])
-        periods = self.get_agreed_periods(periods_cam, periods_imu)
+        #print("Get frame diffs")
+        #frame_diffs = np.array(self.read_video(self.opticalFlowPoints, 5))
+        #df = pd.DataFrame({"motion": frame_diffs[:, 1]}, index=frame_diffs[:, 0])
+        #df['static'] = df['motion'] < 8.0
+        #print("getting statics")
+        #periods_cam = self.get_static_periods(df['static'])
+        #print(periods_cam)
+        #periods = self.get_agreed_periods(periods_cam, periods_imu)
+        periods = periods_imu
         snaps = self.get_snaphots(periods, tel)
         snaps.to_pickle(f"{self.filename}.stable.pkl")
         return snaps

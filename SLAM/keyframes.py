@@ -9,10 +9,11 @@ import mem_top
 
 import keypoints_json
 from frames import Frame, FrameSet, MAX_SIZE, SHARP_WINDOW
+from reader.gstreader import VidReader
 
 keypoints_json.register_keypoint_pickles()
 
-WORKING_DIR: Path = Path("/home/phil/footage/bpotw/")
+WORKING_DIR: Path = Path("/home/phil/footage/HE2a/")
 
 PERCENTAGE_DISTANCE = 10
 PX_DISTANCE = PERCENTAGE_DISTANCE * MAX_SIZE / 100
@@ -100,13 +101,14 @@ def get_keyframe(frames: List[ComparisonFrame], metrics: List[int]) -> Frame:
     return frames[0], valid
 
 flags = cv2.IMREAD_COLOR
-if os.path.exists(str(WORKING_DIR / "vid.mkv")):
-    cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mkv"))
-elif os.path.exists(str(WORKING_DIR / "vid.mp4")):
-    cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mp4"))
-else:
-    print("Video file not found")
-    exit()
+cap = VidReader.from_filename(WORKING_DIR / "vid.mkv")
+# if os.path.exists(str(WORKING_DIR / "vid.mkv")):
+#     cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mkv"))
+# elif os.path.exists(str(WORKING_DIR / "vid.mp4")):
+#     cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mp4"))
+# else:
+#     print("Video file not found")
+#     exit()
 
 frames: List[ComparisonFrame] = []
 metrics = []
@@ -116,7 +118,7 @@ count = 0
 target_bad_frame = -1
 mask = cv2.imread(str(WORKING_DIR / "masks" / "mask.png"), cv2.IMREAD_GRAYSCALE)
 while True:
-    ret, image = cap.read()
+    tm, image = cap.get_frame()
     if image is None:
         new_frame, valid = get_keyframe(frames, metrics)
         if valid:

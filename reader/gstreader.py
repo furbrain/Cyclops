@@ -59,6 +59,7 @@ def get_np_dtype(fmt: GstVideo.VideoFormat) -> np.number:
 
 
 class GstReader:
+    SPEC = "" # this needs to be overriden in children
     def __init__(self, spec: str, autostart: bool=True):
         Gst.init([sys.argv[0]])
         self.pipeline = Gst.parse_launch(spec)
@@ -79,6 +80,13 @@ class GstReader:
 
     def __exit__(self, type, value, cb):
         self.close()
+
+    def __iter__(self):
+        while True:
+            tm, frame = self.get_frame()
+            if tm is None:
+                break
+            yield tm, frame
 
     def start(self):
         self.pipeline.set_state(Gst.State.PLAYING)
@@ -125,43 +133,43 @@ class GstReader:
         self.get_frame()
         t *= TS_PER_S
         self.sink.seek_simple(Gst.Format.TIME, (Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE), t)
-        
+
+    @classmethod
+    def from_filename(cls, filename, sync=False, gray=False, **kwargs):
+        if sync:
+            sync_txt = "true"
+        else:
+            sync_txt = "false"
+        if gray:
+            color = "GRAY8"
+        else:
+            color = "BGR"
+        return cls(cls.SPEC.format(filename=filename, sync=sync_txt, color=color),**kwargs)
         
 class IMUReader(GstReader):
+    SPEC = """filesrc location="{filename}" ! matroskademux name=demux !
+                            video/x-raw ! appsink sync={sync}"""
     @staticmethod
     def converter(data):
         return struct.unpack('<9d', data[:72])
         
 class VidReader(GstReader):
-    pass
+    SPEC = """filesrc location="{filename}" ! matroskademux ! video/x-h264 ! decodebin !
+                            videoconvert ! video/x-raw,format={color} ! appsink sync={sync}"""
 
 
 class TOFReader(GstReader):
+    SPEC = '''filesrc location="{filename}" ! matroskademux !
+          video/x-raw,width=240,format=GRAY8 ! appsink sync={sync}'''
 
-    def __init__(self, spec: str, autostart: bool=True, as_uint8: bool = False):
+    def __init__(self, spec: str, autostart: bool=True, as_uint8: bool = False, absolute=False):
         super().__init__(spec, autostart)
         self.as_uint8 = as_uint8
-
-    @staticmethod
-    def I4202raw(data: np.ndarray, visualise: bool):
-        half_height = data.shape[0] // 2
-        y = data[:half_height]
-        uv = data[half_height:]
-        #nibs_lower = uv >> 4
-        #nibs_upper = uv & 0xf
-        #nibbles = np.vstack((nibs_upper, nibs_lower))
-        uv = np.round(uv / 16).astype("uint16")
-        out = ((uv << 8) & 0xff00) + y
-        out <<= 4
-        if not visualise:
-            out = (out - 0x8000).astype("int16")
-            return out
-        else:
-            return out.astype("uint16")
+        self.absolute = absolute
 
     def converter(self, data):
         self.get_caps()
-        if self.size[1] == 960:
+        if self.size[0] == 960:
             data = np.ndarray(shape = (360,960), buffer=data, dtype="uint8")
             if self.as_uint8:
                 data = self.I4202raw(data, True)
@@ -170,5 +178,20 @@ class TOFReader(GstReader):
             else:
                 output = self.I4202raw(data, False)
                 return output
+        elif self.size[0] == 480:
+            if self.absolute:
+                data = np.ndarray(shape = (180,240), buffer=data, dtype="int16")
+                return data
+            data = np.ndarray(shape = (180,480), buffer=data, dtype="int8")
+            Q, I  = [data[:, i * 240:(i + 1) * 240].astype("float64") for i in range(2)]
+            # Q = phase[1] - phase[3]
+            # I = phase[2] - phase[0]
+            bad_pixels = np.logical_and(Q == 0, I == 0)
+            # print(np.count_nonzero(bad_pixels))
+            distance = np.arctan2(Q, I) % (np.pi * 2)
+            confidence = np.sqrt(Q ** 2 + I ** 2)
+            distance *= 2 / np.pi
+            distance[bad_pixels] = np.nan
+            return Q
         else:
             return super().converter(data)

@@ -98,12 +98,13 @@ class Frame:
         return new_points, old_points, distance
 
     def link_mask(self):
-
         target = self.project_dir / "masks" / f"{self.ident}.jpg.png"
         if os.path.exists(target):
             os.unlink(target)
-        os.symlink(self.project_dir / "masks" / "mask.png",
-                   target)
+        try:
+            os.symlink(self.project_dir / "masks" / "mask.png",target)
+        except OSError:
+            pass
 
 @dataclass
 class FrameSet:

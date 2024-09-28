@@ -5,6 +5,6 @@ import cv2
 
 from cyclopsreader import CyclopsReader
 
-reader = CyclopsReader("../footage/vid0.mkv")
-reader.calibrate_lens()
+reader = CyclopsReader("/home/phil/cal.mkv")
+reader.calibrate_lens(show_results=True)
 reader.lens.save("lens_cal.npz")
