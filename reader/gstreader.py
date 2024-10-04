@@ -193,5 +193,9 @@ class TOFReader(GstReader):
             distance *= 2 / np.pi
             distance[bad_pixels] = np.nan
             return Q
+        elif self.size[0] == 240:
+            data = np.ndarray(shape = (180,240), buffer=data, dtype="uint8")
+            data  = data.astype("float64") * 4000.0/255
+            return data
         else:
             return super().converter(data)

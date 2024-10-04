@@ -4,10 +4,12 @@ import numpy as np
 from reader.gstreader import VidReader, TOFReader
 
 FILENAME = "/home/phil/comb2.mkv"
-
+CUSTOM_COLOR_MAP = cv2.applyColorMap(np.linspace(0,255,256,dtype="uint8"),cv2.COLORMAP_JET)
+CUSTOM_COLOR_MAP[0] = [[0,0,0]]
 
 vid = VidReader.from_filename(FILENAME, sync=False)
 tof = TOFReader.from_filename(FILENAME, sync=False, absolute=False)
+
 
 first_run = True
 tm_t = -100
@@ -31,7 +33,7 @@ while True:
     distance = cv2.normalize(tof_frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
     #distance = cv2.medianBlur(distance, 3)
     # confidence= cv2.normalize(confidence, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-    colored = cv2.applyColorMap(distance, cv2.COLORMAP_BONE)
+    colored = cv2.applyColorMap(distance, CUSTOM_COLOR_MAP)
     #vid_frame = cv2.rotate(vid_frame, cv2.ROTATE_180)
     colored = cv2.rotate(colored, cv2.ROTATE_90_COUNTERCLOCKWISE)
     colored = cv2.resize(colored,(colored.shape[1]*2,colored.shape[0]*2))
@@ -39,7 +41,6 @@ while True:
     cv2.imshow("TOF", colored)
     if first_run:
         first_run = False
-        print(np.max(distance), np.min(distance))
         cv2.waitKey(0)
     else:
         res = cv2.waitKey(100)

@@ -13,9 +13,9 @@ from reader.gstreader import VidReader
 
 keypoints_json.register_keypoint_pickles()
 
-WORKING_DIR: Path = Path("/home/phil/footage/HE2a/")
+WORKING_DIR: Path = Path("/home/phil/footage/sofa/")
 
-PERCENTAGE_DISTANCE = 10
+PERCENTAGE_DISTANCE = 5
 PX_DISTANCE = PERCENTAGE_DISTANCE * MAX_SIZE / 100
 print("importing")
 #from pypopsift import popsift

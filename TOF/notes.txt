@@ -77,3 +77,11 @@ Audio: 54k
 Video: 12M (no glitches when run solo)
 
 Glitches at 20fps + video
+
+FOV calcs:
+
+Box is 50 pixels across, 40cm from sensor and 8cm wide
+therefore 180 pixels = 180/50 *8 = 28.8cm
+Opposit = 14.4
+Adjacent = 40
+

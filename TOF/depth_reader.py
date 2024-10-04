@@ -5,15 +5,21 @@ import math as maths
 from reader.gstreader import VidReader, TOFReader
 
 
-FOV_X = 64.3
-FOV_Y = 50.4
+FOV_X = 58.5
+FOV_Y = 45.6
 MAX_WIDTH=240
 MAX_HEIGHT=180
-fx = MAX_WIDTH / (2 * maths.tan(0.5 * maths.pi * FOV_X / 180)) # WIDTH / 2 / maths.tan(0.5 * FOV_X)
-fy = MAX_HEIGHT / (2 * maths.tan(0.5 * maths.pi * FOV_Y / 180)) # HEIGHT / 2 / maths.tan(0.5 * FOV_Y)
+#fx = MAX_WIDTH / (2 * maths.tan(0.5 * maths.pi * FOV_X / 180)) # WIDTH / 2 / maths.tan(0.5 * FOV_X)
+#fy = MAX_HEIGHT / (2 * maths.tan(0.5 * maths.pi * FOV_Y / 180)) # HEIGHT / 2 / maths.tan(0.5 * FOV_Y)
+#fx = 250 # calculated by direct observation
+fx = 210
+fy = fx
+
+
+
 cx = MAX_WIDTH / 2
 cy = MAX_HEIGHT / 2
-
+print(fx, fy)
 
 #note x,y numbers are swapped as we are using in portrait mode
 TOF_INTRINSIC= o3d.camera.PinholeCameraIntrinsic(MAX_HEIGHT,MAX_WIDTH,fy,fx,cy,cx)
@@ -52,11 +58,12 @@ class DepthReader:
     def make_depth_image(self, frame_t, frame_v):
         if frame_v is None:
             return None
-        frame_t = o3d.geometry.Image((frame_t*1000).astype("uint16"))
+        frame_t[frame_t==0] = np.nan
+        frame_t = o3d.geometry.Image(frame_t.astype("float32"))
         frame_v = o3d.geometry.Image(cv2.cvtColor(frame_v, cv2.COLOR_BGR2RGB))
         return o3d.geometry.RGBDImage.create_from_color_and_depth(frame_v, frame_t,
                                                                   depth_scale=1000,
-                                                                  depth_trunc=4,
+                                                                  depth_trunc=3.5,
                                                                   convert_rgb_to_intensity=False)
 
     def get_frames(self):
@@ -64,13 +71,12 @@ class DepthReader:
         if tm is None:
             return None, None
         frame_t = cv2.rotate(frame_t, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        cv2.imshow("tof",frame_t/4)
-        cv2.waitKey(33)
         while self.tm_v is not None and self.tm_v < tm:
             self.tm_v_last = self.tm_v
             self.frame_v_last = self.frame_v
             self.tm_v, frame_v = self.vid.get_frame()
-            self.frame_v = self.warp_frame(frame_v)
+            if self.tm_v is not None:
+                self.frame_v = self.warp_frame(frame_v)
         if self.tm_v is None:
             return None, None
         elif abs(self.tm_v-tm) > abs(self.tm_v_last-tm):
