@@ -33,6 +33,8 @@ class DepthReader:
         self.tm_t = 0
         self.tm_v_last = 0
         self.tm_v =0
+        self.big_frame_v = None
+        self.big_frame_v_last = None
         self.frame_v_last = None
         self.frame_v = None
 
@@ -69,18 +71,19 @@ class DepthReader:
     def get_frames(self):
         tm, frame_t = self.tof.get_frame()
         if tm is None:
-            return None, None
+            return None, None, None
         frame_t = cv2.rotate(frame_t, cv2.ROTATE_90_COUNTERCLOCKWISE)
         while self.tm_v is not None and self.tm_v < tm:
             self.tm_v_last = self.tm_v
             self.frame_v_last = self.frame_v
-            self.tm_v, frame_v = self.vid.get_frame()
+            self.big_frame_v_last = self.big_frame_v
+            self.tm_v, self.big_frame_v = self.vid.get_frame()
             if self.tm_v is not None:
-                self.frame_v = self.warp_frame(frame_v)
+                self.frame_v = self.warp_frame(self.big_frame_v)
         if self.tm_v is None:
-            return None, None
+            return None, None, None
         elif abs(self.tm_v-tm) > abs(self.tm_v_last-tm):
-            return tm, self.make_depth_image(frame_t, self.frame_v_last)
+            return tm, self.make_depth_image(frame_t, self.frame_v_last), self.big_frame_v_last
         else:
-            return tm, self.make_depth_image(frame_t, self.frame_v)
+            return tm, self.make_depth_image(frame_t, self.frame_v), self.big_frame_v
 

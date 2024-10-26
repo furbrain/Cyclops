@@ -132,32 +132,32 @@ def process_single_fragment(images, config):
     make_pointcloud_for_fragment(config["path_dataset"], images,
                                  intrinsic, config)
 
+if __name__=="__main__":
+    count = 0
+    rgbd_images = []
+    with DepthReader(FILENAME, homography) as reader:
+        for tm, frame, _ in reader:
+            if frame is not None:
+                if START < tm < FINISH:
+                    if count % 2 == 0:
+                        rgbd_images.append(frame)
+                    #pcd = o3d.geometry.PointCloud.create_from_rgbd_image(frame, TOF_INTRINSIC)
+                    #o3d.visualization.draw_geometries([pcd])
+                    #depth = np.asarray(frame.depth)
+                    #cv2.imshow("main", cv2.normalize(depth,None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
+                    color = np.asarray(frame.color)
+                    cv2.imshow("color", color)
+                    cv2.waitKey(15)
+                    count += 1
 
-count = 0
-rgbd_images = []
-with DepthReader(FILENAME, homography) as reader:
-    for tm, frame in reader:
-        if frame is not None:
-            if START < tm < FINISH:
-                if count % 2 == 0:
-                    rgbd_images.append(frame)
-                #pcd = o3d.geometry.PointCloud.create_from_rgbd_image(frame, TOF_INTRINSIC)
-                #o3d.visualization.draw_geometries([pcd])
-                #depth = np.asarray(frame.depth)
-                #cv2.imshow("main", cv2.normalize(depth,None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
-                color = np.asarray(frame.color)
-                cv2.imshow("color", color)
-                cv2.waitKey(15)
-                count += 1
+    config = {
+        "depth_diff_max": 1.0,
+        "template_fragment_posegraph": "fragments/fragment.json",
+        "tsdf_cubic_size": 3.0,
+        "preference_loop_closure_odometry": 0.1,
+        "path_dataset":"/home/phil/footage/sofa",
+        "template_fragment_pointcloud": "fragments/fragment.ply",
+        "template_fragment_posegraph_optimized": "fragments/fragment_optimised.json"
+    }
 
-config = {
-    "depth_diff_max": 1.0,
-    "template_fragment_posegraph": "fragments/fragment.json",
-    "tsdf_cubic_size": 3.0,
-    "preference_loop_closure_odometry": 0.1,
-    "path_dataset":"/home/phil/footage/sofa",
-    "template_fragment_pointcloud": "fragments/fragment.ply",
-    "template_fragment_posegraph_optimized": "fragments/fragment_optimised.json"
-}
-
-process_single_fragment(rgbd_images, config)
+    process_single_fragment(rgbd_images, config)
