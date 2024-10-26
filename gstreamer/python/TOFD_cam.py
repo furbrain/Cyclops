@@ -19,7 +19,7 @@ from gi.repository import Gst, GLib, GObject, GstBase, GstVideo
 
 OCAPS = Gst.Caps.from_string('video/x-raw,format=GRAY8,width=240,height=180,framerate=[15/1,30/1]')
 DEFAULT_DEV = 0
-DEFAULT_ABSOLUTE=False
+DEFAULT_CONFIDENCE=30
 
 class TOFDCamSrc(GstBase.PushSrc):
     __gstmetadata__ = ('TOFD Cam','Src', \
@@ -32,6 +32,14 @@ class TOFDCamSrc(GstBase.PushSrc):
                  0,
                  GLib.MAXINT,
                  DEFAULT_DEV,
+                 GObject.ParamFlags.READWRITE
+                ),
+        "confidence": (int,
+                 "Confidence",
+                 "Cut off to mark pixels as no reading",
+                 0,
+                 GLib.MAXINT,
+                 DEFAULT_CONFIDENCE,
                  GObject.ParamFlags.READWRITE
                 ),
     }
@@ -49,7 +57,7 @@ class TOFDCamSrc(GstBase.PushSrc):
         self.set_format(Gst.Format.BYTES)
         self.accumulator = 0
         self.device = DEFAULT_DEV
-        self.absolute = DEFAULT_ABSOLUTE
+        self.confidence = DEFAULT_CONFIDENCE
 
 
     def do_set_caps(self, caps):
@@ -74,16 +82,16 @@ class TOFDCamSrc(GstBase.PushSrc):
     def do_get_property(self, prop):
         if prop.name == 'device':
             return self.device
-        elif prop.name == 'absolute':
-            return self.absolute
+        elif prop.name == 'confidence':
+            return self.confidence
         else:
             raise AttributeError('unknown property %s' % prop.name)
 
     def do_set_property(self, prop, value):
         if prop.name == 'device':
             self.device = value
-        elif prop.name == 'absolute':
-            self.absolute = value
+        elif prop.name == 'confidence':
+            self.confidence = value
         else:
             raise AttributeError('unknown property %s' % prop.name)
 
@@ -130,11 +138,14 @@ class TOFDCamSrc(GstBase.PushSrc):
         frame = self.cam.requestFrame(2000)
         if frame is not None and isinstance(frame, ac.DepthData):
             data = frame.getDepthData().copy()
+            if self.confidence:
+                confidence = frame.getConfidenceData().copy()
             self.cam.releaseFrame(frame)
             data = np.reshape(data, (180,240))
-            print(np.max(data), np.min(data))
             data = data * 255/4000.0
             data = data.astype("uint8")
+            if self.confidence:
+                data[confidence < self.confidence] = 0
         else:
             Gst.error("Failed to get frame")
         buf = Gst.Buffer.new_wrapped(bytes(data))
