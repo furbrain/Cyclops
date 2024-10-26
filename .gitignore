@@ -3,3 +3,6 @@
 /test.mkv
 *.mkv
 /.venv
+__pycache__
+*npy
+*npz
