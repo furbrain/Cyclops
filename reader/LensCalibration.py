@@ -9,6 +9,7 @@ class Lens:
         self.new_K = None
         self.map1 = None
         self.map2 = None
+        self.frame_shape = None
 
     def calibrate(self, images, show_results: bool = False):
         CHECKERBOARD = (6, 9)
@@ -20,6 +21,7 @@ class Lens:
         imgpoints = []
         for frame in images:
             # Find the chess board corners
+            self.frame_shape = frame.shape[::-1]
             ret, corners = cv2.findChessboardCorners(frame, CHECKERBOARD,
                                                      cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE)
             # If found, add object points, image points (after refining them)
@@ -37,9 +39,7 @@ class Lens:
             D,
             flags=calibration_flags,
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6))
-        self.new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(K, D, frame.shape[::-1], np.eye(3),
-                                                                              balance=0.5)
-        self.map1, self.map2 = cv2.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.new_K, frame.shape[::-1], cv2.CV_32FC1)
+        self.create_undistort_map(0.5)
         # and then remap:
         if show_results:
             results = self.undistort(images)
@@ -47,8 +47,23 @@ class Lens:
                 cv2.imshow("undistort", frame)
                 cv2.waitKey(1000)
 
+    def create_undistort_map(self, balance):
+        self.new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(self.K,
+                                                                            self.D,
+                                                                            self.frame_shape,
+                                                                            np.eye(3),
+                                                                            balance=balance)
+        self.map1, self.map2 = cv2.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.new_K,
+                                                                   self.frame_shape, cv2.CV_32FC1)
+
     def save(self, fname: str):
-        np.savez(fname, K=self.K, new_K=self.new_K, D=self.D, map1=self.map1, map2=self.map2)
+        np.savez(fname,
+                 K=self.K,
+                 new_K=self.new_K,
+                 D=self.D,
+                 map1=self.map1,
+                 map2=self.map2,
+                 frame_shape=self.frame_shape)
 
     @classmethod
     def load(cls, fname: str):
