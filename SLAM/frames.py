@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 SHARP_WINDOW = 200
-MAX_SIZE = 720
+MAX_SIZE = 1280
 
 
 

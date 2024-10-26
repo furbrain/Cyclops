@@ -7,8 +7,8 @@ import cv2
 import numpy as np
 import mem_top
 
-import keypoints_json
-from frames import Frame, FrameSet, MAX_SIZE, SHARP_WINDOW
+from . import keypoints_json
+from .frames import Frame, FrameSet, MAX_SIZE, SHARP_WINDOW
 from reader.gstreader import VidReader
 
 keypoints_json.register_keypoint_pickles()
@@ -100,57 +100,56 @@ def get_keyframe(frames: List[ComparisonFrame], metrics: List[int]) -> Frame:
     metrics[:] = [x.keyframe_metric() for x in frames]
     return frames[0], valid
 
-flags = cv2.IMREAD_COLOR
-cap = VidReader.from_filename(WORKING_DIR / "vid.mkv")
-# if os.path.exists(str(WORKING_DIR / "vid.mkv")):
-#     cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mkv"))
-# elif os.path.exists(str(WORKING_DIR / "vid.mp4")):
-#     cap = cv2.VideoCapture(str(WORKING_DIR / "vid.mp4"))
-# else:
-#     print("Video file not found")
-#     exit()
 
-frames: List[ComparisonFrame] = []
-metrics = []
-keyframes = FrameSet(WORKING_DIR)
-first_f = None
-count = 0
-target_bad_frame = -1
-mask = cv2.imread(str(WORKING_DIR / "masks" / "mask.png"), cv2.IMREAD_GRAYSCALE)
-while True:
-    tm, image = cap.get_frame()
-    if image is None:
-        new_frame, valid = get_keyframe(frames, metrics)
+def get_keyframes_from_source(cap, save_frames=True, working_dir=WORKING_DIR):
+    frames: List[ComparisonFrame] = []
+    metrics = []
+    keyframes = FrameSet(working_dir)
+    first_f = None
+    count = 0
+    mask = cv2.imread(str(working_dir / "masks" / "mask.png"), cv2.IMREAD_GRAYSCALE)
+    for tm, image in cap:
+        fr = ComparisonFrame(working_dir, image, ts=count, orig_mask=mask)
+        fr.get_sharpness()
+        fr.compute_kps()
+        if first_f is None:
+            first_f = fr
+            frames.append(first_f)
+            metrics.append(0)
+        else:
+            fr.compare_and_store(frames[0])
+            frames.append(fr)
+            metrics.append(fr.metric)
+            if len(metrics) > 30:
+                if all(x == 0 for x in metrics[-30:]):
+                    new_frame, valid = get_keyframe(frames, metrics)
+                    if valid:
+                        keyframes.add_frame(new_frame)
+                        if len(keyframes.frames) > 10 and save_frames:
+                            keyframes.save_images()
+                            keyframes.save_descs()
+                            keyframes.link_masks()
+                            del keyframes
+                            print("clearing keyframes")
+                            keyframes = FrameSet(working_dir)
+                    else:
+                        print("invalid", len(frames))
+
+        count += 1
+    print(f"finished, previous first frame is {frames[0].ts}")
+    while True:
+        new_frame, valid = get_keyframe(frames, metrics) # find last keyframe
         if valid:
+            print("adding final keyframes")
             keyframes.add_frame(new_frame)
-        break
-    fr = ComparisonFrame(WORKING_DIR, image, ts=count, orig_mask=mask)
-    fr.get_sharpness()
-    fr.compute_kps()
-    if first_f is None:
-        first_f = fr
-        frames.append(first_f)
-        metrics.append(0)
-    else:
-        fr.compare_and_store(frames[0])
-        frames.append(fr)
-        metrics.append(fr.metric)
-        if len(metrics) > 30:
-            if all(x==0 for x in metrics[-30:]):
-                new_frame, valid = get_keyframe(frames, metrics)
-                if valid:
-                    keyframes.add_frame(new_frame)
-                    if len(keyframes.frames) > 10:
-                        keyframes.save_images()
-                        keyframes.save_descs()
-                        keyframes.link_masks()
-                        del keyframes
-                        print("clearing keyframes")
-                        keyframes = FrameSet(WORKING_DIR)
-                else:
-                    print("invalid", len(frames))
+        if len(metrics) < 15:
+            break
+    if save_frames:
+        keyframes.save_images()
+        keyframes.save_descs()
+        keyframes.link_masks()
+    return keyframes
 
-    count+=1
-keyframes.save_images()
-keyframes.save_descs()
-keyframes.link_masks()
+if __name__ == "__main__":
+    cap = VidReader.from_filename(WORKING_DIR / "vid.mkv")
+    keyframes = get_keyframes_from_source(cap, True, WORKING_DIR)
