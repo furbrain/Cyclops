@@ -30,5 +30,5 @@ with cap:
                 print("checkerboard not found")
 print(len(frames))
 l = Lens()
-l.calibrate(frames, show_results=True)
+l.calibrate_from_images(frames, show_results=True)
 l.save("lens_params.npz")

@@ -1,3 +1,4 @@
+import pickle
 from dataclasses import dataclass
 from typing import Optional
 
@@ -5,8 +6,10 @@ import cv2
 
 import numpy as np
 
-from reader.LensCalibration import Lens
+from reader.LensCalibration import Lens, CHECKERBOARD, get_objpoints, DualCams
 from reader.gstreader import VidReader, TOFReader
+
+USE_SAVED = True
 
 APPSINK = "appsink max-buffers=1 drop=true sync=true"
 TOF = f"rtpvrawdepay ! videoconvert ! video/x-raw,format=GRAY8 ! {APPSINK}"
@@ -17,9 +20,6 @@ DEMUXER = "udpsrc"
 SPEC_V = f"""{DEMUXER} caps={CAM_CAPS} port=8001 ! {CAM}"""
 SPEC_T = f"""{DEMUXER} caps="{TOF_CAPS}" port=8000 ! {TOF}"""
 
-CHESSBOARD_FLAGS = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE
-SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
-
 
 @dataclass
 class Snapshot:
@@ -29,14 +29,8 @@ class Snapshot:
     t_corners: Optional[np.ndarray] = None
 
     def find_corners(self):
-        ret, corners = cv2.findChessboardCorners(self.v_img, CHECKERBOARD, CHESSBOARD_FLAGS)
-        if ret:
-            cv2.cornerSubPix(self.v_img, corners, (3, 3), (-1, -1), SUBPIX_CRITERIA)
-            self.v_corners = corners
-        ret, corners = cv2.findChessboardCorners(self.t_img, CHECKERBOARD, CHESSBOARD_FLAGS)
-        if ret:
-            cv2.cornerSubPix(self.t_img, corners, (3, 3), (-1, -1), SUBPIX_CRITERIA)
-            self.t_corners = corners
+        self.v_corners = Lens.find_cb_corners(self.v_img)
+        self.t_corners = Lens.find_cb_corners(self.t_img)
 
     def both_corners(self) -> bool:
         return self.t_corners is not None and self.v_corners is not None
@@ -71,31 +65,50 @@ class SnapshotList:
         v_corners = [x.v_corners for x in self.shots if x.both_corners()]
         return t_corners, v_corners
 
-cap_v = VidReader(SPEC_V)
-cap_t = TOFReader(SPEC_T, absolute=True)
-CHECKERBOARD=(9,6)
-snapshots = SnapshotList()
-with cap_v, cap_t:
-    while True:
-        _, frame_v = cap_v.get_frame()
-        _, frame_t = cap_t.get_frame()
-        frame_t = cv2.normalize(frame_t, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        shot = Snapshot(frame_v, frame_t)
-        col_t, col_v = snapshots.draw_corners(shot)
-        cv2.imshow("TOF", col_t)
-        cv2.imshow("CAM", col_v)
-        key = cv2.waitKey(100)
-        if key == ord('q'):
-            break
-        if key == ord(' '):
-            shot.find_corners()
-            if shot.any_corners():
-                print("checkerboard found")
-                snapshots.add_shot(shot)
-            else:
-                print("checkerboard not found")
-print(len(snapshots.shots))
-print(len(snapshots.get_corner_pairs()[0]))
-# l = Lens()
-# l.calibrate(frames, show_results=True)
-# l.save("lens_params.npz")
+if not USE_SAVED:
+    cap_v = VidReader(SPEC_V)
+    cap_t = TOFReader(SPEC_T, absolute=True)
+    snapshots = SnapshotList()
+    with cap_v, cap_t:
+        while True:
+            _, frame_v = cap_v.get_frame()
+            _, frame_t = cap_t.get_frame()
+            frame_t = cv2.normalize(frame_t, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            shot = Snapshot(frame_v, frame_t)
+            col_t, col_v = snapshots.draw_corners(shot)
+            cv2.imshow("TOF", col_t)
+            cv2.imshow("CAM", col_v)
+            key = cv2.waitKey(100)
+            if key == ord('q'):
+                break
+            if key == ord(' '):
+                shot.find_corners()
+                if shot.any_corners():
+                    print("checkerboard found")
+                    snapshots.add_shot(shot)
+                else:
+                    print("checkerboard not found")
+    print(len(snapshots.shots))
+    corner_pairs = snapshots.get_corner_pairs()
+    print(len(corner_pairs[0]))
+
+    t_corners = snapshots.get_t_corners()
+    v_corners = snapshots.get_v_corners()
+    with open("dcal.pkl","wb") as f:
+        pickle.dump({"t":t_corners, "v": v_corners, "pairs": corner_pairs}, f)
+else:
+    with open("dcal.pkl","rb") as f:
+        data = pickle.load(f)
+        t_corners = data['t']
+        v_corners = data['v']
+        corner_pairs = data['pairs']
+
+v_corners = [x for x in v_corners if x is not None]
+t_corners = [x for x in t_corners if x is not None]
+v_lens = Lens.from_cb_points(v_corners,(1280,800), fisheye=True)
+t_lens = Lens.from_cb_points(t_corners,(240,180))
+print(t_lens)
+cams = DualCams(t_lens, v_lens)
+cams.calibrate(corner_pairs[0], corner_pairs[1])
+cams.save("both_cams.json")
+print(cams)

@@ -184,9 +184,9 @@ class CyclopsReader:
             raise ValueError("No Stable Frames found")
         if l < 6:
             raise ValueError(f"Only {l} stable frames found, need at least 6")
-        self.lens.calibrate(results['Frame'], show_results)
+        self.lens.calibrate_from_images(results['Frame'], show_results)
 
     def calibrate_imu(self):
         snapshots = self.get_stable_images()
-        snapshots['undistorted'] = self.lens.undistort(snapshots['Frame'])
+        snapshots['undistorted'] = self.lens.undistort_multiple(snapshots['Frame'])
         self.imu_cal.calibrate(snapshots, self.lens)

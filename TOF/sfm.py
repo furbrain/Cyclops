@@ -24,7 +24,7 @@ def frame_generator():
             if frame is not None:
                 if START < tm < FINISH:
                     if count % 2 == 0:
-                        yield count // 2, LENS.undistort([image])[0]
+                        yield count // 2, LENS.undistort_iamge(image)
                         # frame = Frame(DIR, image)
                         # frame.compute_kps()
                         # if last_frame is not None:
