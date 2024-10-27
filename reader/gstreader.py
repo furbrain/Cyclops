@@ -148,19 +148,19 @@ class GstReader:
         
 class IMUReader(GstReader):
     SPEC = """filesrc location="{filename}" ! matroskademux name=demux !
-                            video/x-raw ! appsink sync={sync}"""
+                            video/x-raw ! appsink max-buffers=3 sync={sync}"""
     @staticmethod
     def converter(data):
         return struct.unpack('<9d', data[:72])
         
 class VidReader(GstReader):
     SPEC = """filesrc location="{filename}" ! matroskademux ! video/x-h264 ! decodebin !
-                            videoconvert ! video/x-raw,format={color} ! appsink sync={sync}"""
+                            videoconvert ! video/x-raw,format={color} ! appsink max-buffers=3 sync={sync}"""
 
 
 class TOFReader(GstReader):
     SPEC = '''filesrc location="{filename}" ! matroskademux !
-          video/x-raw,width=240,format=GRAY8 ! appsink sync={sync}'''
+          video/x-raw,width=240,format=GRAY8 ! appsink max-buffers=3 sync={sync}'''
 
     def __init__(self, spec: str, autostart: bool=True, as_uint8: bool = False, absolute=False):
         super().__init__(spec, autostart)
