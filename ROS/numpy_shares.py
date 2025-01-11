@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-
-from typing import Tuple
+import mmap
+from typing import Tuple, List
 import numpy as np
-#from posix_ipc import Semaphore
+from posix_ipc import Semaphore, SharedMemory, O_CREX
 import struct
-from multiprocessing import shared_memory
 
 
 class NumpyShareManager:
     def __init__(self, server=False):
-        self.shares = []
+        self.shares: List[SharedMemory] = []
+        self.locks = []
         self.server = server
         
     def __enter__(self):
@@ -17,13 +17,37 @@ class NumpyShareManager:
         
     def __exit__(self,  exc, exc2, exc3):
         self.stop()
-            
+
+    def create_new_share(self,name: str, size: int):
+        share = SharedMemory(name, flags=O_CREX, size=size)
+        self.shares.append(share)
+        return mmap.mmap(share.fd, share.size)
+
+    def get_share(self, name: str):
+        share = SharedMemory(name)
+        self.shares.append(share)
+        return mmap.mmap(share.fd, share.size)
+
+    def get_lock(self, name: str, create=False):
+        name = name+'-lock'
+        if create:
+            sem = Semaphore(name, flags = O_CREX, initial_value=1)
+        else:
+            sem = Semaphore(name, initial_value=1)
+        self.locks.append(sem)
+        return sem
+
     def stop(self):
-        for f in self.shares:
-            if self.server:
-                f.unlink()
-            else:
-                f.close()
+        if self.server:
+            for share in self.shares:
+                share.unlink()
+            for lock in self.locks:
+                lock.unlink()
+        else:
+            for share in self.shares:
+                share.close_fd()
+            for lock in self.locks:
+                lock.close()
     
     @staticmethod
     def make_meta(data:np.ndarray) -> bytes:
@@ -31,39 +55,36 @@ class NumpyShareManager:
         return meta
         
     @staticmethod
-    def read_meta(arr: shared_memory.SharedMemory) -> Tuple[int, np.dtype, tuple]:
-        buf = arr.buf
-        ndims = int(buf[0])
-        type_char, *shape = struct.unpack(f"xc{ndims}I", buf)
+    def read_meta(arr: mmap.mmap) -> Tuple[int, np.dtype, tuple]:
+        ndims = int(arr[0])
+        type_char, *shape = struct.unpack(f"xc{ndims}I", arr)
         return np.dtype(type_char), shape
     
     def create_numpy_share(self, data: np.ndarray, name: str) -> np.ndarray:
         meta = self.make_meta(data)
-        print(meta)
-        shm = shared_memory.SharedMemory(name, create=True, size=data.nbytes*2)
-        shm_meta = shared_memory.SharedMemory(name+'-meta', create=True, size=len(meta))
-        self.shares.extend([shm, shm_meta])
-        print("shms created")
-        shm_meta.buf[:len(meta)] = meta
-        print("meta assigned")
-        shm_arr = np.ndarray(data.shape, dtype=data.dtype, buffer=shm.buf)
-        print("array created")
+        shm = self.create_new_share(name, size=data.nbytes)
+        shm_meta = self.create_new_share(name+'-meta', size=len(meta))
+        shm_meta[:len(meta)] = meta
+        shm_arr = np.ndarray(data.shape, dtype=data.dtype, buffer=shm)
         shm_arr[:] = data[:]
-        print("array written")
-        print(shm_arr.nbytes, shm_arr.shape)
-        print(shm.size)
-        return shm_arr
+        return shm_arr, self.get_lock(name, create=True)
         
     def get_numpy_share(self, name:str) -> np.ndarray:
-        meta = shared_memory.SharedMemory(name+'-meta', create=False)
+        meta = self.get_share(name+'-meta')
         dt, shape = self.read_meta(meta)
-        shm = shared_memory.SharedMemory(name, create=False)
-        #self.shares.extend([shm, meta])
-        arr = np.ndarray(shape, dtype=dt, buffer=shm.buf)
-        return arr
+        shm = self.get_share(name)
+        arr = np.ndarray(shape, dtype=dt, buffer=shm)
+        return arr, self.get_lock(name)
         
 if __name__=="__main__":
+    import time
     with NumpyShareManager(server=True) as man:
         here = np.array([[1,2,3],[3,4,5]])
-        arr2 = man.create_numpy_share(here,"test")
+        arr2, lock = man.create_numpy_share(here,"test")
         print(arr2)
+        with lock:
+            f = input("press enter")
+            print(arr2)
+        time.sleep(0.1)
+        with lock:
+            print(arr2)
