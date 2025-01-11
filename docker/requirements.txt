@@ -1,0 +1,9 @@
+Adafruit-Blinka==8.47.0
+adafruit-circuitpython-busdevice==5.2.9
+adafruit-circuitpython-connectionmanager==3.1.1
+adafruit-circuitpython-register==1.9.18
+circuitpython-mag-cal==1.4.1
+opencv-python==4.10.0.84
+scipy==1.10.1
+ArducamDepthCamera==0.1.14
+posix-ipc==1.1.1
