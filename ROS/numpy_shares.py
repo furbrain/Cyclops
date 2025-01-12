@@ -2,14 +2,15 @@
 import mmap
 from typing import Tuple, List
 import numpy as np
-from posix_ipc import Semaphore, SharedMemory, O_CREX
+from posix_ipc import Semaphore, SharedMemory, O_CREAT
 import struct
-
+import time
 
 class NumpyShareManager:
     def __init__(self, server=False):
         self.shares: List[SharedMemory] = []
-        self.locks = []
+        self.locks: List[Semaphore] = []
+        self.mmaps: List[mmap.mmap] = []
         self.server = server
         
     def __enter__(self):
@@ -19,36 +20,43 @@ class NumpyShareManager:
         self.stop()
 
     def create_new_share(self,name: str, size: int):
-        share = SharedMemory(name, flags=O_CREX, size=size)
+        share = SharedMemory(name, flags=O_CREAT, size=size)
         self.shares.append(share)
-        return mmap.mmap(share.fd, share.size)
+        map = mmap.mmap(share.fd, share.size)
+        self.mmaps.append(map)
+        return map
 
     def get_share(self, name: str):
         share = SharedMemory(name)
         self.shares.append(share)
-        return mmap.mmap(share.fd, share.size)
+        map = mmap.mmap(share.fd, share.size)
+        self.mmaps.append(map)
+        return map
 
     def get_lock(self, name: str, create=False):
         name = name+'-lock'
         if create:
-            sem = Semaphore(name, flags = O_CREX, initial_value=1)
+            sem = Semaphore(name, flags = O_CREAT, initial_value=1)
         else:
             sem = Semaphore(name, initial_value=1)
         self.locks.append(sem)
         return sem
 
     def stop(self):
+        print("stopping")
+        for share in self.shares:
+            share.close_fd()
+        for lock in self.locks:
+            lock.close()
+        for map in self.mmaps:
+            map.close()
         if self.server:
             for share in self.shares:
                 share.unlink()
             for lock in self.locks:
                 lock.unlink()
-        else:
-            for share in self.shares:
-                share.close_fd()
-            for lock in self.locks:
-                lock.close()
-    
+        time.sleep(0.1)
+
     @staticmethod
     def make_meta(data:np.ndarray) -> bytes:
         meta = struct.pack(f"Bc{data.ndim}I",data.ndim,bytes(data.dtype.char,"UTF8"),*data.shape)
