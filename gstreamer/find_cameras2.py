@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+import sys
 from pathlib import Path
 from typing import Set, List
 import subprocess
@@ -19,4 +22,9 @@ def find_cams(cam_type: str, fmt:str = None) -> List[int]:
 
 
 if __name__=="__main__":
-    find_cams("usb","H264")
+    if len(sys.argv) > 1:
+        args = sys.argv[1:]
+    else:
+        args = ["usb","H264"]
+    for num in find_cams("usb","H264"):
+        print(num)
