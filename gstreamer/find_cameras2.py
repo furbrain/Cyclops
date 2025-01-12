@@ -4,7 +4,7 @@ import subprocess
 
 def find_x_cams(x: str) -> Set[int]:
     pth = Path("/sys/devices")
-    devs = pth.glob("**/*usb*/**/video?")
+    devs = pth.glob(f"**/*{x}*/**/video?")
     return set(int(str(x)[-1]) for x in devs)
 
 def matches_format(dev:int, fmt:bytes) -> bool:
@@ -19,5 +19,4 @@ def find_cams(cam_type: str, fmt:str = None) -> List[int]:
 
 
 if __name__=="__main__":
-    usb_cams = find_usb_cams()
-    print(get_matching_formats(usb_cams, b"MJPG"))
+    find_cams("usb","H264")
