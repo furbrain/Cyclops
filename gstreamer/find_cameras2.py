@@ -11,7 +11,7 @@ def matches_format(dev:int, fmt:bytes) -> bool:
     output: bytes = subprocess.check_output(["v4l2-ctl", "-d", str(dev), "--list-formats"])
     return fmt in output
 
-def get_matching_formats(cam_type: str, fmt:str = None) -> List[int]:
+def find_cams(cam_type: str, fmt:str = None) -> List[int]:
     cams = find_x_cams(cam_type)
     if fmt is None:
         return list(cams)
