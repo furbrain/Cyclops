@@ -5,13 +5,14 @@ from ArducamDepthCamera import (ArducamCamera, TOFConnect, TOFDeviceType,
                                 TOFOutput, TOFControl, DepthData, ArducamInfo)
 import numpy as np
 from numpy_shares import NumpyShareManager
+from find_camera2 import find_cams
 
 
     
 
 def get_arducam():
     tof = ArducamCamera()
-    ret = tof.open(TOFConnect.CSI, 4)
+    ret = tof.open(TOFConnect.CSI, find_cams("csi")[0])
     if not ret:
         print("Failed to open camera. Error code:", ret)
         return
