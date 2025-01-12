@@ -26,5 +26,5 @@ if __name__=="__main__":
         args = sys.argv[1:]
     else:
         args = ["usb","H264"]
-    for num in find_cams("usb","H264"):
+    for num in find_cams(*args):
         print(num)
