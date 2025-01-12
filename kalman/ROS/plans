@@ -1,0 +1,10 @@
+So ... we're going to use ROS!
+It already has most of the stuff we need like camera calibration, camera to camera calibration and
+camera -> IMU calibration.
+
+ORB SLAM3 plays with this setup and I need to look through to see if we can use
+monocular + RGBD (can mimic this with lidar + normal cam) + IMU + (?? magnetometer...)
+
+Consider adding a "IMUM" mode for the IMU which incorporates the madgwick algorithm...
+
+May need to install a C++ IDE (bleurgh...)
