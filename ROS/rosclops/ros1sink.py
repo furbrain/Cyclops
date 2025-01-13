@@ -29,10 +29,10 @@ class ROS1Sink:
         else:
             fmt = 'video/x-raw, format=RGB8'
         if jpeg:
-            self.publisher = rospy.Publisher("gst_image/compressed", CompressedImage, queue_size=10)
+            self.publisher = rospy.Publisher("gst_image/compressed", CompressedImage, queue_size=1)
         else:
-            self.publisher = rospy.Publisher("gst_image", Image, queue_size=10)
-        spec += f'! {fmt} ! appsink max-buffers=1'
+            self.publisher = rospy.Publisher("gst_image", Image, queue_size=1)
+        spec += f' ! {fmt} ! queue max-size-buffers=1 leaky=downstream ! appsink max-buffers=1'
         Gst.init([sys.argv[0]])
         self.pipeline = Gst.parse_launch(spec)
         self.bus = self.pipeline.get_bus()
@@ -43,6 +43,7 @@ class ROS1Sink:
         self.caps = None
         self.eos = False
         self.header = Header(frame_id=frame)
+        #self.rate = rospy.Rate(10)
         self.start()
 
     def __enter__(self):
@@ -65,8 +66,11 @@ class ROS1Sink:
         self.size = caps_format.get_value('width'), caps_format.get_value('height')
 
     def run(self):
+        self.rate = rospy.Rate(4)
+        print("running")
         while not rospy.is_shutdown():
             if self.eos:
+                print("end of stream")
                 rospy.signal_shutdown("end of stream")
                 break
             sample = self.sink.emit("pull-sample")
@@ -75,16 +79,19 @@ class ROS1Sink:
                     self.caps = sample.get_caps()
                 buf = sample.get_buffer()
                 self.header.stamp = rospy.Time.now()
+                tmp_buf = buf.extract_dup(0,buf.get_size())
                 if self.jpeg:
-                    msg  = CompressedImage(self.header,'jpeg',buf.extract_dup(0, buf.get_size()))
+                    msg  = CompressedImage(self.header,'jpeg',tmp_buf)
                 else:
                     msg = Image(self.header,self.size[1],self.size[0],"rgb8",False,
-                                self.size[0]*3,buf.extract_dup(0, buf.get_size()))
+                                self.size[0]*3,tmp_buf)
                 self.publisher.publish(msg)
+                #GLib.free(tmp_buf)
             gst_msg = self.bus.pop_filtered(Gst.MessageType.EOS)
             if gst_msg:
                 self.eos = True
                 self.close()
+            self.rate.sleep()
 
 if __name__=="__main__":
     import argparse
