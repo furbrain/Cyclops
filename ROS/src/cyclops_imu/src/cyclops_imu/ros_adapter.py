@@ -115,7 +115,7 @@ if ROS_VERSION in (1,2):
     ]
 
 class ROS_Adapter:
-    def __init__(self, device, rate:float=0.1, name: str = None, frame_id: str = None):
+    def __init__(self, device, rate:float=100.0, name: str = None, frame_id: str = None):
         self.name = name
         self.rate = rate
         self.device = device
@@ -149,12 +149,12 @@ class ROS_Adapter:
 
 class ROS1_Adapter(ROS_Adapter):
 
-    def __init__(self, object, rate: float = 100, name: str = None, frame_id:str = "base_link"):
+    def __init__(self, object, rate: float = 100.0, name: str = None, frame_id:str = "base_link"):
         if name is None:
             name = object.__class__.__name__
         rospy.init_node(name)
         super().__init__(object, rate, name, frame_id)
-        period = Duration(0,1/float(rate))
+        period = Duration(1/float(rate))
         self.timer = rospy.timer.Timer(period, self._publish_messages)
 
     def _create_publisher(self, cvt: Converter):
