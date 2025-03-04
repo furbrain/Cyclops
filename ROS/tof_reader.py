@@ -5,7 +5,7 @@ from ArducamDepthCamera import (ArducamCamera, TOFConnect, TOFDeviceType,
                                 TOFOutput, TOFControl, DepthData, ArducamInfo)
 import numpy as np
 from numpy_shares import NumpyShareManager
-from find_camera2 import find_cams
+from find_cameras2 import find_cams
 
 
     
@@ -15,12 +15,12 @@ def get_arducam():
     ret = tof.open(TOFConnect.CSI, find_cams("csi")[0])
     if not ret:
         print("Failed to open camera. Error code:", ret)
-        return
+        exit()
     ret = tof.start(TOFOutput.DEPTH)
     if ret != 0:
         print("Failed to start camera. Error code:", ret)
         tof.close()
-        return
+        exit()
     info = tof.getCameraInfo()
     if info.device_type == TOFDeviceType.HQVGA:
         tof.setControl(TOFControl.RANGE, 4)

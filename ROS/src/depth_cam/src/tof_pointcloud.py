@@ -99,15 +99,15 @@ class TOFPublisher:
     def __init__(self, nsm: NumpyShareManager):
         self.camera_info = CameraInfoManager(rospy.get_name())
         self.camera_info.loadCameraInfo()
-        self.frame_id = self.camera_info.frame
+        self.frame_id = rospy.get_param("~frame_id", 'base_link')
         self.depth_data, self.depth_lock = nsm.get_numpy_share("depth")
         self.amp_data, self.amp_lock = nsm.get_numpy_share("amplitude")
         self.width = self.depth_data.shape[1]
         self.height = self.depth_data.shape[0]
         self.pointsize_ = self.width * self.height
-        self.timer_ = rospy.Rate(10)
-        self.publisher_ = rospy.Publisher("~point_cloud",PointCloud2, queue_size=10)
-        self.publisher_image = rospy.Publisher("~image_raw",Image, queue_size=10)
+        self.timer_ = rospy.Rate(rospy.get_param("~rate", 10))
+        self.publisher_ = rospy.Publisher("~point_cloud", PointCloud2, queue_size=10)
+        self.publisher_image = rospy.Publisher("~image_raw", Image, queue_size=10)
         #may need to fix this bit later...
         self.fx = self.width / (2 * tan(0.5 * pi * 64.3 / 180))
         self.fy = self.height / (2 * tan(0.5 * pi * 50.4 / 180))
@@ -137,7 +137,7 @@ class TOFPublisher:
             pc2_msg_ = create_cloud_xyz32(self.header, self.points)
             print("finished cloud", time.time()-start)
             
-            image_msg = Image(header=self.header, encoding="mono8",width=self.width, height=self.height, step=self.width*2)
+            image_msg = Image(header=self.header, encoding="mono8",width=self.width, height=self.height, step=self.width)
             with self.amp_lock:
                 normed = cv2.normalize(self.amp_data, None, 0, 256, cv2.NORM_MINMAX, dtype=cv2.CV_8U)                
             image_msg.data = cv2.equalizeHist(normed).tobytes()
@@ -145,6 +145,7 @@ class TOFPublisher:
 
             self.publisher_.publish(pc2_msg_)
             self.publisher_image.publish(image_msg)
+            self.camera_info.publish(image_msg.header)
             print("published", time.time()-start)
             self.timer_.sleep()
 

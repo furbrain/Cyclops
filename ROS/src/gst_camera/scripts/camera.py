@@ -21,18 +21,21 @@ _ALL_VIDEO_FORMATS = [GstVideo.VideoFormat.from_string(
 class Camera:
     def __init__(self, name: str, spec: str, jpeg: bool = True):
         self.jpeg = jpeg
+        self.frame_id = rospy.get_param("~frame_id", 'base_link')
+        self.freq = rospy.get_param("~rate", 30)
         self.cam_info = CameraInfoManager(name)
         self.cam_info.loadCameraInfo()
         if jpeg:
-            fmt = 'jpegparse ! image/jpeg'
+            fmt = f'jpegparse ! image/jpeg'
         else:
-            fmt = 'video/x-raw, format=RGB8'
+            fmt = f'video/x-raw, format=RGB8'
         if jpeg:
             self.publisher = rospy.Publisher("~image_raw/compressed", CompressedImage, queue_size=1)
         else:
             self.publisher = rospy.Publisher("~image_raw", Image, queue_size=1)
         spec += f' ! {fmt} ! queue max-size-buffers=1 leaky=downstream ! appsink max-buffers=1'
         Gst.init([sys.argv[0]])
+        rospy.logwarn(f"Starting Gstreamer with full spec of {spec}")
         self.pipeline = Gst.parse_launch(spec)
         self.bus = self.pipeline.get_bus()
         try:
@@ -41,8 +44,7 @@ class Camera:
             _, self.sink = self.pipeline.iterate_sinks().next()
         self.caps = None
         self.eos = False
-        self.header = Header(frame_id=self.cam_info.frame)
-        #self.rate = rospy.Rate(10)
+        self.header = Header(frame_id=self.frame_id)
         self.start()
 
     def __enter__(self):
@@ -65,7 +67,7 @@ class Camera:
         self.size = caps_format.get_value('width'), caps_format.get_value('height')
 
     def run(self):
-        self.rate = rospy.Rate(30)
+        self.rate = rospy.Rate(self.freq)
         print("running")
         while not rospy.is_shutdown():
             if self.eos:
@@ -85,6 +87,7 @@ class Camera:
                     msg = Image(self.header,self.size[1],self.size[0],"rgb8",False,
                                 self.size[0]*3,tmp_buf)
                 self.publisher.publish(msg)
+                self.cam_info.publish(msg.header)
                 #GLib.free(tmp_buf)
             gst_msg = self.bus.pop_filtered(Gst.MessageType.EOS)
             if gst_msg:

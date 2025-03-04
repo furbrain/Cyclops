@@ -42,6 +42,7 @@ for drivers written in Python. This is very similar to the
 """
 import rospkg
 import rospy
+from std_msgs.msg import Header
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.srv import SetCameraInfo
 from sensor_msgs.srv import SetCameraInfoResponse
@@ -198,7 +199,6 @@ class CameraInfoManager():
         """Constructor.
         """
         self.cname = cname
-        self.frame = rospy.get_param("~frame_id", 'base_link')
         self.url = rospy.get_param("~camera_info_url", '')
         self.camera_info = None
 
@@ -313,8 +313,6 @@ class CameraInfoManager():
 
         """
         self._loadCalibration(self.url, self.cname)
-        self.camera_info.header.frame_id = self.frame
-        self.pub.publish(self.getCameraInfo())
 
     def setCameraInfo(self, req):
         """ Callback for SetCameraInfo request.
@@ -328,11 +326,9 @@ class CameraInfoManager():
         """
         rospy.logdebug('SetCameraInfo received for ' + self.cname)
         self.camera_info = req.camera_info
-        self.camera_info.header.frame_id = self.frame
         rsp = SetCameraInfoResponse()
         rsp.success = saveCalibration(req.camera_info,
                                       self.url, self.cname)
-        self.pub.publish(self.getCameraInfo())                                      
         if not rsp.success:
             rsp.status_message = "Error storing camera calibration."
         return rsp
@@ -383,6 +379,11 @@ class CameraInfoManager():
             self.url = url
             self.camera_info = None     # missing if URL changed
         return True
+        
+    def publish(self, header: Header):
+        self.camera_info.header = header
+        self.pub.publish(self.camera_info)
+    
 
 # related utility functions
 
