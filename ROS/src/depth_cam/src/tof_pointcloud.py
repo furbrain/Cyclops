@@ -125,7 +125,7 @@ class TOFPublisher:
             v = np.arange(self.height)
             u, v = np.meshgrid(u, v)
 
-            # Calculate point cloud coordinates
+            # Calculate point cloud coordinates ### BUT THIS IS WRONG - ASSUMES Z is position in z-axis - but it's not, its the hypotenuse
             x = (u - self.width / 2) * z / self.fx
             y = (v - self.height / 2) * z / self.fy
 
