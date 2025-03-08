@@ -1,0 +1,40 @@
+<launch>
+<machine name="cyclops" address="cyclops.local" ssh-port="2000" user="cyclops" password="cyclops" env-loader="/home/cyclops/ros_env.sh" timeout="15"/>
+<node machine="cyclops" name="lidar" pkg="depth_cam" type="tof_pointcloud.py">
+  <param name="frame_id" value="lidar"/>
+  <param name="rate" value="10"/>
+</node>
+<node machine="cyclops" name="imu" pkg="cyclops_imu" type="imu.py">
+  <remap from="/MagneticField" to="~magnetic_raw"/>
+  <remap from="/Imu" to="~imu_raw"/>
+  <param name="frame_id" value="imu"/>
+  <param name="rate" value="100.0"/>
+</node>
+<arg name="pipeline" value='"v4l2src device=/home/cyclops/usb_cam ! image/jpeg,width=640,height=480"'/>
+<node machine="cyclops" name="camera" pkg="gst_camera" type="camera.py" args="$(arg pipeline) -j">
+  <param name="frame_id" value="camera"/>
+  <param name="rate" value="10"/>
+</node>
+<!--<node machine="cyclops" name="camera" pkg="usb_cam" type="usb_cam_node">
+  <param name="video_device" value="/dev/video0"/>
+  <param name="pixel_format" value="h264"/>
+  <param name="framerate" value="30"/>
+</node> -->
+<!-- These are our static transforms for now -->
+<node pkg="tf2_ros" type="static_transform_publisher" name="$(anon a)" args="0 0 0 0 0 0 1 map base_link"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="$(anon b)" args="0 0 0 0 0 0 1 base_link lidar"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="$(anon c)" args="0 0 0 0 0 0 1 lidar imu"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="$(anon d)" args="0 0 0 0 0 0 1 lidar camera"/>
+
+<!-- and here is a converter for the compressed image stream from the camera -->
+<node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw">
+  <remap from="in" to="/camera/image_raw"/>
+  <remap from="out" to="/camera/image_raw"/>
+</node>
+
+<!-- and here are the image rectifiers -->
+
+<node name="rectify" ns="/camera" pkg="image_proc" type="image_proc"/>
+<node name="rectify" ns="/lidar" pkg="image_proc" type="image_proc"/>
+</launch>
+

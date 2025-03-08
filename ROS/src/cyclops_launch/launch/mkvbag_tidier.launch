@@ -1,0 +1,17 @@
+<launch>
+<node name="add_info" pkg="cyclops_launch" type="add_camera_info.py" ns="lidar">
+    <param name="~name" value="/lidar"/>
+    <remap from="~camera_info" to="camera_info"/>
+    <remap from="image_raw" to="depth_raw"/>
+</node> 
+<node name="my_resize" pkg="cyclops_launch" type="my_resize.py">
+    <remap from="in" to="camera_mkv/image_raw"/>
+    <remap from="out" to="camera/image_raw"/>
+</node>
+<node name="add_info" pkg="cyclops_launch" type="add_camera_info.py" ns="camera">
+    <param name="~name" value="/camera"/>
+    <param name="~camera_info_url" value="file://${ROS_HOME}/camera_info/camera640.yaml"/>
+    <remap from="~camera_info" to="camera_info"/>
+</node>
+</launch>
+

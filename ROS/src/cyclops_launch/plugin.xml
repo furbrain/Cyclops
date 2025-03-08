@@ -1,0 +1,12 @@
+<library path="src">
+  <class name="Calibration" type="rqt_mypkg.my_module.MyPlugin" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      A plugin to add sensor calibration
+    </description>
+    <qtgui>
+      <label>My first Python Plugin</label>
+      <icon type="theme">system-help</icon>
+      <statustip>Great user interface to provide real value.</statustip>
+    </qtgui>
+  </class>
+</library>

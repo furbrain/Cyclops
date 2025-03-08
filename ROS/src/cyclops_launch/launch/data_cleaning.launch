@@ -1,0 +1,82 @@
+<launch>
+
+<!-- image transport -->
+<node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw">
+  <remap from="in" to="/camera/image_raw"/>
+  <remap from="out" to="/camera/image_raw"/>
+</node>
+
+<node name="rectify" ns="/camera" pkg="image_proc" type="image_proc"/>
+<!--
+<node name="rectify" ns="/lidar" pkg="image_proc" type="image_proc"/>
+-->
+
+<!-- image rectification -->
+<node name="radial_to_depth" pkg="cyclops_launch" type="radial_to_depth_node.py" ns="/lidar">
+    <remap from="depth/radial" to="depth_raw"/>
+</node>
+
+
+<!-- register lidar and rgb images -->
+<node pkg="nodelet" type="nodelet" name="nodelet_manager" args="manager"/>
+<node pkg="topic_tools" type="relay" name="cam_info_sharer" args="/lidar/camera_info /lidar/depth/camera_info"/>
+<node pkg="nodelet" type="nodelet" name="rectify_depth" args="standalone image_proc/rectify">
+    <remap from="image_mono" to="/lidar/depth/image_raw"/>
+    <remap from="image_rect" to="/lidar/depth/image_rect"/>
+    <remap from="camera_info" to="/lidar/camera_info"/>
+</node>
+
+<node pkg="nodelet" type="nodelet" name="register" args="standalone depth_image_proc/register">
+    <remap from="rgb/camera_info" to="/camera/camera_info"/>
+    <remap from="depth/camera_info" to="/lidar/camera_info"/>
+    <remap from="depth/image_rect" to="/lidar/depth/image_rect"/>
+    <remap from="depth_registered/image_rect" to="/camera/depth/image_rect"/>
+</node>
+
+
+
+<!-- sensor rectification -->
+<node name="rectify" ns="/imu" pkg="mimu_calibrate" type="rectify.py">
+<rosparam ns="/imu" file="$(env HOME)/.ros/imu/calibration.yaml" param="calibration"/>
+</node>
+<!--
+<node name="complementary" ns="/imu" pkg="imu_complementary_filter" type="complementary_filter_node">
+    <remap from="imu/data_raw" to="imu_rect"/>
+    <remap from="imu/mag" to="magnetic_rect"/>
+    <remap from="imu/data" to="imu_pose"/>
+    <param name="~use_mag" value="true"/>
+    <param name="~publish_tf" value="true"/>
+</node>
+<node name="madgwick" ns="/imu" pkg="imu_filter_madgwick" type="imu_filter_node">
+    <remap from="imu/data_raw" to="imu_rect"/>
+    <remap from="imu/mag" to="magnetic_rect"/>
+    <remap from="imu/data" to="imu_pose"/>
+    <param name="~gain" value="0.1"/>
+    <param name="~remove_gravity_vector" value="true"/>
+    <param name="~publish_tf" value="false"/>
+</node>
+<node name="ekf" ns="/imu" pkg="robot_localization" type="ekf_localization_node">
+  <param name="~frequency" value="10"/>
+  <param name="~map_frame" value="map"/>
+  <param name="~base_link_frame" value="imu"/>
+  <param name="~reset_on_time_jump" value="true"/>
+  <param name="imu0" value="imu_pose"/>
+  <rosparam param="imu0_config">[false, false, false,
+                                true, true, true,
+                                false, false, false,
+                                false, false, false,
+                                true, true, true]</rosparam>
+</node>
+-->
+<arg name="static" default="false"/>
+<group if="$(arg static)" ns="tf">
+<node pkg="tf2_ros" type="static_transform_publisher" name="map_base_link" args="0 0 0 0 0 0 1 map base_link"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_imu" args="0 0 0 0 0 0 1 base_link_imu"/>
+</group>
+
+<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_camera" args="0 0 0 0 0 0 1 base_link camera"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_lidar" args="0.007 0.04704882 -0.011 -0.00977361 -0.03346772 -0.70279721  0.71053534 base_link lidar"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" ns="tf"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="world_map" args="0 0 0 0 0 0 1 world map" ns="tf"/>
+</launch>
+

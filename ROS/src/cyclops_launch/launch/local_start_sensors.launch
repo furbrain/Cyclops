@@ -1,0 +1,19 @@
+<launch>
+<node name="lidar" pkg="depth_cam" type="tof_pointcloud.py">
+  <param name="frame_id" value="lidar"/>
+  <param name="rate" value="10"/>
+</node>
+<node name="imu" pkg="cyclops_imu" type="imu.py">
+  <remap from="/MagneticField" to="~magnetic_raw"/>
+  <remap from="/Imu" to="~imu_raw"/>
+  <param name="frame_id" value="imu"/>
+  <param name="rate" value="100.0"/>
+</node>
+<arg name="pipeline" value='"v4l2src device=/home/cyclops/usb_cam ! image/jpeg,width=640,height=480"'/>
+<node name="camera" pkg="gst_camera" type="camera.py" args="$(arg pipeline) -j">
+  <param name="frame_id" value="camera"/>
+  <param name="rate" value="10"/>
+</node>
+<node name="recorder" pkg="rosbag" type="record" args="-o /home/cyclops/recording.bag /lidar/point_cloud /imu/magnetic_raw /imu/imu_raw /camera/image_raw/compressed"/>
+</launch>
+

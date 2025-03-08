@@ -1,0 +1,4 @@
+<launch>
+<rosparam command="dump" ns="/imu" file="$(env HOME)/.ros/imu/calibration.yaml" param="calibration"/>
+</launch>
+
