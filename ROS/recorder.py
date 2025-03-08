@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from functools import partial
+from typing import Sequence, Dict
+
 import board
 import digitalio
 import time
@@ -13,6 +16,7 @@ import roslaunch.rlutil
 import roslaunch.parent
 import rospkg
 import rospy
+import rostopic
 
 LAUNCH_FILE = "local_start_sensors.launch"
 
@@ -39,6 +43,23 @@ def wait_for_button_press(button: digitalio.DigitalInOut, launcher: roslaunch.pa
         rospy.sleep(0.1)
     return (time.time()-start) > 1.0
 
+class PublicationCheck:
+    def __init__(self, topics: Sequence[str]):
+        self.found = {topic: False for topic in topics}
+        self.subs: Dict[str, rospy.Subscriber] = {}
+        for topic in topics:
+            self.subs[topic] = rospy.Subscriber(topic,
+                                                rostopic.get_topic_class(topic)[0],
+                                                partial(self.callback,topic))
+
+    def callback(self, topic: str, message):
+        self.found[topic] = True
+        self.subs[topic].unregister()
+
+    def wait(self):
+        while not any(self.found.values()):
+            rospy.sleep(0.1)
+
 def main():
     button  = init_button()
     beeper = ServerProxy("http://localhost:8000", allow_none=True)
@@ -55,7 +76,11 @@ def main():
         print("Recording")
         launch = roslaunch.parent.ROSLaunchParent(ros_uuid, [launch_script], is_core=True, force_required=True)
         launch.start()
-        beeper.beep(SHORT)
+        print("launched")
+        waiter = PublicationCheck(['/camera/image_raw/compressed', '/lidar/image_raw', '/imu/imu_raw'])
+        waiter.wait()
+        print("all running")
+        beeper.beep(HAPPY)
         wait_for_button_press(button)
         beeper.beep(SHORT)
         launch.shutdown()
