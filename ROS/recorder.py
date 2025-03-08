@@ -14,7 +14,7 @@ import roslaunch.parent
 import rospkg
 import rospy
 
-LAUNCH_FILE = "start_sensors.launch"
+LAUNCH_FILE = "local_start_sensors.launch"
 
 LAUNCH_PKG = "cyclops_launch"
 
@@ -43,20 +43,24 @@ def main():
     button  = init_button()
     beeper = ServerProxy("http://localhost:8000", allow_none=True)
     beeper.beep(HAPPY)
-    launch_dir = rospkg.RosPack().get_path(LAUNCH_PKG)
-    launch_script = Path(launch_dir) / "launch" / LAUNCH_FILE
+    launch_script = roslaunch.rlutil.resolve_launch_arguments((LAUNCH_PKG, LAUNCH_FILE))[0]
+    print(launch_script)
     ros_uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     while True:
         result = wait_for_button_press(button)
         if result:
+             beeper.beep(SAD)
              break
         beeper.beep(SHORT)
         print("Recording")
         launch = roslaunch.parent.ROSLaunchParent(ros_uuid, [launch_script], is_core=True, force_required=True)
         launch.start()
-        wait_for_button_press()
-        beeper.beep(LONG)
+        beeper.beep(SHORT)
+        wait_for_button_press(button)
+        beeper.beep(SHORT)
+        launch.shutdown()
         time.sleep(1)
+        beeper.beep(LONG)
         print("Finished recording")
 
 if __name__=="__main__":

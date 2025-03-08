@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM ros:noetic
-ENV APT_REQS="python3-gst-1.0 python3-rpi.gpio gstreamer1.0-tools gstreamer1.0-python3-plugin-loader gstreamer1.0-plugins-good v4l-utils ros-noetic-cv-camera ros-noetic-tf2 ros-noetic-usb-cam python3-pip openssh-server netcat avahi-utils"
+ENV APT_REQS="python3-gst-1.0 python3-rpi.gpio gstreamer1.0-tools gstreamer1.0-python3-plugin-loader gstreamer1.0-plugins-good v4l-utils ros-noetic-cv-camera ros-noetic-tf2 ros-noetic-usb-cam ros-noetic-image-proc ros-noetic-tf2-ros python3-pip openssh-server netcat avahi-utils"
 ENV OPT_APT_REQS="less iputils-ping"
 RUN apt update && apt install -y $APT_REQS $OPT_APT_REQS
 COPY requirements.txt /
