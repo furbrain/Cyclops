@@ -1,5 +1,5 @@
+import sys
 from typing import List, Dict
-from functools import partial
 
 import rospy
 import rostopic
@@ -17,7 +17,8 @@ class PublicationCheck:
             _class = rostopic.get_topic_class(topic)
             print(f"Class is {_class}")
             rospy.wait_for_message(topic,_class)
+            print(f"{topic} has published")
 
 if __name__=="__main__":
     rospy.init_node("waiter")
-    PublicationCheck()
+    PublicationCheck(sys.argv[1:])
