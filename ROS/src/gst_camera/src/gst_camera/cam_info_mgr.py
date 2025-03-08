@@ -453,7 +453,7 @@ def loadCalibrationFile(filename, cname):
     ci = CameraInfo()
     try:
         f = open(filename)
-        calib = yaml.load(f)
+        calib = yaml.load(f, Loader=yaml.SafeLoader)
         if calib is not None:
             if calib['camera_name'] != cname:
                 rospy.logwarn("[" + cname + "] does not match name " +

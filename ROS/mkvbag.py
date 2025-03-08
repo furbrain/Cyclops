@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import time
 from typing import Sequence, List
 
@@ -67,14 +68,19 @@ class ROSIMUReader(ROSReader):
 class MKVBag:
     def __init__(self, fname: str):
         # setup readers
+        self.cam_reader = ROSReader(VidReader.from_filename(fname), "camera", "camera_mkv/image_raw")
+        self.tof_reader = ROSTOFReader(TOFReader.from_filename(fname), "lidar", "lidar/depth_raw")
+        self.imu_reader = ROSIMUReader(IMUReader.from_filename(fname), "imu")
         self.readers: List[ROSReader] = [
-            ROSReader(VidReader.from_filename(fname), "camera"),
-            ROSTOFReader(TOFReader.from_filename(fname), "lidar"),
-            ROSIMUReader(IMUReader.from_filename(fname), "imu")
+            self.cam_reader,
+            self.tof_reader,
+            self.imu_reader
         ]
 
     def run(self):
         first_offset = None
+        lidar_alternator = True
+        cam_trigger = False
         for r in self.readers:
             r.read()
         while True:
@@ -86,7 +92,19 @@ class MKVBag:
                 first_offset = offset
             elif first_offset > offset:
               time.sleep(first_offset-offset)
-
+            if min_reader is self.tof_reader:
+                #lidar_alternator = not lidar_alternator
+                if lidar_alternator:
+                    cam_trigger = True
+                else:
+                    min_reader.read()
+                    continue
+            elif min_reader is self.cam_reader:
+                if cam_trigger:
+                    cam_trigger = False
+                else:
+                    min_reader.read()
+                    continue
             min_reader.publish()
             min_reader.read()
 
