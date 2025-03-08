@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from functools import partial
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Any
 
 import board
 import digitalio
@@ -17,6 +17,7 @@ import roslaunch.parent
 import rospkg
 import rospy
 import rostopic
+from sensor_msgs.msg import CompressedImage, Imu, Image, MagneticField
 
 LAUNCH_FILE = "local_start_sensors.launch"
 
@@ -27,6 +28,10 @@ SAD = tuple(reversed(HAPPY))
 SHORT = (("C7", 0.1),)
 LONG = (("C7", 0.5),)
 BUTTON_PIN = board.D20
+TOPICS_REQUIRED = ['/imu/imu_raw',
+                   '/lidar/image_raw',
+                   '/camera/image_raw/compressed']
+
 
 def init_button() -> digitalio.DigitalInOut:
     button = digitalio.DigitalInOut(BUTTON_PIN)
@@ -44,21 +49,26 @@ def wait_for_button_press(button: digitalio.DigitalInOut, launcher: roslaunch.pa
     return (time.time()-start) > 1.0
 
 class PublicationCheck:
-    def __init__(self, topics: Sequence[str]):
+    def __init__(self, topics: Dict[str,type]):
         self.found = {topic: False for topic in topics}
+        rospy.init_node("waiter")
         self.subs: Dict[str, rospy.Subscriber] = {}
-        for topic in topics:
+        for topic, class_ in topics.items():
             self.subs[topic] = rospy.Subscriber(topic,
-                                                rostopic.get_topic_class(topic)[0],
+                                                class_,
                                                 partial(self.callback,topic))
+        print(self.subs)
 
-    def callback(self, topic: str, message):
+
+    def callback(self, topic: str, message: Any):
+        print(f"{topic} has published")
         self.found[topic] = True
         self.subs[topic].unregister()
 
     def wait(self):
         while not any(self.found.values()):
             rospy.sleep(0.1)
+        rospy.signal_shutdown("kill waiter")
 
 def main():
     button  = init_button()
@@ -77,8 +87,11 @@ def main():
         launch = roslaunch.parent.ROSLaunchParent(ros_uuid, [launch_script], is_core=True, force_required=True)
         launch.start()
         print("launched")
-        waiter = PublicationCheck(['/camera/image_raw/compressed', '/lidar/image_raw', '/imu/imu_raw'])
-        waiter.wait()
+        #waiter = PublicationCheck(TOPICS_REQUIRED)
+        #waiter.wait()
+        for topic in TOPICS_REQUIRED:
+            print(f"Waiting for {topic}") 
+            os.system(f"rostopic echo --noarr -n 1 {topic}")
         print("all running")
         beeper.beep(HAPPY)
         wait_for_button_press(button)
