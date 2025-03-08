@@ -48,25 +48,6 @@ def wait_for_button_press(button: digitalio.DigitalInOut, launcher: roslaunch.pa
         rospy.sleep(0.1)
     return (time.time()-start) > 1.0
 
-class PublicationCheck:
-    def __init__(self, topics: Sequence[str]):
-        self.found = {topic: False for topic in topics}
-        self.subs: Dict[str, rospy.Subscriber] = {}
-        for topic in topics:
-            self.subs[topic] = rospy.Subscriber(topic,
-                                                rostopic.get_topic_class(topic)[0],
-                                                partial(self.callback,topic))
-
-
-    def callback(self, topic: str, message: Any):
-        print(f"{topic} has published")
-        self.found[topic] = True
-        self.subs[topic].unregister()
-
-    def wait(self):
-        while not any(self.found.values()):
-            rospy.sleep(0.1)
-
 def main():
     button  = init_button()
     beeper = ServerProxy("http://localhost:8000", allow_none=True)
@@ -84,15 +65,11 @@ def main():
         launch = roslaunch.parent.ROSLaunchParent(ros_uuid, [launch_script], is_core=True, force_required=True)
         launch.start()
         print("launched")
+        rospy.sleep(1)
         rospy.wait_for_service("wait_for_pubs")
         waiter = rospy.ServiceProxy('wait_for_pubs', Trigger)
         result = waiter()
         print(result)
-        #waiter = PublicationCheck(TOPICS_REQUIRED)
-        #waiter.wait()
-        for topic in TOPICS_REQUIRED:
-            print(f"Waiting for {topic}")
-            os.system(f"rostopic echo --noarr -n 1 {topic}")
         print("all running")
         beeper.beep(HAPPY)
         wait_for_button_press(button)
