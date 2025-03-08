@@ -14,6 +14,6 @@
   <param name="frame_id" value="camera"/>
   <param name="rate" value="10"/>
 </node>
-<node name="recorder" pkg="rosbag" type="record" args="-o /home/cyclops/recording.bag /lidar/point_cloud /imu/magnetic_raw /imu/imu_raw /camera/image_raw/compressed"/>
+<node name="recorder" pkg="rosbag" type="record" args="-o /home/cyclops/recording.bag -a"/>
 </launch>
 
