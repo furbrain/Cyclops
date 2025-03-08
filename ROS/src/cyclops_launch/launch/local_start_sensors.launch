@@ -15,5 +15,6 @@
   <param name="rate" value="10"/>
 </node>
 <node name="recorder" pkg="rosbag" type="record" args="-o /home/cyclops/recording.bag -a"/>
+<node name="activity_monitor" pkg="cyclops_launch" type="activity_monitor.py" args="/camera/image_raw/compressed /lidar/image_raw /imu/imu_raw"/>
 </launch>
 

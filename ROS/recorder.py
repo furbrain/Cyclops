@@ -17,7 +17,7 @@ import roslaunch.parent
 import rospkg
 import rospy
 import rostopic
-from sensor_msgs.msg import CompressedImage, Imu, Image, MagneticField
+from std_srvs.srv import Trigger
 
 LAUNCH_FILE = "local_start_sensors.launch"
 
@@ -49,15 +49,13 @@ def wait_for_button_press(button: digitalio.DigitalInOut, launcher: roslaunch.pa
     return (time.time()-start) > 1.0
 
 class PublicationCheck:
-    def __init__(self, topics: Dict[str,type]):
+    def __init__(self, topics: Sequence[str]):
         self.found = {topic: False for topic in topics}
-        rospy.init_node("waiter")
         self.subs: Dict[str, rospy.Subscriber] = {}
-        for topic, class_ in topics.items():
+        for topic in topics:
             self.subs[topic] = rospy.Subscriber(topic,
-                                                class_,
+                                                rostopic.get_topic_class(topic)[0],
                                                 partial(self.callback,topic))
-        print(self.subs)
 
 
     def callback(self, topic: str, message: Any):
@@ -68,7 +66,6 @@ class PublicationCheck:
     def wait(self):
         while not any(self.found.values()):
             rospy.sleep(0.1)
-        rospy.signal_shutdown("kill waiter")
 
 def main():
     button  = init_button()
@@ -87,10 +84,14 @@ def main():
         launch = roslaunch.parent.ROSLaunchParent(ros_uuid, [launch_script], is_core=True, force_required=True)
         launch.start()
         print("launched")
+        rospy.wait_for_service("wait_for_pubs")
+        waiter = rospy.ServiceProxy('wait_for_pubs', Trigger)
+        result = waiter()
+        print(result)
         #waiter = PublicationCheck(TOPICS_REQUIRED)
         #waiter.wait()
         for topic in TOPICS_REQUIRED:
-            print(f"Waiting for {topic}") 
+            print(f"Waiting for {topic}")
             os.system(f"rostopic echo --noarr -n 1 {topic}")
         print("all running")
         beeper.beep(HAPPY)

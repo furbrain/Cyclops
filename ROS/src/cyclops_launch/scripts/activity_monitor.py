@@ -3,7 +3,7 @@ from typing import List, Dict
 
 import rospy
 import rostopic
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 
 
 class PublicationCheck:
@@ -18,6 +18,7 @@ class PublicationCheck:
             print(f"Class is {_class}")
             rospy.wait_for_message(topic,_class)
             print(f"{topic} has published")
+        return TriggerResponse(True,f"{self.topics} all publishing")
 
 if __name__=="__main__":
     rospy.init_node("waiter")
