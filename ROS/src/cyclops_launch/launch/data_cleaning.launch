@@ -1,5 +1,5 @@
 <launch>
-
+<arg name="slam_system" default="orb_slam3"/>
 <!-- image transport -->
 <node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw">
   <remap from="in" to="/camera/image_raw"/>
@@ -47,6 +47,7 @@
     <param name="~use_mag" value="true"/>
     <param name="~publish_tf" value="true"/>
 </node>
+-->
 <node name="madgwick" ns="/imu" pkg="imu_filter_madgwick" type="imu_filter_node">
     <remap from="imu/data_raw" to="imu_rect"/>
     <remap from="imu/mag" to="magnetic_rect"/>
@@ -55,6 +56,7 @@
     <param name="~remove_gravity_vector" value="true"/>
     <param name="~publish_tf" value="false"/>
 </node>
+<!--
 <node name="ekf" ns="/imu" pkg="robot_localization" type="ekf_localization_node">
   <param name="~frequency" value="10"/>
   <param name="~map_frame" value="map"/>
@@ -71,11 +73,11 @@
 <arg name="static" default="false"/>
 <group if="$(arg static)" ns="tf">
 <node pkg="tf2_ros" type="static_transform_publisher" name="map_base_link" args="0 0 0 0 0 0 1 map base_link"/>
-<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_imu" args="0 0 0 0 0 0 1 base_link_imu"/>
 </group>
 
 <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_camera" args="0 0 0 0 0 0 1 base_link camera"/>
 <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_lidar" args="0.007 0.04704882 -0.011 -0.00977361 -0.03346772 -0.70279721  0.71053534 base_link lidar"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_imu" args="0 0 0 0.5207622 0.5644417 0.4445238 0.4610974 base_link imu" if="$(eval arg('slam_system')=='rtabmap')"/>
 <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" ns="tf"/>
 <node pkg="tf2_ros" type="static_transform_publisher" name="world_map" args="0 0 0 0 0 0 1 world map" ns="tf"/>
 </launch>
