@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM ros:noetic
-ENV APT_REQS="python3-gst-1.0 python3-rpi.gpio gstreamer1.0-tools gstreamer1.0-python3-plugin-loader gstreamer1.0-plugins-good v4l-utils ros-noetic-cv-camera ros-noetic-tf2 ros-noetic-usb-cam ros-noetic-image-proc ros-noetic-tf2-ros python3-pip openssh-server netcat avahi-utils"
+ENV APT_REQS="python3-gst-1.0 python3-rpi.gpio gstreamer1.0-tools gstreamer1.0-python3-plugin-loader gstreamer1.0-plugins-good v4l-utils ros-noetic-cv-camera ros-noetic-tf2 ros-noetic-usb-cam ros-noetic-image-proc ros-noetic-tf2-ros python3-pip openssh-server netcat avahi-utils clinfo ocl-icd-opencl-dev"
 ENV OPT_APT_REQS="less iputils-ping"
 RUN apt update && apt install -y $APT_REQS $OPT_APT_REQS
 COPY requirements.txt /
@@ -13,6 +13,12 @@ RUN adduser cyclops && echo cyclops:cyclops | chpasswd
 RUN adduser cyclops video
 RUN echo "cyclops ALL=(ALL:ALL) ALL, !/bin/bash" > /etc/sudoers.d/custom_sudoers && \
     chmod 0440 /etc/sudoers.d/custom_sudoers
+RUN mkdir -p /lib/firmware/
+RUN mkdir -p /etc/OpenCL/vendors/
+ADD https://github.com/JeffyCN/mirrors/raw/refs/heads/libmali/lib/aarch64-linux-gnu/libmali-bifrost-g52-g13p0-gbm.so /lib/firmware
+RUN echo /lib/firmware/libmali-bifrost-g52-g13p0-gbm.so > /etc/OpenCL/vendors/mali.icd
+
+
 #
 # install ORBSLAM3 ROS package
 #
