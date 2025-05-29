@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+import rospy
+import tf2_ros
+from geometry_msgs.msg import TransformStamped, Vector3, Quaternion
+from tf_conversions import transformations
+from std_msgs.msg import Header
+import yaml
+yaml.add_multi_constructor('tag:', lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+
+class Broadcaster:
+    def __init__(self):
+        url = rospy.get_param("~url")
+        to_cam = rospy.get_param("~to_cam",1)
+        self.from_name = rospy.get_param("~from_name")
+        to_name = rospy.get_param("~to_name")
+        rate = rospy.get_param("~rate", 10)
+        with open(url) as f:
+            cal = yaml.safe_load(f)
+        matrix = cal[f'cam{to_cam}']['T_cn_cnm1']
+        self.transform = TransformStamped()
+        self.transform.child_frame_id = to_name
+        translation = transformations.translation_from_matrix(matrix)
+        self.transform.transform.translation = Vector3(*translation)
+        quat = transformations.quaternion_from_matrix(matrix)
+        self.transform.transform.rotation = Quaternion(*quat)
+        self.staticpub = tf2_ros.StaticTransformBroadcaster()
+        self.rate = rospy.Rate(rate)
+
+    def run(self):
+        while not rospy.is_shutdown():
+            self.transform.header = Header(stamp=rospy.Time.now(), frame_id = self.from_name)
+            self.staticpub.sendTransform(self.transform)
+            self.rate.sleep()
+        
+if __name__=="__main__":
+    rospy.init_node("static_transform")
+    b = Broadcaster()    
+    b.run()
+

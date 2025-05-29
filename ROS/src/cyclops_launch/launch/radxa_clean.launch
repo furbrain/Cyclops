@@ -1,0 +1,27 @@
+<launch>
+<arg name="slam_system" default="orb_slam3"/>
+
+<node name="remap_depth" pkg="cyclops_launch" type="remap.py">
+    <remap from="~in" to="/tof/depth_raw"/>
+    <remap from="~out" to="/rgb/depth_raw"/>
+</node>
+
+
+<!-- sensor rectification -->
+<node name="rectify" ns="/imu" pkg="mimu_calibrate" type="rectify.py">
+    <rosparam ns="/imu" file="$(env HOME)/.ros/imu/calibration_mpu9150.yaml" param="calibration"/>
+    <remap from="imu_rect" to="imu_rect_semi"/>
+</node>
+
+<node name="fix_ang_vel" pkg="cyclops_launch" type="fix_ang_vel_node.py" ns="/imu">
+    <remap from="~in" to="imu_rect_semi"/>
+    <remap from="~out" to="imu_rect"/>
+</node>
+
+<group ns="tf">
+<node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="odom_odom_cam" args="0 0 0 -1.5707 0 -1.5707 odom odom_cam"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="world_map" args="0 0 0 0 0 0 1 world map"/>
+<!--<node pkg="tf2_ros" type="static_transform_publisher" name="odom_cam_imu" args="0 0 0 0.707 0 0.707 0 odom_cam base_link"/>-->
+</group>
+</launch>

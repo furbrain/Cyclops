@@ -1,0 +1,6 @@
+<launch>
+<param name="/use_sim_time" value="true"/>
+<include file="$(find cyclops_launch)/launch/start_radxa.launch" pass_all_args="true"/>
+<include file="$(find cyclops_launch)/launch/radxa_clean.launch" pass_all_args="true"/>
+<include file="$(find cyclops_launch)/launch/radxa_orb.launch" pass_all_args="true"/>
+</launch>

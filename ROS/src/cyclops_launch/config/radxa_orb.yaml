@@ -1,0 +1,93 @@
+%YAML 1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+---
+File.version: "1.0"
+
+Camera.type: "PinHole"
+#System.LoadAtlasFromFile: "storrs2"
+# Camera calibration and distortion parameters (OpenCV) 
+Camera1.fx: 448.0077516819385
+Camera1.fy: 448.14880082365823
+Camera1.cx: 326.9096505895639
+Camera1.cy: 220.45156701610665
+
+Camera1.k1: 0.013477239649652518
+Camera1.k2: 0.04119016514984958
+Camera1.p1: -0.001586529819171827
+Camera1.p2: -0.002809313471949867
+
+# Camera resolution
+Camera.width: 640
+Camera.height: 480
+
+Camera.newWidth: 640
+Camera.newHeight: 480
+
+# Camera frames per second 
+Camera.fps: 5
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+Stereo.ThDepth: 5.0
+Stereo.b: 0.0745
+
+RGBD.DepthMapFactor: 1.0
+# Transformation from camera to body-frame (imu)
+IMU.T_b_c1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [0.11731564,  0.03649051,  0.99242404,  0.02259122,
+         -0.07887792, -0.99582519,  0.04593982,  0.037217,
+         0.98995723, -0.0836698,  -0.11394757, -0.0018358,
+         0,          0,          0,          1        ]
+
+# IMU noise
+IMU.NoiseGyro: 0.000410636997361613
+IMU.NoiseAcc: 0.00034248799392155274 
+IMU.GyroWalk: 5.444508338740487e-06
+IMU.AccWalk: 0.00020185091321847634
+IMU.Frequency: 80.0
+
+#----------------------------
+
+
+#----------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000 # 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -1.7
+Viewer.ViewpointZ: 0.8
+Viewer.ViewpointF: -500.0
+

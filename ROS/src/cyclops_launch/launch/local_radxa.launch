@@ -1,0 +1,18 @@
+<launch>
+
+<node name="lidar" pkg="sipeed_tof_cpp" type="py_publisher">
+  <param name="frame_id" value="camera"/>
+  <param name="rate" value="5"/>
+</node>
+<node name="imu" pkg="mpu9150" type="MPU9150" >
+  <remap from="magnetic_raw" to="~magnetic_raw"/>
+  <remap from="imu_raw" to="~imu_raw"/>
+  <param name="bus" value="4"/>
+  <param name="frame_id" value="imu"/>
+  <param name="rate" value="100"/>
+</node>
+<!-- These are our static transforms for now -->
+<node pkg="tf2_ros" type="static_transform_publisher" name="$(anon b)" args="0 0 0 0 0 0 1 base_link imu"/>
+<node name="recorder" pkg="rosbag" type="record" args="-a --split --duration=2m"/>
+</launch>
+

@@ -17,11 +17,14 @@ class FillDepthNode:
 
     def callback(self, img_msg: Image):
         img = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding='passthrough')
-        img = img.copy()
-        img[np.isnan(img)] = 0
+        if img.dtype != np.float32:
+            img = img.astype(np.float32) / 1000.0
+        else:
+            img = img.copy()
+            img[np.isnan(img)] = 0
         img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, self.kernel)
         header = img_msg.header
-        msg = self.bridge.cv2_to_imgmsg(img.astype(np.float32), encoding='32FC1')
+        msg = self.bridge.cv2_to_imgmsg(img, encoding='32FC1')
         msg.header = header
         self.pub.publish(msg)
         

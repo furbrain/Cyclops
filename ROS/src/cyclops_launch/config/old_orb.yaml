@@ -1,0 +1,102 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# System config
+#--------------------------------------------------------------------------------------------
+
+# When the variables are commented, the system doesn't load a previous session or not store the current one
+
+# If the LoadFile doesn't exist, the system give a message and create a new Atlas from scratch
+#System.LoadAtlasFromFile: "Session_MH01_MH02_MH03_Mono"
+
+# The store file is created from the current session, if a file with the same name exists it is deleted
+#System.SaveAtlasToFile: "Session_MH01_MH02_MH03_Mono"
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+File.version: "1.0"
+
+Camera.type: "Rectified"
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera1.fx: 347.19835103814387
+Camera1.fy: 346.57249311941376
+Camera1.cx: 294.24524334212
+Camera1.cy: 231.26569502832257
+
+
+Camera1.k1: -0.28340811
+Camera1.k2: 0.07395907
+Camera1.p1: 0.00019359
+Camera1.p2: 1.76187114e-05
+
+Camera.width: 752
+Camera.height: 480
+
+Camera.newWidth: 600
+Camera.newHeight: 350
+
+# Camera frames per second 
+Camera.fps: 20
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+Stereo.ThDepth: 5.0
+Stereo.b: 0.0745
+
+RGBD.DepthMapFactor: 1.0
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+IMU.T_b_c1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [-0.04924809,  0.15766739,  0.98626346,  0.00009216,
+           0.99809139,  0.04460508,  0.04270799,  0.00023033,
+          -0.0372587,   0.98648435, -0.15956318,  0.00052894,
+          0, 0, 0, 1]
+
+   
+   
+# IMU noise
+IMU.NoiseGyro: 0.000410636997361613
+IMU.NoiseAcc: 0.004870096588886069
+IMU.GyroWalk: 5.444508338740487e-06
+IMU.AccWalk: 0.00020185091321847634
+IMU.Frequency: 100.0
+
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#---------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500.0
+

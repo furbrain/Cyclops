@@ -1,0 +1,55 @@
+<launch>
+<group ns="lidar">
+<node name="sipeed" pkg="sipeed_tof_cpp" type="py_publisher">
+    <remap from="tof/depth_raw" to="tof/depth/image_raw"/>
+</node>
+
+<!-- and here is a converter for the compressed image stream from the camera -->
+<node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw" ns="rgb">
+  <remap from="in" to="image_raw"/>
+  <remap from="out" to="image_raw"/>
+</node>
+
+<!-- add camera info -->
+<node name="rgb_info" pkg="cyclops_launch" type="add_camera_info.py">
+    <remap from="image_raw" to="rgb/image_raw"/>
+    <remap from="~camera_info" to="rgb/camera_info"/>
+    <param name="~name" value="sipeed_rgb640"/>
+</node>
+<node name="tof_info" pkg="cyclops_launch" type="add_camera_info.py">
+    <remap from="image_raw" to="tof/image_raw"/>
+    <remap from="~camera_info" to="tof/camera_info"/>
+    <param name="~name" value="sipeed_tof"/>
+</node>
+<!--
+<node name="tof_depth_info" pkg="cyclops_launch" type="add_camera_info.py">
+    <remap from="image_raw" to="tof/image_raw"/>
+    <remap from="~camera_info" to="tof/depth/camera_info"/>
+    <param name="~name" value="sipeed_tof"/>
+</node>
+-->
+<node name="rectify" pkg="image_proc" type="image_proc" ns="rgb"/>
+<node name="rectify" pkg="image_proc" type="image_proc" ns="tof"/>
+<node pkg="nodelet" type="nodelet" name="rectify_depth" args="standalone image_proc/rectify">
+    <remap from="image_mono" to="tof/depth/image_raw"/>
+    <remap from="image_rect" to="tof/depth/image_rect"/>
+    <remap from="tof/depth/camera_info" to="tof/camera_info"/>
+</node>
+
+<node pkg="nodelet" type="nodelet" name="register" args="standalone depth_image_proc/register">
+    <remap from="depth/camera_info" to="tof/camera_info"/>
+    <remap from="depth/image_rect" to="tof/depth/image_rect"/>
+    <remap from="depth_registered/image_rect" to="rgb/depth_sparse"/>
+</node>
+<node pkg="cyclops_launch" type="fill_depth_image.py" name="fill_depth">
+    <remap from="in" to="rgb/depth_sparse"/>
+    <remap from="out" to="rgb/depth_rect"/>
+</node>
+</group>
+<node pkg="cyclops_launch" type="static_from_kalibr" name="tof_camera">
+    <param name="~url" value="/home/phil/bags/sipeed_cal-camchain.yaml"/>
+    <param name="~from_name" value="tof"/>
+    <param name="~to_name" value="camera"/>
+</node>
+</launch>
+
