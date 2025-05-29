@@ -1,7 +1,0 @@
-<launch>
-<arg name="slam_system" default="orb_slam3"/>
-<param name="/use_sim_time" value="true"/>
-<include file="$(find cyclops_launch)/launch/data_cleaning.launch" pass_all_args="true"/>
-<include file="$(find cyclops_launch)/launch/rtabmap.launch" if="$(eval arg('slam_system') == 'rtabmap')"/>
-<include file="$(find orb_slam3_ros)/launch/cyclops_rgbd.launch" if="$(eval arg('slam_system') == 'orb_slam3')"/>
-</launch>
