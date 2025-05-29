@@ -1,5 +1,6 @@
 <launch>
 <machine name="cyclops" address="cyclops.local" ssh-port="2000" user="cyclops" password="cyclops" env-loader="/home/cyclops/ros_env.sh" timeout="15"/>
+
 <node machine="cyclops" name="lidar" pkg="depth_cam" type="tof_pointcloud.py">
   <param name="frame_id" value="lidar"/>
   <param name="rate" value="10"/>

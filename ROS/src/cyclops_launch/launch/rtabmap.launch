@@ -1,9 +1,9 @@
 <launch>
 <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
-    <arg name="rgb_topic" value="/camera/image_rect"/>
-    <arg name="depth_topic" value="/camera/depth/image_rect"/>
-    <arg name="camera_info_topic" value="/camera/camera_info"/>
-    <arg name="imu_topic" value="/imu/imu_pose"/>
+    <arg name="rgb_topic" value="/rgb/image_raw"/>
+    <arg name="depth_topic" value="/rgb/depth_raw"/>
+    <arg name="camera_info_topic" value="/rgb/camera_info"/>
+    <arg name="imu_topic" value="/imu/imu_rect"/>
     <arg name="frame_id" value="base_link"/>
     <arg name="approx_sync" value="true"/>
     <arg name="wait_imu_to_init" value="true"/>
