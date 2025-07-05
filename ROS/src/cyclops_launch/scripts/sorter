@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+
+from dataclasses import dataclass, field
+from typing import Any
+from functools import partial
+from heapq import heappush, heappop
+
+import rospy
+import rostopic
+
+
+@dataclass(order=True)
+class StampedMsg:
+    time: rospy.Time
+    topic: str=field(compare=False)
+    msg: Any=field(compare=False)
+
+class Sorter:
+    def __init__(self, topic_names):
+        self.output_ns = rospy.get_param("~namespace","sorted")
+        self.delay = rospy.Duration.from_sec(rospy.get_param("~delay",0.5))
+        self.subs: list[rospy.subscriber] = []
+        self.pubs: dict[str, rospy.Publisher] = {}
+        for t in topic_names:
+            msg_class, _, _ = rostopic.get_topic_class(t)
+            print(t, msg_class)
+            self.subs.append(rospy.Subscriber(t, msg_class, partial(self.callback, t), queue_size=3))
+            self.pubs[t] = rospy.Publisher(self.output_ns+t, msg_class, queue_size=2)
+        self.sorted_queue: list[StampedMsg] = []
+
+    def callback(self, topic, msg):
+        if not hasattr(msg, "header"):
+            print("No header found")
+            return
+        heappush(self.sorted_queue,StampedMsg(msg.header.stamp,topic,msg))
+        print(len(self.sorted_queue))
+        
+    def run(self):
+        while not rospy.is_shutdown():
+            if len(self.sorted_queue)>0:
+                if self.sorted_queue[0].time + self.delay < rospy.Time.now():
+                    stamped_msg = heappop(self.sorted_queue)
+                    self.pubs[stamped_msg.topic].publish(stamped_msg.msg)
+            rospy.sleep(0.001)
+
+rospy.init_node("sorter")
+sorter = Sorter(rospy.myargv()[1:])
+sorter.run()  

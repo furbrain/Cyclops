@@ -1,27 +1,50 @@
 <launch>
 <arg name="slam_system" default="orb_slam3"/>
+<arg name="rectify_images" default="true"/>
+<node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw" ns="rgb">
+  <remap from="in" to="image_raw"/>
+  <remap from="out" to="image_raw"/>
+</node>
+
 
 <node name="remap_depth" pkg="cyclops_launch" type="remap.py">
     <remap from="~in" to="/tof/depth_raw"/>
     <remap from="~out" to="/rgb/depth_raw"/>
+    <param name="chain_file" value="$(env HOME)/.ros/remap_chain.yaml"/>
 </node>
 
 
-<!-- sensor rectification -->
+<!-- sensor rectification no longer needed
 <node name="rectify" ns="/imu" pkg="mimu_calibrate" type="rectify.py">
     <rosparam ns="/imu" file="$(env HOME)/.ros/imu/calibration_mpu9150.yaml" param="calibration"/>
-    <remap from="imu_rect" to="imu_rect_semi"/>
 </node>
+-->
 
-<node name="fix_ang_vel" pkg="cyclops_launch" type="fix_ang_vel_node.py" ns="/imu">
-    <remap from="~in" to="imu_rect_semi"/>
+<node name="adjust_ts" ns="/imu" pkg="cyclops_launch" type="adjust_timestamp.py">
+    <remap from="~in" to="imu_raw"/>
     <remap from="~out" to="imu_rect"/>
+    <param name="~offset" value="0.55"/>
 </node>
 
+<!-- add camera info -->
+<node name="cam_info" ns="rgb" pkg="cyclops_launch" type="add_camera_info.py">
+    <param name="~name" value="sipeed_rgb640"/>
+    <remap from="~camera_info" to="camera_info"/>
+</node>
+
+<node name="rgb_rect" ns="rgb" pkg="image_proc" type="image_proc"/>
+<group ns="rgb">
+<node name="depth_rect" pkg="cyclops_launch" type="generic_rectify" output="screen">
+    <remap from="image_raw" to="depth_raw"/>
+    <remap from="image_rect" to="depth_rect"/>
+</node>
+</group>
 <group ns="tf">
 <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom"/>
 <node pkg="tf2_ros" type="static_transform_publisher" name="odom_odom_cam" args="0 0 0 -1.5707 0 -1.5707 odom odom_cam"/>
 <node pkg="tf2_ros" type="static_transform_publisher" name="world_map" args="0 0 0 0 0 0 1 world map"/>
+<node pkg="tf2_ros" type="static_transform_publisher" name="cam_imu" args="0.02259122 0.037217 -0.0018358 0.7461716 -0.0142016 0.6641841 -0.0434249 camera imu"/>
 <!--<node pkg="tf2_ros" type="static_transform_publisher" name="odom_cam_imu" args="0 0 0 0.707 0 0.707 0 odom_cam base_link"/>-->
+
 </group>
 </launch>

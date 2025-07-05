@@ -1,12 +1,16 @@
 <launch>
 <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
-    <arg name="rgb_topic" value="/rgb/image_raw"/>
-    <arg name="depth_topic" value="/rgb/depth_raw"/>
-    <arg name="camera_info_topic" value="/rgb/camera_info"/>
-    <arg name="imu_topic" value="/imu/imu_rect"/>
+    <arg name="rgb_topic" value="/sorted/rgb/image_rect_color"/>
+    <arg name="depth_topic" value="/sorted/rgb/depth_rect"/>
+    <arg name="camera_info_topic" value="/sorted/rgb/camera_info"/>
+    <arg name="imu_topic" value="/sorted/imu/imu_rect"/>
     <arg name="frame_id" value="base_link"/>
     <arg name="approx_sync" value="true"/>
     <arg name="wait_imu_to_init" value="true"/>
-    <arg name="rtabmap_args" value="--delete_db_on_start --Odom/Strategy 9"/>
+    <arg name="rtabmap_args" value="--delete_db_on_start"/>
+    <arg name="topic_queue_size" value="1"/>
+    <arg name="sync_queue_size" value="10"/>
+    <arg name="rviz" value="false"/>
+    <arg name="rtabmap_viz" value="true"/>
 </include>
 </launch>

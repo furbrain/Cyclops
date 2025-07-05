@@ -1,0 +1,9 @@
+<launch>
+<node name="sipeed" pkg="sipeed_tof_cpp" type="py_publisher">
+    <remap from="tof/depth_raw" to="tof/depth/image_raw"/>
+</node>
+<node name="register" pkg="cyclops_launch" type="remap.py">
+    <remap from="~in" to="tof/depth/image_raw"/>
+</node>
+</launch>
+

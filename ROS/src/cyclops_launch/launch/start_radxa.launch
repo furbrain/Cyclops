@@ -1,6 +1,9 @@
 <launch>
-<machine name="cyclops" address="radxa-zero3.local" ssh-port="2000" user="cyclops" password="cyclops" env-loader="/home/cyclops/setup_ros.bash" timeout="25"/>
-
+<group>
+<machine name="cyclops" address="radxa-zero3.local" ssh-port="2000" user="cyclops" password="cyclops" env-loader="/home/cyclops/setup_ros.bash" timeout="25" default="true"/>
+<include file="$(find cyclops_launch)/launch/local_radxa.launch"/>
+</group>
+<!--
 <node machine="cyclops" name="lidar" pkg="sipeed_tof_cpp" type="py_publisher">
   <param name="frame_id" value="camera"/>
   <param name="rate" value="5"/>
@@ -12,15 +15,18 @@
   <param name="frame_id" value="imu"/>
   <param name="rate" value="100"/>
 </node>
+-->
 <!-- These are our static transforms for now -->
+<!--
 <node pkg="tf2_ros" type="static_transform_publisher" name="$(anon b)" args="0 0 0 0 0 0 1 base_link imu"/>
-
+-->
 <!-- and here is a converter for the compressed image stream from the camera -->
+<!--
 <node pkg="image_transport" type="republish" name="jpeg_converter" args="compressed raw" ns="rgb">
   <remap from="in" to="image_raw"/>
   <remap from="out" to="image_raw"/>
 </node>
-
+-->
 <!-- and here are the image rectifiers
 
 <node name="rectify" ns="/camera" pkg="image_proc" type="image_proc"/>

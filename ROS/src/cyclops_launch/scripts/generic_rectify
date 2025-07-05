@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import argparse
+import numpy as np
+from sensor_msgs.msg import CameraInfo, Image
+import message_filters
+import rospy
+from cv_bridge import CvBridge
+import cv2
+
+class GenericRectify:
+    def __init__(self):
+        self.sub = rospy.Subscriber("image_raw", Image, self.callback, queue_size=5)
+        self.info_sub = rospy.Subscriber("camera_info", CameraInfo, self.info_callback, queue_size=1)
+        self.pub = rospy.Publisher("image_rect", Image, queue_size=5)
+        self.bridge = CvBridge()
+        self.last_info = None
+        self.mapping = None
+        
+    def info_callback(self, info: CameraInfo):
+        if self.last_info is None:
+            self.last_info = info
+            K = np.array(info.K)
+            K.resize((3,3))
+            R = np.array(info.R)
+            R.resize((3,3))
+            print(K)
+            print(R)
+            self.mapping = cv2.initUndistortRectifyMap(K, np.array(info.D), R, K, (info.width, info.height), cv2.CV_32FC1)
+            print(self.mapping)
+
+
+    def callback(self, img_msg: Image):
+        if self.mapping:
+            img = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding='passthrough')
+            img = cv2.remap(img, self.mapping[0], self.mapping[1], cv2.INTER_NEAREST)
+            header = img_msg.header
+            msg = self.bridge.cv2_to_imgmsg(img, encoding='32FC1')
+            msg.header = header
+            self.pub.publish(msg)
+        else:
+            print("No camera mapping found")        
+if __name__=="__main__":
+    rospy.init_node("generic_rectify")
+    GenericRectify()
+    rospy.spin()
