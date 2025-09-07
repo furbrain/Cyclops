@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.89.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/eventemitter3@5.0/dist/eventemitter3.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.js"></script>
-<script src="/ros3d.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+<title>Cyclops</title>
+<script src="/js/three.min.js"></script>
+<script src="/js/eventemitter3.umd.js"></script>
+<script src="/js/roslib.js"></script>
+<script src="/js/ros3d.min.js"></script>
 
 <script>
   /**
@@ -27,34 +29,94 @@
     });
 
     // Setup a client to listen to TFs.
-    var tfClient = new ROSLIB.TFClient({
+    var tfClient = new ROSLIB.ROS2TFClient({
       ros : ros,
       angularThres : 0.01,
       transThres : 0.01,
       rate : 10.0,
-      fixedFrame : '/odom_cam'
+      fixedFrame : '/map'
     });
 
-    var cloudClient = new ROS3D.PointCloud2({
-        ros: ros,
-        tfClient: tfClient,
-        rootObject: viewer.scene,
-        topic: '/orb_slam3/all_points',
-        material: { size: 0.05, color: 0xff00ff }
-    });
+    //var cloudClient = new ROS3D.PointCloud2({
+    //    ros: ros,
+    //    tfClient: tfClient,
+    //    rootObject: viewer.scene,
+    //    topic: '/point_cloud',
+    //    material: { size: 0.05, color: 0xff00ff }
+    //});
+    
   }
 </script>
 </head>
 
-<body onload="init()">
-  <h1>Simple PointCloud2 Example</h1>
-  <p>Run the following commands in the terminal then refresh the page.</p>
-  <ol>
-    <li><tt>roscore</tt></li>
-    <li><tt>roslaunch rosbridge_server rosbridge_websocket.launch</tt></li>
-    <li><tt>rosrun tf2_web_republisher tf2_web_republisher</tt></li>
-    <li><tt>roslaunch openni_launch openni.launch depth_registration:=true</tt></li>
-  </ol>
-  <div id="viewer"></div>
+<body>
+    <ul class="nav nav-tabs" id="nav-tab">
+        <li class="nav-item" >
+            <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#capture-tab-pane" type="button">Capture</button>
+        </li>
+       <li class="nav-item dropdown">
+           <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">Calibrate</a>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#">Magnetometer</a></li>
+                <li><a class="dropdown-item" href="#">Accelerometer</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#rgb-tab-pane" type="button">RGB Lens</a></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#tof-tab-pane" type="button">TOF Lens</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#rgbtof-tab-pane" type="button">RGB to TOF</a></li>
+                <li><a class="dropdown-item" href="#">RGB to IMU</a></li>
+            </ul>
+        </li>
+
+        <li class="nav-item">
+            <button class="nav-link" id="recordings-tab" data-bs-toggle="tab" data-bs-target="#recordings-tab-pane" type="button">Recordings</button>
+        </li>
+   </ul>
+  <!-- <div id="viewer"></div> -->
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="capture-tab-pane">
+      <button class="btn btn-primary ros-service" type="button" data-ros-service="/service">Button</button>
+    </div>
+    <div class="tab-pane fade container-sm text-center" id="rgb-tab-pane">
+    <h3>RGB Lens Calibration</h3>
+        <div class="row align-items-center">
+        <div class="col-sm">
+            <img src="#" data-ros-topic="/rgb/markers" class="ros-img img-fluid"></img>
+        </div>
+        <div class="col-sm">
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/rgb/start_calibration">Record</button>
+            <button class="btn btn-primary ros-action" type="button" data-ros-action="/rgb/complete_calibration">Calibrate</button>
+        </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade container-sm text-center" id="tof-tab-pane">
+    <h3>ToF Lens Calibration</h3>
+        <div class="row align-items-center">
+        <div class="col-sm">
+            <img src="#" data-ros-topic="/tof/markers" class="ros-img img-fluid"></img>
+        </div>
+        <div class="col-sm">
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/tof/start_calibration">Record</button>
+            <button class="btn btn-primary ros-action" type="button" data-ros-action="/tof/complete_calibration">Calibrate</button>
+        </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade container-sm" id="rgbtof-tab-pane">
+  
+    <h3>RGB to TOF calibration</h3>
+      <div class="row">
+        <div class="col-sm">
+          <img src="#" data-ros-topic="/rgb/markers" class="ros-img img-fluid"></img>
+        </div>
+        <div class="col-sm">
+          <img src="#" data-ros-topic="/tof/markers" class="h-100 ros-img img-fluid"></img>
+        </div>
+  </div>
+</div>
+</div>
+<script src="/js/bootstrap.bundle.min.js"></script>
+<script src="/js/cyclops.js"></script>
 </body>
 </html>
