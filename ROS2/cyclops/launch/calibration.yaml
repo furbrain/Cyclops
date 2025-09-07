@@ -1,0 +1,13 @@
+launch:
+
+- node:
+    pkg: "cyclops"
+    exec: "calibrate"
+    name: "cal"
+    namespace: "rgb"
+
+- node:
+    pkg: "cyclops"
+    exec: "calibrate"
+    name: "cal"
+    namespace: "tof"

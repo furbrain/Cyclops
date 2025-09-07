@@ -1,0 +1,20 @@
+launch:
+
+- node:
+    pkg: "tof"
+    exec: "tof"
+    name: "camera"
+    namespace: "tof"
+
+- node:
+    pkg: "cyclops"
+    exec: "cameras"
+    name: "camera"
+    namespace: "rgb"
+
+- node:
+    pkg: "ros2_rtimu"
+    exec: "imu"
+    name: "imu"
+    namespace: "imu"
+

@@ -1,0 +1,62 @@
+launch:
+
+- node:
+    pkg: "topic_tools"
+    exec: "throttle"
+    args: "messages"
+    name: "throttle"
+    namespace: "tof"
+    param: 
+    -
+        name: "input_topic"
+        value: "image_raw"
+    -
+        name: "lazy"
+        value: True
+    -
+        name: "msgs_per_sec"
+        value: 10.0
+
+- node:
+    pkg: "topic_tools"
+    exec: "throttle"
+    args: "messages"
+    name: "throttle"
+    namespace: "rgb"
+    param: 
+    -
+        name: "input_topic"
+        value: "image_raw/compressed"
+    -
+        name: "output_topic"
+        value: "image_raw_throttle/compressed"
+    -
+        name: "lazy"
+        value: True
+    -
+        name: "msgs_per_sec"
+        value: 10.0
+
+- node:
+    pkg: "topic_tools"
+    exec: "drop"
+    args: "messages"
+    name: "drop"
+    namespace: "rgb"
+    param: 
+    -
+        name: "input_topic"
+        value: "image_raw/compressed"
+    -
+        name: "output_topic"
+        value: "image_raw_drop/compressed"
+    -
+        name: "lazy"
+        value: True
+    -
+        name: "X"
+        value: 2
+    -
+        name: "Y"
+        value: 3
+
