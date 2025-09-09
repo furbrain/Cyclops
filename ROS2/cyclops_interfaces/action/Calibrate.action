@@ -2,4 +2,4 @@
 bool success
 string message
 ---
-float32 percent_complete
+string interim_message

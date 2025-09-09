@@ -6,8 +6,9 @@ import cv_bridge
 import rclpy
 from rclpy.action import ActionServer
 from rclpy.node import Node
+from sensor_msgs.srv import SetCameraInfo
 from std_srvs.srv import Trigger
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from cyclops_interfaces.action import Calibrate
 import time
 
@@ -19,6 +20,7 @@ class Calibrator(Node):
         self.sub = self.create_subscription(Image, "image_raw", self.callback, 10)
         self.cal_action = ActionServer(self, Calibrate, "complete_calibration", self.complete_calibration)
         self.srv = self.create_service(Trigger, 'start_calibration', self.start_calibration)
+        self.ci_client = self.create_client(SetCameraInfo, "set_camera_info")
         self.bridge = cv_bridge.CvBridge()
         self.declare_parameter("target_size","4x11")
         self.declare_parameter("target_type","circle")
@@ -40,20 +42,44 @@ class Calibrator(Node):
         return response
 
     def complete_calibration(self, goal_handle: rclpy.action.server.ServerGoalHandle):
+        print("starting calibration")
         result = Calibrate.Result()
         if not self.calibrating:
             goal_handle.abort()
             result.message = "Calibration not yet started"
             return result
-        print(len(self.corners))
+        if (len(self.corners)) < 8:
+            goal_handle.abort()
+            result.message = f"Not enough images ({len(self.corners)}), need at least 8"
+            return result
+        goal_handle.publish_feedback(Calibrate.Feedback(interim_message="Calibrating..."))
         objpoints = [self.objp] * len(self.corners)
         ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, self.corners, self.shape, None, None)
         if ret:
-            goal_handle.succeed()
-            result.success = True
-            result.message = "Calibration Completed"
-            print(mtx)
-            print(dist)
+            p, _ = cv2.getOptimalNewCameraMatrix(mtx, dist, self.shape, 0.5)
+            p_3x4 = np.zeros((3,4))
+            p_3x4[:3,:3] = p #convert to 3x4 matrix
+            ci = CameraInfo(
+                height = self.shape[0],
+                width = self.shape[1],
+                distortion_model = "plumb bob",
+                d = dist[0],
+                k = mtx.flatten(),
+                r = np.eye(3).flatten(),
+                p = p_3x4.flatten()
+            )
+            req = SetCameraInfo.Request(camera_info=ci)
+            future = self.ci_client.call_async(req)
+            rclpy.spin_until_future_complete(self, future)
+            ci_result: SetCameraInfo.Response = future.result()
+            if ci_result.success:
+                goal_handle.succeed()
+                result.success = True
+                result.message = "Calibration Completed"
+            else:
+                goal_handle.abort()
+                result.success = False
+                result.message = ci_result.status_message
         else:
             goal_handle.abort()
             result.message = "Calibration Failed"

@@ -25,41 +25,83 @@ imgs.forEach(function(element) {
 
 //flash a button to a particular btn-"cls", then revert after timeout ms
 function flash_button(btn, cls, msg="", timeout=5000) {
-    var classes = btn.className;
-    var old_text = btn.innerText;
     if (msg) {
         btn.innerText = msg;
     }
     btn.classList.remove.apply(btn.classList, Array.from(btn.classList).filter(v=>v.startsWith("btn-")));
     btn.classList.add("btn-" + cls);
-    setTimeout(function() {
-        btn.className = classes;
-        btn.innerText  = old_text;
-    }, timeout);
+    if (timeout>0) {
+        setTimeout(function() {
+            reset_button(btn);
+        }, timeout);
+    }
+}
+
+function reset_button(btn) {
+    btn.className = btn.old_classes;
+    btn.innerText = btn.old_text;
 }
 
 
 //connect all .ros-service buttons to Trigger services
-const btns = document.querySelectorAll('button.ros-service');
-btns.forEach(function(btn) {
+const btns_service = document.querySelectorAll('button.ros-service');
+btns_service.forEach(function(btn) {
     btn.old_text = btn.innerText;
+    btn.old_classes = btn.className;
     btn.service = new ROSLIB.Service({
         ros: ros,
         name: btn.dataset.rosService,
         type: "std_srvs/Trigger",
         });
     btn.onclick = function() {
-        btn.service.callService({}, function(response) {
-            if (response.success) {
-                flash_button(btn,"success", response.message);
-            } else {
-                flash_button(btn,"warning");
-                alert("Call to " + btn.dataset.rosService + " failed with message: " + response.message);
-            }
-        },
-        function(err) {
+        btn.service.callService({},
+            function(response) {
+                if (response.success) {
+                    flash_button(btn,"success", response.message);
+                } else {
+                    flash_button(btn,"warning");
+                    alert("Call to " + btn.dataset.rosService + " failed with message: " + response.message);
+                }
+            },
+            function(err) {
                 flash_button(btn,"danger");
                 alert("Error during call to " + btn.dataset.rosService + ": " + err);                
+            }
+        );
+    };
+});
+
+//connect all .ros-action buttons to Trigger services
+const btns_action = document.querySelectorAll('button.ros-action');
+btns_action.forEach(function(btn) {
+    btn.old_text = btn.innerText;
+    btn.old_classes = btn.className;
+    btn.action = new ROSLIB.Action({
+        ros: ros,
+        name: btn.dataset.rosAction,
+        actionType: "cyclops_interfaces/Calibrate",
+        });
+    btn.onclick = function() {
+        btn.action.sendGoal({},
+            function(response) {
+                console.log("result received");
+                if (response.success) {
+                    reset_button(btn);
+                    flash_button(btn,"success", response.message);
+                } else {
+                    flash_button(btn,"danger");
+                    alert("Call to " + btn.dataset.rosAction + " failed with message: " + response.message);
+                }
+            },
+            function(feedback) {
+                console.log("feedback received");
+                flash_button(btn, "warning", feedback.interim_message, timeout=0);
+            },
+            function(err) {
+                console.log("error received");
+                reset_button(btn);
+                flash_button(btn,"danger");
+                alert("Error during call to " + btn.dataset.rosAction + ": " + err);
         });
     };
 });

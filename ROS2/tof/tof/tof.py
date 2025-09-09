@@ -1,5 +1,6 @@
 import rclpy
 import rclpy.node
+from camera_info_manager import CameraInfoManager
 from rclpy.qos import qos_profile_sensor_data
 import ArducamDepthCamera as ac
 import numpy as np
@@ -16,6 +17,9 @@ class Tof(rclpy.node.Node):
         super().__init__("tof")
         self.pub = self.create_publisher(Image,"depth_raw", 3)
         self.pub_img = self.create_publisher(Image,"image_raw", 3)
+        self.info_mgr = CameraInfoManager(self,"tof")
+        self.info_mgr.loadCameraInfo()
+
         self.cam = ac.ArducamCamera()
         if self.cam.open(ac.Connection.CSI, 0) != 0 :
             print("initialization failed")
@@ -50,12 +54,10 @@ class Tof(rclpy.node.Node):
                 amp_buf = 255 * amp_buf / np.max(amp_buf)
 
                 depth_buf[bad_pixels] = 0
-                depth_img = depth_buf.astype("int16")
-                depth_img.resize((msg.height,msg.width))
+                depth_img = depth_buf.astype("int16").reshape((msg.height,msg.width))
                 depth_img = cv2.rotate(depth_img,cv2.ROTATE_180)
 
-                amp_img = amp_buf.astype("uint8")
-                amp_img.resize((msg.height,msg.width))
+                amp_img = amp_buf.astype("uint8").reshape((msg.height,msg.width))
                 amp_img = cv2.rotate(amp_img, cv2.ROTATE_180)
 
                 msg.data = depth_img.tobytes()
