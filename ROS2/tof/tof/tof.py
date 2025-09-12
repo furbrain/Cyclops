@@ -8,7 +8,7 @@ import cv2
 import copy
 import time
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 
 RANGE = 4000
 
@@ -19,6 +19,7 @@ class Tof(rclpy.node.Node):
         self.pub_img = self.create_publisher(Image,"image_raw", 3)
         self.info_mgr = CameraInfoManager(self,"tof")
         self.info_mgr.loadCameraInfo()
+        self.ci_pub = self.create_publisher(CameraInfo,"camera_info", 2)
 
         self.cam = ac.ArducamCamera()
         if self.cam.open(ac.Connection.CSI, 0) != 0 :
@@ -65,6 +66,7 @@ class Tof(rclpy.node.Node):
 
                 self.pub.publish(msg)
                 self.pub_img.publish(img_msg)
+                self.ci_pub.publish(self.info_mgr.getCameraInfo())
                 self.cam.releaseFrame(frame)            
                 
     def shutdown(self):

@@ -7,14 +7,13 @@ launch:
     name: "throttle"
     namespace: "tof"
     param: 
-    -
-        name: "input_topic"
+      - name: "input_topic"
         value: "image_raw"
-    -
-        name: "lazy"
+
+      - name: "lazy"
         value: True
-    -
-        name: "msgs_per_sec"
+
+      - name: "msgs_per_sec"
         value: 10.0
 
 - node:
@@ -24,17 +23,16 @@ launch:
     name: "throttle"
     namespace: "rgb"
     param: 
-    -
-        name: "input_topic"
+      - name: "input_topic"
         value: "image_raw/compressed"
-    -
-        name: "output_topic"
+
+      - name: "output_topic"
         value: "image_raw_throttle/compressed"
-    -
-        name: "lazy"
+
+      - name: "lazy"
         value: True
-    -
-        name: "msgs_per_sec"
+
+      - name: "msgs_per_sec"
         value: 10.0
 
 - node:
@@ -44,19 +42,18 @@ launch:
     name: "drop"
     namespace: "rgb"
     param: 
-    -
-        name: "input_topic"
+      - name: "input_topic"
         value: "image_raw/compressed"
-    -
-        name: "output_topic"
+
+      - name: "output_topic"
         value: "image_raw_drop/compressed"
-    -
-        name: "lazy"
+
+      - name: "lazy"
         value: True
-    -
-        name: "X"
+
+      - name: "X"
         value: 2
-    -
-        name: "Y"
+
+      - name: "Y"
         value: 3
 

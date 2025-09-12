@@ -24,7 +24,9 @@ setup(
         'console_scripts': [
 		    "svc = cyclops.simple_service:main",
             "calibrate = cyclops.calibrate:main",
+            "calibrate_dual = cyclops.calibrate_dual:main",
             "cameras = cyclops.cameras:main",
+            "tf2_dynamic = cyclops.tf2_dynamic:main",
         ],
     },
 )

@@ -1,4 +1,7 @@
 launch:
+- arg:
+      name: "ns"
+      default: ""
 
 - node:
     pkg: "cyclops"
@@ -11,3 +14,14 @@ launch:
     exec: "calibrate"
     name: "cal"
     namespace: "tof"
+
+- node:
+    pkg: "cyclops"
+    exec: "calibrate_dual"
+    name: "cal"
+    namespace: "rgb_tof"
+    param:
+      - name: "ns_a"
+        value: "$(var ns)/rgb"
+      - name: "ns_b"
+        value: "$(var ns)/tof"

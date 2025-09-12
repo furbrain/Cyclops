@@ -84,8 +84,7 @@
             <img src="#" data-ros-topic="/rgb/markers" class="ros-img img-fluid"></img>
         </div>
         <div class="col-sm">
-            <button class="btn btn-primary ros-service" type="button" data-ros-service="/rgb/start_calibration">Record</button>
-            <button class="btn btn-primary ros-action" type="button" data-ros-action="/rgb/complete_calibration">Calibrate</button>
+            <button class="btn btn-primary calibrate" type="button" data-namespace="/rgb">Calibrate</button>
         </div>
         </div>
     </div>
@@ -97,8 +96,7 @@
             <img src="#" data-ros-topic="/tof/markers" class="ros-img img-fluid"></img>
         </div>
         <div class="col-sm">
-            <button class="btn btn-primary ros-service" type="button" data-ros-service="/tof/start_calibration">Record</button>
-            <button class="btn btn-primary ros-action" type="button" data-ros-action="/tof/complete_calibration">Calibrate</button>
+            <button class="btn btn-primary calibrate" type="button" data-namespace="/tof">Calibrate</button>
         </div>
         </div>
     </div>
@@ -113,8 +111,14 @@
         <div class="col-sm">
           <img src="#" data-ros-topic="/tof/markers" class="h-100 ros-img img-fluid"></img>
         </div>
-  </div>
-</div>
+      </div>
+      <div class="row">
+        <div class="col-sm">
+            <button class="btn btn-primary calibrate" type="button" data-namespace="/rgb_tof">Calibrate</button>
+
+        </div>
+      </div>
+    </div>
 </div>
 <script src="/js/bootstrap.bundle.min.js"></script>
 <script src="/js/cyclops.js"></script>
