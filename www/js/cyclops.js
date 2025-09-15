@@ -7,11 +7,11 @@ const ros = new ROSLIB.Ros({
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
-      console.log('Img is now visible: ' + entry.target.dataset.rosTopic);
+      console.debug('Img is now visible: ' + entry.target.dataset.rosTopic);
       entry.target.src = "/vid/stream?topic=" + entry.target.dataset.rosTopic + "&qos_profile=sensor_data&quality=50"
       // Run your function here
     } else {
-      console.log('Img is no longer visible: ' + entry.target.dataset.rosTopic);
+      console.debug('Img is no longer visible: ' + entry.target.dataset.rosTopic);
       entry.target.src = "#"
     }
   });
@@ -84,7 +84,7 @@ btns_action.forEach(function(btn) {
     btn.onclick = function() {
         btn.action.sendGoal({},
             function(response) {
-                console.log("result received");
+                console.debug("action result received");
                 if (response.success) {
                     reset_button(btn);
                     flash_button(btn,"success", response.message);
@@ -94,11 +94,11 @@ btns_action.forEach(function(btn) {
                 }
             },
             function(feedback) {
-                console.log("feedback received");
+                console.debug("action feedback received");
                 flash_button(btn, "warning", feedback.interim_message, timeout=0);
             },
             function(err) {
-                console.log("error received");
+                console.log("action error received");
                 reset_button(btn);
                 flash_button(btn,"danger");
                 alert("Error during call to " + btn.dataset.rosAction + ": " + err);
@@ -172,4 +172,38 @@ cal_btns.forEach(function(btn) {
             );
         };
     };
+});
+
+
+// setup 3d viewer
+// Create the main viewer.
+var viewer = new ROS3D.Viewer({
+  divID : 'viewer',
+  width : 800,
+  height : 600,
+  antialias : true
+});
+
+// Setup a client to listen to TFs.
+var tfClient = new ROSLIB.ROS2TFClient({
+  ros : ros,
+  angularThres : 0.01,
+  transThres : 0.01,
+  rate : 10.0,
+  fixedFrame : '/map'
+});
+
+var cloudClient = new ROS3D.PointCloud2({
+      ros: ros,
+      tfClient: tfClient,
+      rootObject: viewer.scene,
+      topic: '/imu/cal/all_scaled_mag_points',
+      material: { size: 1.0, color: 0xff00ff }
+    });
+
+var markerClient = new ROS3D.MarkerClient({
+    ros: ros,
+    tfClient: tfClient,
+    rootObject: viewer.scene,
+    topic: "/imu/cal/marker",
 });

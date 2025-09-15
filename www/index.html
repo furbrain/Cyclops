@@ -11,41 +11,7 @@
 <script src="/js/ros3d.min.js"></script>
 
 <script>
-  /**
-   * Setup all visualization elements when the page is loaded.
-   */
-  function init() {
-    // Connect to ROS.
-    var ros = new ROSLIB.Ros({
-      url : 'ws://' + window.location.hostname +':9090'
-    });
 
-    // Create the main viewer.
-    var viewer = new ROS3D.Viewer({
-      divID : 'viewer',
-      width : 800,
-      height : 600,
-      antialias : true
-    });
-
-    // Setup a client to listen to TFs.
-    var tfClient = new ROSLIB.ROS2TFClient({
-      ros : ros,
-      angularThres : 0.01,
-      transThres : 0.01,
-      rate : 10.0,
-      fixedFrame : '/map'
-    });
-
-    //var cloudClient = new ROS3D.PointCloud2({
-    //    ros: ros,
-    //    tfClient: tfClient,
-    //    rootObject: viewer.scene,
-    //    topic: '/point_cloud',
-    //    material: { size: 0.05, color: 0xff00ff }
-    //});
-    
-  }
 </script>
 </head>
 
@@ -64,7 +30,7 @@
                 <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#tof-tab-pane" type="button">TOF Lens</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#rgbtof-tab-pane" type="button">RGB to TOF</a></li>
-                <li><a class="dropdown-item" href="#">RGB to IMU</a></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#rgbimu-tab-pane" type="button">RGB to IMU</a></li>
             </ul>
         </li>
 
@@ -75,7 +41,7 @@
   <!-- <div id="viewer"></div> -->
   <div class="tab-content">
     <div class="tab-pane fade show active" id="capture-tab-pane">
-      <button class="btn btn-primary ros-service" type="button" data-ros-service="/service">Button</button>
+        <div id="viewer"></div>
     </div>
     <div class="tab-pane fade container-sm text-center" id="rgb-tab-pane">
     <h3>RGB Lens Calibration</h3>
@@ -118,6 +84,17 @@
 
         </div>
       </div>
+    </div>
+    <div class="tab-pane fade container-sm text-center" id="rgbimu-tab-pane">
+    <h3>RGB to IMU Calibration</h3>
+        <div class="row align-items-center">
+        <div class="col-sm">
+            <img src="#" data-ros-topic="/rgb/markers" class="ros-img img-fluid"></img>
+        </div>
+        <div class="col-sm">
+            <button class="btn btn-primary calibrate" type="button" data-namespace="/rgb_imu">Calibrate</button>
+        </div>
+        </div>
     </div>
 </div>
 <script src="/js/bootstrap.bundle.min.js"></script>
