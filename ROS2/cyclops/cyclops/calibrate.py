@@ -36,8 +36,8 @@ class Calibrator(CalNode):
             p_3x4 = np.zeros((3,4))
             p_3x4[:3,:3] = p #convert to 3x4 matrix
             ci = CameraInfo(
-                height = self.shape[0],
-                width = self.shape[1],
+                width = self.shape[0],
+                height = self.shape[1],
                 distortion_model = "plumb bob",
                 d = dist[0],
                 k = mtx.flatten(),

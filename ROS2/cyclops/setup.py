@@ -25,6 +25,7 @@ setup(
 		    "svc = cyclops.simple_service:main",
             "calibrate = cyclops.calibrate:main",
             "calibrate_dual = cyclops.calibrate_dual:main",
+            "calibrate_cam_imu = cyclops.calibrate_cam_imu:main",
             "cameras = cyclops.cameras:main",
             "tf2_dynamic = cyclops.tf2_dynamic:main",
         ],

@@ -32,8 +32,8 @@ launch:
 - node:
     pkg: "cyclops"
     exec: "tf2_dynamic"
-    name: "tf"
-    namespace: "rgb"
+    name: "map_rgb"
+    namespace: "/tf"
     param:
       - name: "frame"
         value: "map"
@@ -43,10 +43,21 @@ launch:
 - node:
     pkg: "cyclops"
     exec: "tf2_dynamic"
-    name: "tf"
-    namespace: "rgb_tof"
+    name: "rgb_tof"
+    namespace: "/tf"
     param:
       - name: "frame"
         value: "rgb"
       - name: "child_frame"
         value: "tof"
+
+- node:
+    pkg: "cyclops"
+    exec: "tf2_dynamic"
+    name: "rgb_imu"
+    namespace: "/tf"
+    param:
+      - name: "frame"
+        value: "rgb"
+      - name: "child_frame"
+        value: "imu"

@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Any, Optional, Tuple
 import numpy as np
 import time
@@ -180,3 +182,11 @@ class CalNode(SmartNode):
         self.calibrating = False
         rsp.success = True
         return rsp
+
+
+def get_ros_home() -> Path:
+    if "ROS_HOME" in os.environ:
+        ros_home = Path(os.environ.get("ROS_HOME"))
+    else:
+        ros_home = Path(os.environ.get("HOME")) / ".ros"
+    return ros_home

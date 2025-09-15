@@ -1,27 +1,51 @@
 launch:
 - arg:
-      name: "ns"
-      default: ""
+    name: ns
+    default: ""
 
-- node:
-    pkg: "cyclops"
-    exec: "calibrate"
-    name: "cal"
-    namespace: "rgb"
+- node: # RGB Camera
+    pkg: cyclops
+    exec: calibrate
+    name: cal
+    namespace: rgb
 
-- node:
-    pkg: "cyclops"
-    exec: "calibrate"
-    name: "cal"
-    namespace: "tof"
+- node: # TOF Camera
+    pkg: cyclops
+    exec: calibrate
+    name: cal
+    namespace: tof
 
-- node:
-    pkg: "cyclops"
-    exec: "calibrate_dual"
-    name: "cal"
-    namespace: "rgb_tof"
+- group:
+  - push_ros_namespace:
+      namespace: imu
+  - include:
+      file: "$(find-pkg-share mimu_calibrate)/launch/calibration_suite.yaml"
+      arg:
+        - name: ns
+          value: "$(var ns)/imu"
+
+- node: # RGB -> TOF
+    pkg: cyclops
+    exec: calibrate_dual
+    name: cal
+    namespace: rgb_tof
     param:
-      - name: "ns_a"
+      - name: ns_a
         value: "$(var ns)/rgb"
-      - name: "ns_b"
+      - name: ns_b
         value: "$(var ns)/tof"
+
+- node: # RGB -> IMU
+    pkg: cyclops
+    exec: calibrate_cam_imu
+    name: cal
+    namespace: rgb_imu
+    param:
+      - name: ns_cam
+        value: "$(var ns)/rgb"
+      - name: ns_imu
+        value: "$(var ns)/imu"
+      - name: imu_topic
+        value: imu_raw
+      - name: imu_param_url
+        value: "cal/imu_noise.yaml"
