@@ -27,6 +27,8 @@ setup(
             "calibrate_dual = cyclops.calibrate_dual:main",
             "calibrate_cam_imu = cyclops.calibrate_cam_imu:main",
             "cameras = cyclops.cameras:main",
+            "tof = cyclops.tof:main",
+            "rgb = cyclops.rgb:main",
             "tf2_dynamic = cyclops.tf2_dynamic:main",
         ],
     },
