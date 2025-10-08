@@ -22,10 +22,10 @@ class CalibratorCamIMU(CalNode):
         self.cam_topic = self.get_initial_param("cam_topic", "image_raw", description="image topic")
         self.caminfo_topic = self.get_initial_param("camerainfo_topic", "camera_info", description="camera info topic")
         self.imu_topic = self.get_initial_param("imu_topic", "imu_rect", description="IMU topic")
-        imu_noise_url = self.get_initial_param("imu_noise_url", "imu_noise.yaml",
+        self.imu_noise_url = self.get_url_from_param("imu_noise_url", f"imu/{self.imu_topic.strip('/')}.yaml",
                                                     description="YAML file that describes the imu noise density. "
                                                                 "Defaults to .ros/imu/{imu_topic}.yaml")
-        cal_dir: str = self.get_initial_param("cal_dir", "cal", description="Name to store bag as")
+        self.cal_dir = self.get_url_from_param("cal_dir", "cal", description="Name to store bag as")
 
         # set up topics
         if not self.imu_topic.startswith("/"):
@@ -36,18 +36,6 @@ class CalibratorCamIMU(CalNode):
             self.caminfo_topic = ns_cam + '/' + self.caminfo_topic
         self.create_subscription(CameraInfo,self.caminfo_topic, self.caminfo_received, 1)
 
-        #set up directories
-        ros_home = get_ros_home()
-        if cal_dir.startswith("/"):
-            self.cal_dir = Path(cal_dir)
-        else:
-            self.cal_dir = ros_home / cal_dir
-        if imu_noise_url=="":
-            self.imu_noise_url = ros_home / "imu" / (self.imu_topic.strip('/') + ".yaml")
-        elif imu_noise_url.startswith("/"):
-            self.imu_noise_url = Path(imu_noise_url)
-        else:
-            self.imu_noise_url = self.cal_dir / imu_noise_url
         self.get_logger().info(f"imu_noise_url: {self.imu_noise_url}")
         self.dynamic_tf2_client = self.create_client(SetTransform, "set_transform")
         self.process: Optional[subprocess.Popen] = None

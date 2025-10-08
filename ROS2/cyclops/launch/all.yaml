@@ -1,11 +1,13 @@
 launch:
 
-- include:
-    file: "$(find-pkg-share cyclops)/launch/web.yaml"
+#- include:
+#    file: "$(find-pkg-share cyclops)/launch/web.yaml"
 
 - include:
     file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
 
-- include:
-    file: "$(find-pkg-share cyclops)/launch/calibration.yaml"
+#- include:
+#    file: "$(find-pkg-share cyclops)/launch/calibration.yaml"
 
+- include:
+    file: "$(find-pkg-share cyclops)/launch/cleaning.yaml"

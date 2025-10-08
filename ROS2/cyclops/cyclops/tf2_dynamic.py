@@ -14,18 +14,10 @@ class TF2Dynamic (SmartNode):
         super().__init__("tf2_dynamic")
         self.frame = self.get_initial_param("frame","map")
         self.child_frame = self.get_initial_param("child_frame","child")
-        url = self.get_initial_param("url", "")
-        self.set_tf = self.create_service(SetTransform, "set_transform", self.set_transform)
-        if url == "":
-            if "ROS_HOME" in os.environ:
-                ros_home = Path(os.environ.get("ROS_HOME"))
-            else:
-                ros_home = Path(os.environ.get("HOME")) / ".ros"
-            self.url = Path(ros_home) / "transforms" / f'{self.frame}_{self.child_frame}.yaml'
-        else:
-            self.url = Path(url)
+        self.url = self.get_url_from_param("url", f'transforms/{self.frame}_{self.child_frame}.yaml')
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
-        self.load_transform()
+        self.transform = self.load_transform()
+        self.timer = self.create_timer(0.1, self.publish)
 
     def load_transform(self):
         t = self.make_transform()
@@ -35,7 +27,12 @@ class TF2Dynamic (SmartNode):
                 set_message_fields(t.transform, data)
         except IOError:
             self.get_logger().warn(f"No calibration found at {self.url}")
-        self.tf_static_broadcaster.sendTransform(t)
+            return None
+        return t
+
+    def publish(self):
+        if self.transform is not None:
+            self.tf_static_broadcaster.sendTransform(self.transform)
 
     def make_transform(self) -> TransformStamped:
         t = TransformStamped()
@@ -52,6 +49,7 @@ class TF2Dynamic (SmartNode):
                 f.write(message_to_yaml(req.transform))
             t = self.make_transform()
             t.transform = req.transform
+            self.transform = t
             self.tf_static_broadcaster.sendTransform(t)
             rsp.success = True
         except (IOError, yaml.YAMLError):

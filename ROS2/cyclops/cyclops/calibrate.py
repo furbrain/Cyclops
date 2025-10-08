@@ -38,7 +38,7 @@ class Calibrator(CalNode):
             ci = CameraInfo(
                 width = self.shape[0],
                 height = self.shape[1],
-                distortion_model = "plumb bob",
+                distortion_model = "plumb_bob",
                 d = dist[0],
                 k = mtx.flatten(),
                 r = np.eye(3).flatten(),

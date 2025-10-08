@@ -76,6 +76,13 @@ class SmartNode(Node):
         time_msg = builtin_interfaces.msg.Time(sec=now_ns // 1e9, nanosec=now_ns % 1e9)
         return rclpy.time.Time.from_msg(time_msg)
 
+    def get_url_from_param(self, param_name: str, default: str, description: str = None) -> Path:
+        ros_home = get_ros_home()
+        url = self.get_initial_param(param_name, default, description)
+        if url.startswith("/"):
+            return Path(url)
+        else:
+            return ros_home / url
 
 class CalNode(SmartNode):
     """
