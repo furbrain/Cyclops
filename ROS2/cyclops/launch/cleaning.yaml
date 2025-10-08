@@ -1,0 +1,74 @@
+launch:
+  - arg:
+      name: ns
+      default: ""
+
+#  - node:
+#      pkg: "depth_image_proc"
+#      exec: "register_node"
+#      name: "register_orig"
+#      namespace: "$(var ns)/tof"
+#      remap:
+#        - from: depth/image_rect
+#          to: "$(var ns)/tof/depth_raw"
+#        - from: depth/camera_info
+#          to: "$(var ns)/tof/camera_info"
+#        - from: rgb/camera_info
+#          to: "$(var ns)/rgb/camera_info"
+#        - from: depth_registered/image_rect
+#          to: "$(var ns)/rgb/depth_rect"
+#      param:
+#        - name: fill_upsampling_holes
+#          value: False
+
+  #- node:
+  #    pkg: depth_image_proc
+  #    exec: point_cloud_xyz_radial_node
+  #    remap:
+  #      - from: depth/image_raw
+  #        to: /tof/depth_raw
+  #      - from: depth/camera_info
+  #        to: /tof/camera_info
+
+  - node:
+      pkg: cyclops_cpp
+      exec: register_node
+      name: register
+      namespace: "$(var ns)/tof"
+      param:
+        - name: radial_source
+          value: True
+        - name: rectified_source
+          value: False
+        - name: rectified_dest
+          value: False
+        - name: fill_upsampling_holes
+          value: True
+      remap:
+        - from: rgb/camera_info
+          to: "$(var ns)/rgb/camera_info"
+        - from: depth/image_rect
+          to: depth_raw
+        - from: depth/camera_info
+          to: camera_info
+
+
+  - node:
+      pkg: image_proc
+      exec: rectify_node
+      name: rectify
+      namespace: "$(var ns)/rgb"
+      remap:
+        - from: image
+          to: image_raw
+
+#  - node:
+#      pkg: image_proc
+#      exec: rectify_node
+#      name: rectify
+#      namespace: "$(var ns)/tof"
+#      remap:
+#        - from: image_rect
+#          to: depth_rect
+#        - from: image
+#          to: depth_raw

@@ -1,16 +1,19 @@
 launch:
-
-- node:
-    pkg: "tof"
-    exec: "tof"
-    name: "camera"
-    namespace: "tof"
+- arg:
+    name: ns
+    default: ""
 
 - node:
     pkg: "cyclops"
-    exec: "cameras"
+    exec: "tof"
     name: "camera"
-    namespace: "rgb"
+    namespace: "$(var ns)/tof"
+
+- node:
+    pkg: "cyclops"
+    exec: "rgb"
+    name: "camera"
+    namespace: "$(var ns)/rgb"
     param:
       - name: "crop_x"
         value: 480
@@ -22,6 +25,26 @@ launch:
         value: 540
       - name: "resize_width"
         value: 740
+    remap:
+      - from: sync
+        to: "$(var ns)/tof/sync"
+
+#- node:
+#    pkg: "cyclops"
+#    exec: "cameras"
+#    name: "camera"
+##    namespace: "rgb"
+#    param:
+#      - name: "crop_x"
+#        value: 480
+#      - name: "crop_y"
+#        value: 320
+#      - name: "width"
+#        value: 960
+#      - name: "height"
+#        value: 540
+#      - name: "resize_width"
+#        value: 740
 
 - node:
     pkg: "ros2_rtimu"

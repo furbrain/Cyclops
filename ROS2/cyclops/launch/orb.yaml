@@ -1,0 +1,29 @@
+launch:
+  - arg:
+      name: orb_exec
+      default: "rgbd"
+  - arg:
+      name: ros_home
+      default: '$(env ROS_HOME "$(env HOME)/.ros")'
+  - node:
+      pkg: orb_slam3
+      exec: "ros_$(var orb_exec)"
+      namespace: orb_slam3
+      param:
+        - name: settings_file
+          value: "$(var ros_home)/orb_slam3.yaml"
+        - name: voc_file
+          value: "$(find-pkg-share orb_slam3)/vocab/ORBvoc.txt.bin"
+        - name: world_frame_id
+          value: map
+        - name: cam_frame_id
+          value: rgb
+        - name: imu_frame_id
+          value: imu
+      remap:
+        - from: /camera/rgb/image_raw
+          to: /rgb/image_rect
+        - from: /camera/depth_registered/image_raw
+          to: /rgb/depth_rect
+        - from: /imu
+          to: /imu/imu_rect
