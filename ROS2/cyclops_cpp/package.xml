@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cyclops_cpp</name>
+  <version>5.0.11</version>
+  <description>
+
+     Cyclops C++ nodes
+
+  </description>
+
+  <maintainer email="beardydoc@gmail.com">Phil Underwood</maintainer>
+
+  <license>BSD</license>
+  <url type="bugtracker">https://github.com/furbrain/Cyclops/issues</url>
+  <url type="repository">https://github.com/ros-perception/image_pipeline</url>
+  <author>Phil Underwood</author>
+
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <build_depend>class_loader</build_depend>
+
+  <depend>cv_bridge</depend>
+  <depend>image_geometry</depend>
+  <depend>image_transport</depend>
+  <depend>libopencv-dev</depend>
+  <depend>image_proc</depend>
+  <depend>message_filters</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>sensor_msgs</depend>
+  <depend>stereo_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_ros</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
