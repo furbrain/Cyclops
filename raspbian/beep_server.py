@@ -1,10 +1,11 @@
+from queue import Queue, Empty
+from threading import Thread, Lock
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from typing import Sequence, Tuple
 import time
 
-import board
-import pwmio
+from beeper import Beeper
 
 NOTES = {
         "C2": 65,
@@ -82,20 +83,64 @@ NOTES = {
         "C8": 4186,
 }
 
-pwm = pwmio.PWMOut(board.D18, frequency=2000)
-pwm.duty_cycle = 0
+class BeepThread(Thread):
+    def __init__(self):
+        super().__init__(name="BeepThread")
+        self.b = Beeper(13, 19)
+        self.running = True
+        self.playing = False
+        self.q: Queue[Tuple[str, float]] = Queue()
+        self.interrupted = False
+        self.lock = Lock()
 
-with SimpleXMLRPCServer(('localhost', 8000), allow_none=True) as server:
+    def run(self):
+        self.b.setup()
+        while self.running:
+            try:
+                got = self.q.get(timeout=0.05)
+                note, duration = got
+                self.interrupted = False
+            except Empty:
+                self.b.stop()
+                continue
+            if note in NOTES:
+                self.b.beep(NOTES[note])
+            else:
+                self.b.stop()
+            target_tm = time.monotonic() + duration/1000
+            while self.running and time.monotonic() < target_tm:
+                with self.lock:
+                    if self.interrupted:
+                        break
+                time.sleep(0.05)
+
+    def play(self, notes: Sequence[Tuple[str,float]]):
+        with self.lock:
+            while not self.q.empty(): # clear queue
+                self.q.get()
+            for note in notes:
+                self.q.put(note)
+            self.interrupted = True
+
+    def stop(self):
+        self.running = False
+        self.b.stop()
+        self.b.finish()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+
+with SimpleXMLRPCServer(('localhost', 8123), allow_none=True) as server:
     server.register_introspection_functions()
+    with BeepThread() as thread:
+        # Register a function under function.__name__.
+        @server.register_function
+        def beep(seq: Sequence[Tuple[str, float]]):
+            thread.play(seq)
 
-    # Register a function under function.__name__.
-    @server.register_function
-    def beep(seq: Sequence[Tuple[str, float]]):
-        for note, duration in seq:
-            print(f"Playing {note} for {duration}")
-            pwm.frequency=NOTES[note]
-            pwm.duty_cycle = 2 ** 15
-            time.sleep(duration)
-        pwm.duty_cycle = 0
-
-    server.serve_forever()
+        server.serve_forever()

@@ -1,0 +1,9 @@
+# these are a variety of potential tunes that coould be beeped
+uint8 HAPPY=1
+uint8 SAD=2
+uint8 BIP=3
+uint8 BOP=4
+uint8 FINISH=5
+
+uint8 tune
+---
