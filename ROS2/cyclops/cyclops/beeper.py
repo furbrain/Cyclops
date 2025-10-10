@@ -2,108 +2,52 @@
 
 import os, mmap, struct
 import time
+from typing import Optional, Tuple, Dict, Sequence
+from xmlrpc.client import ServerProxy
 
-RP1_BAR1 = 0x1f00000000
-RP1_BAR1_LEN = 0x400000
+import rclpy
+from .utils import SmartNode
 
-RP1_BAR2 = 0x1f00400000
-PR1_BAR2_LEN = 64 * 1024
+from cyclops_interfaces.srv import BeepPreset, BeepPreset_Request, BeepPreset_Response
+from cyclops_interfaces.srv import Beep, Beep_Request, Beep_Response
 
-SYSINFO_CHIP_ID_OFFSET = 0x00000000
-SYSINFO_PLATFORM_OFFSET = 0x00000004
+class BeeperNode(SmartNode):
+    TUNES = {
+        BeepPreset_Request.HAPPY : (("C6", 50.0), ("E6", 50.0), ("G6", 50.0), ("C7", 50.0)),
+        BeepPreset_Request.BIP: (("A7", 50),),
+        BeepPreset_Request.BOP: (("C7", 50),),
+        BeepPreset_Request.SAD: (("G6", 100), ("C6", 200)),
+        BeepPreset_Request.FINISH: list(reversed((("C6", 50.0), ("E6", 50.0), ("G6", 50.0), ("C7", 50.0)))),
+    }
+    def __init__(self, pin_a: int, pin_b: Optional[int] = None):
+        super().__init__("Beeper")
+        self.b = ServerProxy('http://localhost:8123')
+        self.preset_service = self.create_service(BeepPreset, "preset", self.preset)
+        self.beep_service = self.create_service(Beep, "beep", self.beep)
 
-RP1_SYSINFO_BASE = 0x000000
-RP1_POWER_BASE = 0x010000
-RP1_RESETS_BASE = 0x014000
-RP1_RAM_BASE = 0x1c0000
-RP1_RAM_SIZE = 0x020000
-RP1_IO_BANK0_BASE = 0x0d0000
-RP1_PADS_BANK0_BASE = 0x0f0000
+    def play_sequence(self, tune: Sequence[Tuple[str, float]]):
+        self.b.beep(tune)
 
-RP1_PWM0_BASE = 0x098000
-RP1_PWM1_BASE = 0x09C000
-
-PWM_GLOBAL_CTRL = 0x0
-PWM_FIFO_CTRL = 0x04
-PWM_COMMON_RANGE = 0x08
-PWM_COMMON_DUTY = 0x0C
-PWM_DUTY_FIFO = 0x10
-PWM_CHAN0 = 0x14
-PWM_CHAN1 = 0x24
-PWM_CHAN2 = 0x34
-PWM_CHAN3 = 0x44
-# LED on GPIO17
-GPIO17_CTRL = 0x8c
-PAD_GPIO17 = (17 * 4) + 4
-
-# SYS_RIO offsets
-SYS_RIO_OUT_OFF = 0x00
-SYS_RIO_OE_OFF = 0x04
-SYS_RIO_IN_OFF = 0x08
-
-CLOCK_FREQ = 50_000_000
-
-PIN_A = 13
-PIN_B = 19
-
-PIN_A_PWM = PWM_CHAN1
-PIN_A_FUNC = 0
-PIN_B_PWM = PWM_CHAN3
-PIN_B_FUNC = 3
-
-PIN_A_CTRL = (PIN_A*8) + 4
-PIN_A_PAD = (PIN_A+1) * 4
-
-PIN_B_CTRL = (PIN_B*8) + 4
-PIN_B_PAD = (PIN_B+1) * 4
-
-
-def main():
-    fd_periph = os.open("/dev/mem", os.O_RDWR | os.O_SYNC)
-    mem_periph = mmap.mmap(fd_periph, RP1_BAR1_LEN, offset=RP1_BAR1)
-
-    fd_sram = os.open("/dev/mem", os.O_RDWR | os.O_SYNC)
-    mem_sram = mmap.mmap(fd_sram, PR1_BAR2_LEN, offset=RP1_BAR2)
-
-    def reg_read(dev, reg, l=4):
-        mem_periph.seek(dev + reg)
-        if l == 4:
-            return struct.unpack("<I", mem_periph.read(4))[0]
+    def preset(self, request: BeepPreset_Request, response: BeepPreset_Response):
+        if request.tune in self.TUNES:
+            self.play_sequence(self.TUNES[request.tune])
         else:
-            return mem_periph.read(l)
+            self.get_logger().warn(f"Unknown tune: {request.tune}")
+        return response
 
-    def reg_write(dev, reg, val):
-        mem_periph.seek(dev + reg)
-        mem_periph.write(struct.pack("<I", val))
+    def beep(self, request: Beep_Request, response: Beep_Response):
+        tune = list(zip(request.notes, request.durations))
+        self.play_sequence(tune)
+        return response
 
-    print("Chip ID:", hex(reg_read(RP1_SYSINFO_BASE, SYSINFO_CHIP_ID_OFFSET)))
-    print("Platform", hex(reg_read(RP1_SYSINFO_BASE, SYSINFO_PLATFORM_OFFSET)))
+    def finish(self):
+        self.b.finish()
 
-    def setup():
-        # setup gpios
-        reg_write(RP1_PADS_BANK0_BASE, PIN_A_PAD, 0x10) # enable output, 4mA, slow slew
-        reg_write(RP1_IO_BANK0_BASE, PIN_A_CTRL, 0x0000_C080 + PIN_A_FUNC)
-        reg_write(RP1_PADS_BANK0_BASE, PIN_B_PAD, 0x10) # enable output, 4mA, slow slew
-        reg_write(RP1_IO_BANK0_BASE, PIN_B_CTRL, 0x0000_C080 + PIN_B_FUNC)
-
-    def beep(freq, duty=0.5):
-        stop()
-        RANGE = int(CLOCK_FREQ / freq)
-        DUTY =  int(duty * RANGE)
-        reg_write(RP1_PWM0_BASE, PWM_COMMON_RANGE, RANGE)
-        reg_write(RP1_PWM0_BASE, PWM_COMMON_DUTY, DUTY)
-        reg_write(RP1_PWM0_BASE, PIN_A_PWM, 0x11) # use common range, trailing edge
-        reg_write(RP1_PWM0_BASE, PIN_B_PWM, 0x19) # use common range, trailing edge, inverted
-        reg_write(RP1_PWM0_BASE, PWM_GLOBAL_CTRL, 0x8000_000A) # enable two pwms
-
-    def stop():
-        reg_write(RP1_PWM0_BASE, PWM_GLOBAL_CTRL, 0x8000_0000) # disable all channels
-
-    setup()
-    beep(256, 0.5)
-    time.sleep(1)
-    stop()
-    time.sleep(0.5)
+def main(args=None):
+    rclpy.init(args=args)
+    b = BeeperNode(13, 19)
+    rclpy.spin(b)
+    b.finish()
 
 if __name__ == "__main__":
     main()
