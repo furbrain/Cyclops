@@ -1,0 +1,12 @@
+# systemd unit file for the Beep Server
+[Unit]
+Description=Beep Server
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/Cyclops/raspbian/beep_server.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+Type=notify
+
+[Install]
+WantedBy=default.target

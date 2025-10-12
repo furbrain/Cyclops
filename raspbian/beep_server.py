@@ -1,9 +1,12 @@
+import signal
 from queue import Queue, Empty
 from threading import Thread, Lock
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from typing import Sequence, Tuple
 import time
+
+import systemd.daemon
 
 from beeper import Beeper
 
@@ -92,16 +95,19 @@ class BeepThread(Thread):
         self.q: Queue[Tuple[str, float]] = Queue()
         self.interrupted = False
         self.lock = Lock()
+        self.playing = False
 
     def run(self):
         self.b.setup()
         while self.running:
             try:
                 got = self.q.get(timeout=0.05)
+                self.playing = True
                 note, duration = got
                 self.interrupted = False
             except Empty:
                 self.b.stop()
+                self.playing = False
                 continue
             if note in NOTES:
                 self.b.beep(NOTES[note])
@@ -121,6 +127,7 @@ class BeepThread(Thread):
             for note in notes:
                 self.q.put(note)
             self.interrupted = True
+            self.playing = True
 
     def stop(self):
         self.running = False
@@ -134,13 +141,29 @@ class BeepThread(Thread):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
+def terminate(signal, frame):
+    raise KeyboardInterrupt()
+
+
+BOP =  (("C7", 50),)
+FINISH =  (("C7", 50.0), ("G6", 50.0), ("E6", 50.0), ("C6", 50.0))
 
 with SimpleXMLRPCServer(('localhost', 8123), allow_none=True) as server:
+    signal.signal(signal.SIGTERM, terminate)
     server.register_introspection_functions()
     with BeepThread() as thread:
+        thread.play(BOP)
         # Register a function under function.__name__.
         @server.register_function
         def beep(seq: Sequence[Tuple[str, float]]):
             thread.play(seq)
+        systemd.daemon.notify('READY=1')
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        thread.play(FINISH)
+        while (thread.playing):
+            time.sleep(0.1)
 
-        server.serve_forever()
+
