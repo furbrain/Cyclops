@@ -7,17 +7,17 @@ launch:
     pkg: cyclops
     exec: calibrate
     name: cal
-    namespace: rgb
+    namespace: "$(var ns)/rgb"
 
 - node: # TOF Camera
     pkg: cyclops
     exec: calibrate
     name: cal
-    namespace: tof
+    namespace: "$(var ns)/tof"
 
 - group:
   - push_ros_namespace:
-      namespace: imu
+      namespace: "$(var ns)/imu"
   - include:
       file: "$(find-pkg-share mimu_calibrate)/launch/calibration_suite.yaml"
       arg:
@@ -28,7 +28,7 @@ launch:
     pkg: cyclops
     exec: calibrate_dual
     name: cal
-    namespace: rgb_tof
+    namespace: "$(var ns)/rgb_tof"
     param:
       - name: ns_a
         value: "$(var ns)/rgb"
@@ -39,7 +39,7 @@ launch:
     pkg: cyclops
     exec: calibrate_cam_imu
     name: cal
-    namespace: rgb_imu
+    namespace: "$(var ns)/rgb_imu"
     param:
       - name: ns_cam
         value: "$(var ns)/rgb"

@@ -4,83 +4,72 @@ launch:
     default: ""
 
 - node:
-    pkg: "cyclops"
-    exec: "tof"
-    name: "camera"
+    pkg: cyclops
+    exec: tof
+    name: camera
     namespace: "$(var ns)/tof"
 
 - node:
-    pkg: "cyclops"
-    exec: "rgb"
-    name: "camera"
+    pkg: cyclops
+    exec: rgb
+    name: camera
     namespace: "$(var ns)/rgb"
     param:
-      - name: "crop_x"
+      - name: crop_x
         value: 480
-      - name: "crop_y"
+      - name: crop_y
         value: 320
-      - name: "width"
+      - name: width
         value: 960
-      - name: "height"
+      - name: height
         value: 540
-      - name: "resize_width"
+      - name: resize_width
         value: 740
     remap:
       - from: sync
         to: "$(var ns)/tof/sync"
 
-#- node:
-#    pkg: "cyclops"
-#    exec: "cameras"
-#    name: "camera"
-##    namespace: "rgb"
-#    param:
-#      - name: "crop_x"
-#        value: 480
-#      - name: "crop_y"
-#        value: 320
-#      - name: "width"
-#        value: 960
-#      - name: "height"
-#        value: 540
-#      - name: "resize_width"
-#        value: 740
+- node:
+    pkg: ros2_rtimu
+    exec: imu
+    name: imu
+    namespace: "$(var ns)/imu"
 
 - node:
-    pkg: "ros2_rtimu"
-    exec: "imu"
-    name: "imu"
-    namespace: "imu"
-
-- node:
-    pkg: "cyclops"
-    exec: "tf2_dynamic"
-    name: "map_rgb"
-    namespace: "/tf"
+    pkg: cyclops
+    exec: tf2_dynamic
+    name: map_rgb
+    namespace: /tf
     param:
-      - name: "frame"
-        value: "map"
-      - name: "child_frame"
-        value: "rgb"
+      - name: frame
+        value: map
+      - name: child_frame
+        value: rgb
 
 - node:
-    pkg: "cyclops"
-    exec: "tf2_dynamic"
-    name: "rgb_tof"
-    namespace: "/tf"
+    pkg: cyclops
+    exec: tf2_dynamic
+    name: rgb_tof
+    namespace: /tf
     param:
-      - name: "frame"
-        value: "rgb"
-      - name: "child_frame"
-        value: "tof"
+      - name: frame
+        value: rgb
+      - name: child_frame
+        value: tof
 
 - node:
-    pkg: "cyclops"
-    exec: "tf2_dynamic"
-    name: "rgb_imu"
-    namespace: "/tf"
+    pkg: cyclops
+    exec: tf2_dynamic
+    name: rgb_imu
+    namespace: /tf
     param:
-      - name: "frame"
-        value: "rgb"
-      - name: "child_frame"
-        value: "imu"
+      - name: frame
+        value: rgb
+      - name: child_frame
+        value: imu
+
+- node:
+    pkg: cyclops
+    exec: beeper
+    name: beeper
+    namespace: "$(var ns)/beeper"

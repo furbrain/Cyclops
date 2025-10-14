@@ -33,7 +33,8 @@ setup(
             "tf2_dynamic = cyclops.tf2_dynamic:main",
             "orb_make_settings = cyclops.orb_make_settings:main",
             "register = cyclops.register:main",
-            "beeper = cyclops.beeper:main"
+            "beeper = cyclops.beeper:main",
+            "switcher = cyclops.switcher:main"
         ],
     },
 )
