@@ -23,8 +23,8 @@
        <li class="nav-item dropdown">
            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">Calibrate</a>
             <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="#">Magnetometer</a></li>
-                <li><a class="dropdown-item" href="#">Accelerometer</a></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#mag-tab-pane" type="button">Magnetometer</a></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#imu-tab-pane" type="button">Accelerometer</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#rgb-tab-pane" type="button">RGB Lens</a></li>
                 <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#tof-tab-pane" type="button">TOF Lens</a></li>
@@ -41,8 +41,55 @@
   <!-- <div id="viewer"></div> -->
   <div class="tab-content">
     <div class="tab-pane fade show active" id="capture-tab-pane">
-        <div id="viewer"></div>
+        This is where the main viewer will go...
     </div>
+
+
+    <div class="tab-pane fade container-sm text-center" id="mag-tab-pane">
+    <h3>Magnetometer Calibration</h3>
+        <div class="row align-items-center">
+        <div class="col-sm">
+            <div class="ros-viewer" id="mag-viewer"
+                 data-pointclouds="/imu/cal/all_scaled_mag_points"
+                 data-markers="/imu/cal/marker"
+                 data-scale="100">
+            </div>
+        </div>
+        <div class="col-sm">
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/calibrate_mag">
+                Calibrate Magnetometer
+            </button>
+            <hr/>
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/reset">
+                Reset
+            </button>
+        </div>
+        </div>
+    </div>
+
+
+    <div class="tab-pane fade container-sm text-center" id="imu-tab-pane">
+    <h3>Accelerometer Calibration</h3>
+        <div class="row align-items-center">
+        <div class="col-sm">
+            <div class="ros-viewer" id="imu-viewer"
+                 data-pointclouds="/imu/cal/collate/paired_accel_points"
+                 data-markers="/imu/cal/marker"
+                 data-scale="4">
+            </div>
+        </div>
+        <div class="col-sm">
+            <br/>
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/calibrate_accel">
+                Calibrate Accelerometer
+            </button>
+            <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/reset">
+                Reset
+            </button>
+        </div>
+        </div>
+    </div>
+
     <div class="tab-pane fade container-sm text-center" id="rgb-tab-pane">
     <h3>RGB Lens Calibration</h3>
         <div class="row align-items-center">
