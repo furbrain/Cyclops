@@ -40,12 +40,12 @@
    </ul>
   <!-- <div id="viewer"></div> -->
   <div class="tab-content">
-    <div class="tab-pane fade show active" id="capture-tab-pane">
+    <div class="tab-pane fade show active mode" id="capture-tab-pane" data-mode="capture">
         This is where the main viewer will go...
     </div>
 
 
-    <div class="tab-pane fade container-sm text-center" id="mag-tab-pane">
+    <div class="tab-pane fade container-sm text-center mode" id="mag-tab-pane" data-mode="calibration">
     <h3>Magnetometer Calibration</h3>
         <div class="row align-items-center">
         <div class="col-sm">
@@ -68,7 +68,7 @@
     </div>
 
 
-    <div class="tab-pane fade container-sm text-center" id="imu-tab-pane">
+    <div class="tab-pane fade container-sm text-center mode" id="imu-tab-pane" data-mode="calibration">
     <h3>Accelerometer Calibration</h3>
         <div class="row align-items-center">
         <div class="col-sm">
@@ -90,7 +90,7 @@
         </div>
     </div>
 
-    <div class="tab-pane fade container-sm text-center" id="rgb-tab-pane">
+    <div class="tab-pane fade container-sm text-center mode" id="rgb-tab-pane" data-mode="calibration">
     <h3>RGB Lens Calibration</h3>
         <div class="row align-items-center">
         <div class="col-sm">
@@ -102,7 +102,7 @@
         </div>
     </div>
 
-    <div class="tab-pane fade container-sm text-center" id="tof-tab-pane">
+    <div class="tab-pane fade container-sm text-center mode" id="tof-tab-pane" data-mode="calibration">
     <h3>ToF Lens Calibration</h3>
         <div class="row align-items-center">
         <div class="col-sm">
@@ -114,7 +114,7 @@
         </div>
     </div>
 
-    <div class="tab-pane fade container-sm" id="rgbtof-tab-pane">
+    <div class="tab-pane fade container-sm mode" id="rgbtof-tab-pane" data-mode="calibration">
   
     <h3>RGB to TOF calibration</h3>
       <div class="row">
@@ -132,7 +132,7 @@
         </div>
       </div>
     </div>
-    <div class="tab-pane fade container-sm text-center" id="rgbimu-tab-pane">
+    <div class="tab-pane fade container-sm text-center mode" id="rgbimu-tab-pane" data-mode="calibration">
     <h3>RGB to IMU Calibration</h3>
         <div class="row align-items-center">
         <div class="col-sm">
@@ -142,6 +142,9 @@
             <button class="btn btn-primary calibrate" type="button" data-namespace="/rgb_imu">Calibrate</button>
         </div>
         </div>
+    </div>
+    <div class="tab-pane fade container-sm text-center mode" id="recordings-tab-pane" data-mode="reset">
+    <h3>Recordings</h3>
     </div>
 </div>
 <script src="/js/bootstrap.bundle.min.js"></script>

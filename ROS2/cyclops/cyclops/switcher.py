@@ -28,6 +28,7 @@ class SwitchNode(SmartNode):
     async def _reset_mode(self):
         if self.launch_service is not None:
             await self.launch_service.shutdown()
+        self.launch_service = None
 
 
 

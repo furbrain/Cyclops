@@ -242,4 +242,34 @@ viewers.forEach(function(viewer_div) {
     viewer_observer.observe(viewer_div);
 });
 
+var current_mode = "";
+const mode_observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      console.debug('Pane is now visible: ' + entry.target.id);
+      let mode = entry.target.dataset.mode;
+      if (current_mode != mode) {
+        serv = new ROSLIB.Service({
+            ros: ros,
+            name: '/'+mode+'_mode',
+            type: "std_srvs/Trigger",
+        });
+        serv.callService({},
+                function(response) {
+                    if (!response.success) {
+                        alert("Call to switch mode " + mode + " failed with message: " + response.message);
+                    }
+                },
+                function(err) {
+                    alert("Error during call to switch to " + mode + ": " + err);
+                });
+        current_mode = mode;
+      }
+    }
+  });
+});
 
+const panes = document.querySelectorAll('div.tab-pane');
+panes.forEach(function(element) {
+    mode_observer.observe(element);
+});
