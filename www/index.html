@@ -18,7 +18,10 @@
 <body>
     <ul class="nav nav-tabs" id="nav-tab">
         <li class="nav-item" >
-            <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#capture-tab-pane" type="button">Capture</button>
+            <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-tab-pane" type="button">Home</button>
+        </li>
+        <li class="nav-item" >
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#capture-tab-pane" type="button">Capture</button>
         </li>
        <li class="nav-item dropdown">
            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">Calibrate</a>
@@ -40,10 +43,17 @@
    </ul>
   <!-- <div id="viewer"></div> -->
   <div class="tab-content">
-    <div class="tab-pane fade show active mode" id="capture-tab-pane" data-mode="capture">
-        This is where the main viewer will go...
+    <div class="tab-pane fade show active mode" id="home-tab-pane" data-mode="reset">
+        This is where the home page will go...
     </div>
 
+    <div class="tab-pane fade mode" id="capture-tab-pane" data-mode="capture">
+            <div class="ros-viewer" id="main-viewer"
+                 data-pointclouds="/orb/ORB/all_points"
+                 data-markers="/orb/ORB/kf_markers"
+                 data-scale="10">
+            </div>
+    </div>
 
     <div class="tab-pane fade container-sm text-center mode" id="mag-tab-pane" data-mode="calibration">
     <h3>Magnetometer Calibration</h3>

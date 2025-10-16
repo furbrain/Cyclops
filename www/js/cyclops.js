@@ -180,7 +180,7 @@ var tfClient = new ROSLIB.ROS2TFClient({
   angularThres : 0.01,
   transThres : 0.01,
   rate : 10.0,
-  fixedFrame : '/imu'
+  fixedFrame : '/rgb'
 });
 
 function addPointClouds(viewer) {
