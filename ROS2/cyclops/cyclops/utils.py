@@ -1,4 +1,6 @@
+import asyncio
 import os
+import signal
 from pathlib import Path
 from typing import Any, Optional, Tuple
 import numpy as np
@@ -36,6 +38,9 @@ def camera_info_to_cv2(ci: CameraInfo) -> Tuple[np.ndarray, np.ndarray, np.ndarr
 class SmartNode(Node):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._running = True
+        signal.signal(signal.SIGINT, self._sig_handler)
+        signal.signal(signal.SIGTERM, self._sig_handler)
         self.get_time_offset()
 
     def get_param_value(self, name: str):
@@ -83,6 +88,58 @@ class SmartNode(Node):
             return Path(url)
         else:
             return ros_home / url
+
+    def _sig_handler(self, sig, frame):
+        self.get_logger().info(f"Received signal {sig}, shutting down gracefully...")
+        self._running = False
+
+
+    def on_loop(self):
+        """
+        This function will be run once every time through the loop while node is running
+        :return:
+        """
+        pass
+
+    async def on_loop_async(self):
+        """
+        This function will be run once every time through the loop while node is running
+        async
+        :return:
+        """
+        pass
+
+
+    def run(self):
+        try:
+            while self._running and rclpy.ok():
+                rclpy.spin_once(self, timeout_sec=0.01)
+                self.on_loop()
+        except Exception as e:
+            self.get_logger().error(f"Unhandled exception: {e}")
+        finally:
+            self.cleanup()
+            self.destroy_node()
+            rclpy.shutdown()
+
+    async def run_async(self):
+        try:
+            while self._running and rclpy.ok():
+                rclpy.spin_once(self, timeout_sec=0.01)
+                await asyncio.sleep(0.01)
+                await self.on_loop_async()
+        except Exception as e:
+            self.get_logger().error(f"Unhandled exception: {e}")
+        finally:
+            self.cleanup()
+            self.destroy_node()
+            rclpy.shutdown()
+
+    def cleanup(self):
+        """
+        Override this function if there are any resources which need releasing before shutting down
+        :return:
+        """
 
 class CalNode(SmartNode):
     """

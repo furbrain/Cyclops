@@ -40,14 +40,10 @@ class BeeperNode(SmartNode):
         self.play_sequence(tune)
         return response
 
-    def finish(self):
-        self.b.finish()
-
 def main(args=None):
     rclpy.init(args=args)
     b = BeeperNode(13, 19)
-    rclpy.spin(b)
-    b.finish()
+    b.run()
 
 if __name__ == "__main__":
     main()

@@ -122,8 +122,7 @@ class RegisterNode(SmartNode):
 def main(args=None):
     rclpy.init(args=args)
     reg = RegisterNode()
-    rclpy.spin(reg)
-    rclpy.shutdown()
+    reg.run()
 
 if __name__ == '__main__':
     main()

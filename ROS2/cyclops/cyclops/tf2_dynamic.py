@@ -59,7 +59,7 @@ class TF2Dynamic (SmartNode):
 def main():
     rclpy.init()
     node = TF2Dynamic()
-    rclpy.spin(node)
+    node.run()
 
 if __name__=="__main__":
     main()

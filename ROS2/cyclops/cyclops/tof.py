@@ -35,7 +35,7 @@ class Tof(SmartNode):
         self.cam.setControl(ac.Control.SKIP_FRAME_LOOP, 3)
 
 
-    def run(self):
+    def on_loop(self):
         msg = Image()
         msg.height = 180
         msg.width = 240
@@ -46,48 +46,42 @@ class Tof(SmartNode):
         img_msg = copy.deepcopy(msg)
         img_msg.encoding = "mono8"
         img_msg.step = msg.width
-        last_ts = self.get_clock().now()
-        while rclpy.ok():
-            rclpy.spin_once(self, timeout_sec=0.01)
-            frame = self.cam.requestFrame(200)
-            ts_ns = time.monotonic_ns() - 7_700_000
-            ts = self.time_from_ns(ts_ns) # this point is approx 7.7ms after frame timestamp
-            if frame is not None and isinstance(frame, ac.DepthData):
-                print(f"Dt: {ts-last_ts}")
-                last_ts = ts
-                msg.header.stamp = ts.to_msg()
-                img_msg.header.stamp = msg.header.stamp
-                depth_buf = frame.depth_data
-                bad_pixels = frame.confidence_data < 30
-                amp_buf = np.sqrt(frame.amplitude_data)
-                amp_buf = 255 * amp_buf / np.max(amp_buf)
-                depth_float = depth_buf.astype(np.float32) / 1000
-                depth_float[bad_pixels] = np.nan
-                depth_img = depth_float.reshape((msg.height,msg.width))
-                depth_img = cv2.rotate(depth_img,cv2.ROTATE_180)
+        frame = self.cam.requestFrame(200)
+        ts_ns = time.monotonic_ns() - 7_700_000
+        ts = self.time_from_ns(ts_ns) # this point is approx 7.7ms after frame timestamp
+        if frame is not None and isinstance(frame, ac.DepthData):
+            msg.header.stamp = ts.to_msg()
+            img_msg.header.stamp = msg.header.stamp
+            depth_buf = frame.depth_data
+            bad_pixels = frame.confidence_data < 30
+            amp_buf = np.sqrt(frame.amplitude_data)
+            amp_buf = 255 * amp_buf / np.max(amp_buf)
+            depth_float = depth_buf.astype(np.float32) / 1000
+            depth_float[bad_pixels] = np.nan
+            depth_img = depth_float.reshape((msg.height,msg.width))
+            depth_img = cv2.rotate(depth_img,cv2.ROTATE_180)
 
-                amp_img = amp_buf.astype("uint8").reshape((msg.height,msg.width))
-                amp_img = cv2.rotate(amp_img, cv2.ROTATE_180)
+            amp_img = amp_buf.astype("uint8").reshape((msg.height,msg.width))
+            amp_img = cv2.rotate(amp_img, cv2.ROTATE_180)
 
-                msg.data = depth_img.tobytes()
-                img_msg.data = amp_img.tobytes()
+            msg.data = depth_img.tobytes()
+            img_msg.data = amp_img.tobytes()
 
-                ci_msg = self.info_mgr.getCameraInfo()
-                ci_msg.header = msg.header
-                self.pub.publish(msg)
-                self.pub_img.publish(img_msg)
-                self.ci_pub.publish(self.info_mgr.getCameraInfo())
-                self.sync_pub.publish(Sync(nanoseconds = ts_ns))
-                self.cam.releaseFrame(frame)            
+            ci_msg = self.info_mgr.getCameraInfo()
+            ci_msg.header = msg.header
+            self.pub.publish(msg)
+            self.pub_img.publish(img_msg)
+            self.ci_pub.publish(self.info_mgr.getCameraInfo())
+            self.sync_pub.publish(Sync(nanoseconds = ts_ns))
+            self.cam.releaseFrame(frame)
                 
-    def shutdown(self):
+    def cleanup(self):
         self.cam.stop()
 
 def main(args=None):
     rclpy.init(args=args)
     node = Tof()
     node.run()
-    node.shutdown()
 
 if __name__ == '__main__':
     main()

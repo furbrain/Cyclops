@@ -107,11 +107,9 @@ class CameraNode(SmartNode):
         self.state = State.INIT
         self.frame_count = 0
 
-    def run(self):
-        while True:
-            rclpy.spin_once(self, timeout_sec=0.01)
-            self.publish_image()
-            self.run_state_machine()
+    def on_loop(self):
+        self.publish_image()
+        self.run_state_machine()
 
     def publish_image(self):
         with self.cam.captured_request() as req:
