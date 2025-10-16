@@ -36,6 +36,17 @@ launch:
     namespace: "$(var ns)/imu"
 
 - node:
+    pkg: mimu_calibrate
+    exec: rectify
+    name: rectify
+    namespace: "$(var ns)/imu"
+    remap:
+      - from: magnetic_raw
+        to: mag_raw
+      - from: magnetic_rect
+        to: mag_rect
+
+- node:
     pkg: cyclops
     exec: tf2_dynamic
     name: map_rgb

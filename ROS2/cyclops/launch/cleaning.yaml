@@ -30,27 +30,6 @@ launch:
   #      - from: depth/camera_info
   #        to: /tof/camera_info
 
-  - node:
-      pkg: cyclops_cpp
-      exec: register_node
-      name: register
-      namespace: "$(var ns)/tof"
-      param:
-        - name: radial_source
-          value: True
-        - name: rectified_source
-          value: False
-        - name: rectified_dest
-          value: False
-        - name: fill_upsampling_holes
-          value: True
-      remap:
-        - from: rgb/camera_info
-          to: "$(var ns)/rgb/camera_info"
-        - from: depth/image_rect
-          to: depth_raw
-        - from: depth/camera_info
-          to: camera_info
 
 
   - node:
