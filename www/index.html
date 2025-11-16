@@ -48,11 +48,20 @@
     </div>
 
     <div class="tab-pane fade mode" id="capture-tab-pane" data-mode="capture">
-            <div class="ros-viewer" id="main-viewer"
-                 data-pointclouds="/orb/ORB/all_points"
-                 data-markers="/orb/ORB/kf_markers"
-                 data-scale="10">
+        <div class="row align-items-center">
+            <div class="col-sm">
+                <div class="ros-viewer" id="main-viewer"
+                     data-pointclouds="/orb/ORB/all_points"
+                     data-pointsize="0.1"
+                     data-frame="/map"
+                     data-markers="/orb/ORB/kf_markers"
+                     data-scale="10">
+                </div>
             </div>
+            <div class="col-sm">
+                <img src="#" data-ros-topic="/orb/ORB/tracking_image" class="ros-img img-fluid"></img>
+            </div>
+        </div>
     </div>
 
     <div class="tab-pane fade container-sm text-center mode" id="mag-tab-pane" data-mode="calibration">

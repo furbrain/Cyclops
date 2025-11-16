@@ -507,7 +507,7 @@ void RegisterNode::depthToPixels(cv::Mat &depth, cv::Mat &d_transform, cv::Mat &
   cv::Vec3f translation(t.x(), t.y(), t.z());
   for (int i = 0; i < 3; i++)
   {
-    xyz_rgb.col(i) = d_transform.col(i).mul(depth) + translation[i];
+    xyz_rgb.col(i) = d_transform.col(i).mul(depth) - translation[i];
   }
   cv::Vec3f empty(0, 0, 0);
   if (rectified_dest_)

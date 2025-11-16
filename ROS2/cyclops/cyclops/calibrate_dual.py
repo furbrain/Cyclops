@@ -63,7 +63,7 @@ class CalibratorDual(CalNode):
         if tf_result.success:
             result.message = "Calibration complete"
         else:
-            result_message = "Error storing transform"
+            result.message = "Error storing transform"
 
     def images_in(self, msg_a: Image, msg_b: Image):
         if self.calibrating:

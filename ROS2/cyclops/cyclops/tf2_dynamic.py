@@ -18,6 +18,9 @@ class TF2Dynamic (SmartNode):
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.transform = self.load_transform()
         self.timer = self.create_timer(0.1, self.publish)
+        self.service = self.create_service(SetTransform,
+                                           f"{self.frame}_{self.child_frame}/set_transform",
+                                           self.set_transform)
 
     def load_transform(self):
         t = self.make_transform()
@@ -42,6 +45,7 @@ class TF2Dynamic (SmartNode):
         return t
 
     def set_transform(self, req: SetTransform.Request, rsp: SetTransform.Response):
+        self.get_logger().info("writing transform")
         if not self.url.parent.exists():
             self.url.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -51,8 +55,10 @@ class TF2Dynamic (SmartNode):
             t.transform = req.transform
             self.transform = t
             self.tf_static_broadcaster.sendTransform(t)
+            self.get_logger().info("writing transform completed")
             rsp.success = True
-        except (IOError, yaml.YAMLError):
+        except (IOError, yaml.YAMLError) as e:
+            self.get_logger().warn(f"Error writing yaml file: {e}")
             rsp.success = False
         return rsp
 

@@ -5,11 +5,17 @@ from inspect import cleandoc
 from pathlib import Path
 from typing import Optional
 
+import scipy.spatial.transform as sst
+import numpy as np
+import yaml
+
 import rclpy
 from sensor_msgs.msg import CameraInfo
 from cyclops_interfaces.srv import SetTransform
+from geometry_msgs.msg import Transform
 
-from .utils import CalNode, get_ros_home
+from .utils import CalNode, get_ros_home, vector3_from_array, quat_from_sst
+
 
 class CalibratorCamIMU(CalNode):
 
@@ -46,7 +52,7 @@ class CalibratorCamIMU(CalNode):
         self.camera_info = camera_info
 
     def on_start_calibration(self):
-
+        shutil.rmtree(self.cal_dir)
         topics = f"{self.cam_topic} {self.caminfo_topic} {self.imu_topic}"
         self.process = subprocess.Popen(f"exec ros2 bag record -o {self.cal_dir / 'ros2.bag'} {topics}",
                                         shell=True)
@@ -60,12 +66,12 @@ class CalibratorCamIMU(CalNode):
             result.message = "Bag recording did not stop in good time"
             return
 
-        #convert ros2 bag to ros1 bag
-        #subprocess.run(['rosbags-convert',
-        #                '--src',self.cal_dir / 'ros2.bag',
-        #                '--dst',self.cal_dir / 'ros1.bag'])
+        # convert ros2 bag to ros1 bag
+        subprocess.run(['rosbags-convert',
+                        '--src',self.cal_dir / 'ros2.bag',
+                        '--dst',self.cal_dir / 'ros1.bag'])
 
-        #create various yaml files:
+        # create various yaml files:
         with open(self.cal_dir / "target.yaml", "w") as f:
             if self.target_type=="circle":
                 f.write(cleandoc(f"""
@@ -77,7 +83,7 @@ class CalibratorCamIMU(CalNode):
                 """))
         with open(self.cal_dir / "cam.yaml", "w") as f:
             ci = self.camera_info
-            models  = {'plumb bob': 'radtan', 'equidistant': 'equi'}
+            models  = {'plumb_bob': 'radtan', 'equidistant': 'equi'}
             f.write(cleandoc(f"""
                 cam0:
                   camera_model: pinhole
@@ -100,11 +106,14 @@ class CalibratorCamIMU(CalNode):
                         '--dont-show-report',
                         ])
 
-        # convert bag to rosbag1
-        # run kalibr in docker...
-        result.success = True
-        result.message = "interim results done"
-        return # return early for now
+        with open(self.cal_dir / "ros1-camchain-imucam.yaml") as f:
+            data = yaml.safe_load(f)
+        matrix = np.array(data['cam0']['T_cam_imu'])
+        # matrix = np.linalg.inv(matrix) # need to invert to take to the other direction
+        rotation = sst.Rotation.from_matrix(matrix[:3,:3])
+        translation = matrix[:3,3]
+        transform = Transform(translation=vector3_from_array(translation),
+                              rotation=quat_from_sst(rotation))
         req = SetTransform.Request(transform=transform)
         future = self.dynamic_tf2_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
@@ -113,8 +122,7 @@ class CalibratorCamIMU(CalNode):
         if tf_result.success:
             result.message = "Calibration complete"
         else:
-            result_message = "Error storing transform"
-
+            result.message = "Error storing transform"
 
 
 def main(args=None):
