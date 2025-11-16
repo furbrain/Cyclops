@@ -6,12 +6,12 @@ from typing import Optional, Tuple, Dict, Sequence
 from xmlrpc.client import ServerProxy
 
 import rclpy
-from .utils import SmartNode
+from autonode import Node, service
 
 from cyclops_interfaces.srv import BeepPreset, BeepPreset_Request, BeepPreset_Response
 from cyclops_interfaces.srv import Beep, Beep_Request, Beep_Response
 
-class BeeperNode(SmartNode):
+class BeeperNode(Node):
     TUNES = {
         BeepPreset_Request.HAPPY : (("C6", 50.0), ("E6", 50.0), ("G6", 50.0), ("C7", 50.0)),
         BeepPreset_Request.BIP: (("A7", 50),),
@@ -19,15 +19,14 @@ class BeeperNode(SmartNode):
         BeepPreset_Request.SAD: (("G6", 100), ("C6", 200)),
         BeepPreset_Request.FINISH: list(reversed((("C6", 50.0), ("E6", 50.0), ("G6", 50.0), ("C7", 50.0)))),
     }
-    def __init__(self, pin_a: int, pin_b: Optional[int] = None):
-        super().__init__("Beeper")
+    def __init__(self):
+        super().__init__()
         self.b = ServerProxy('http://localhost:8123')
-        self.preset_service = self.create_service(BeepPreset, "preset", self.preset)
-        self.beep_service = self.create_service(Beep, "beep", self.beep)
 
     def play_sequence(self, tune: Sequence[Tuple[str, float]]):
         self.b.beep(tune)
 
+    @service(BeepPreset)
     def preset(self, request: BeepPreset_Request, response: BeepPreset_Response):
         if request.tune in self.TUNES:
             self.play_sequence(self.TUNES[request.tune])
@@ -35,6 +34,7 @@ class BeeperNode(SmartNode):
             self.get_logger().warn(f"Unknown tune: {request.tune}")
         return response
 
+    @service(Beep)
     def beep(self, request: Beep_Request, response: Beep_Response):
         tune = list(zip(request.notes, request.durations))
         self.play_sequence(tune)
@@ -42,7 +42,7 @@ class BeeperNode(SmartNode):
 
 def main(args=None):
     rclpy.init(args=args)
-    b = BeeperNode(13, 19)
+    b = BeeperNode()
     b.run()
 
 if __name__ == "__main__":

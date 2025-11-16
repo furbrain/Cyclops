@@ -33,6 +33,7 @@ class Tof(SmartNode):
         self.cam.setControl(ac.Control.RANGE, RANGE)
         self.cam.setControl(ac.Control.SKIP_FRAME, 2) # skip 2 out of 3 frames - frequency -> 10Hz
         self.cam.setControl(ac.Control.SKIP_FRAME_LOOP, 3)
+        self.get_logger().info(f"phase set: {self.cam.setControl(ac.Control.FRAME_MODE, ac.TofFrameWorkMode.SINGLE_FREQ_4PHASE)}")
 
 
     def on_loop(self):

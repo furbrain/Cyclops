@@ -3,51 +3,99 @@ launch:
       name: ns
       default: ""
 
-#  - node:
-#      pkg: "depth_image_proc"
-#      exec: "register_node"
-#      name: "register_orig"
-#      namespace: "$(var ns)/tof"
-#      remap:
-#        - from: depth/image_rect
-#          to: "$(var ns)/tof/depth_raw"
-#        - from: depth/camera_info
-#          to: "$(var ns)/tof/camera_info"
-#        - from: rgb/camera_info
-#          to: "$(var ns)/rgb/camera_info"
-#        - from: depth_registered/image_rect
-#          to: "$(var ns)/rgb/depth_rect"
-#      param:
-#        - name: fill_upsampling_holes
-#          value: False
-
-  #- node:
-  #    pkg: depth_image_proc
-  #    exec: point_cloud_xyz_radial_node
-  #    remap:
-  #      - from: depth/image_raw
-  #        to: /tof/depth_raw
-  #      - from: depth/camera_info
-  #        to: /tof/camera_info
-
-
-
   - node:
-      pkg: image_proc
-      exec: rectify_node
-      name: rectify
-      namespace: "$(var ns)/rgb"
+      pkg: depth_image_proc
+      exec: point_cloud_xyzrgb_node
       remap:
-        - from: image
-          to: image_raw
+        - from: depth_registered/image_rect
+          to: /rgb/depth_registered
+        - from: rgb/image_rect_color
+          to: /rgb/image_rect
+        - from: rgb/camera_info
+          to: /rgb/camera_info
 
 #  - node:
 #      pkg: image_proc
 #      exec: rectify_node
 #      name: rectify
-#      namespace: "$(var ns)/tof"
+#      namespace: "$(var ns)/rgb"
 #      remap:
+#        - from: image
+#          to: image_raw
+
+#  - node:
+#      pkg: image_proc
+#      exec: rectify_node
+#      name: rectify_depth
+#      namespace: "$(var ns)/rgb"
+#      remap:
+#        - from: image
+#          to: depth_registered
 #        - from: image_rect
 #          to: depth_rect
-#        - from: image
+
+#  - node:
+#      pkg: cyclops_cpp
+#      exec: register_node
+#      name: register
+#      namespace: "$(var ns)/tof"
+#      param:
+#        - name: radial_source
+#          value: True
+#        - name: rectified_source
+#          value: False
+#        - name: rectified_dest
+#          value: True
+#        - name: fill_upsampling_holes
+#          value: True
+#      remap:
+#        - from: rgb/camera_info
+#          to: "$(var ns)/rgb/camera_info"
+#        - from: depth/image_rect
 #          to: depth_raw
+#        - from: depth/camera_info
+#          to: camera_info
+#        - from: depth_registered/image_rect
+#          to: "$(var ns)/rgb/depth_registered"
+
+  - node:
+      pkg: imu_complementary_filter
+      exec: complementary_filter_node
+      name: complement
+      remap:
+        - from: imu/data_raw
+          to: "$(var ns)/imu/imu_rect"
+        - from: imu/mag
+          to: "$(var ns)/imu/mag_rect"
+        - from: imu/data
+          to: "$(var ns)/imu/imu_comp"
+      param:
+        - name: use_mag
+          value: true
+        - name: publish_tf
+          value: true
+        - name: fixed_frame
+          value: comp_odom
+        - name: reverse_tf
+          value: true
+
+  - node:
+      pkg: imu_filter_madgwick
+      exec: imu_filter_madgwick_node
+      name: madgwick
+      remap:
+        - from: imu/data_raw
+          to: "$(var ns)/imu/imu_rect"
+        - from: imu/mag
+          to: "$(var ns)/imu/mag_rect"
+        - from: imu/data
+          to: "$(var ns)/imu/imu_madg"
+      param:
+        - name: use_mag
+          value: true
+        - name: publish_tf
+          value: true
+        - name: fixed_frame
+          value: madg_odom
+        - name: reverse_tf
+          value: true

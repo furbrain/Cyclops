@@ -34,6 +34,7 @@ launch:
     exec: imu
     name: imu
     namespace: "$(var ns)/imu"
+    output: screen
 
 - node:
     pkg: mimu_calibrate
@@ -46,16 +47,17 @@ launch:
       - from: magnetic_rect
         to: mag_rect
 
-- node:
-    pkg: cyclops
-    exec: tf2_dynamic
-    name: map_rgb
-    namespace: /tf
-    param:
-      - name: frame
-        value: map
-      - name: child_frame
-        value: rgb
+
+#- node:
+#    pkg: cyclops
+#    exec: tf2_dynamic
+#    name: map_rgb
+#    namespace: /tf
+#    param:
+#      - name: frame
+#        value: map
+#      - name: child_frame
+#        value: rgb
 
 - node:
     pkg: cyclops

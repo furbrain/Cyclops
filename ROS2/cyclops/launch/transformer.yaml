@@ -1,0 +1,19 @@
+launch:
+
+- arg:
+    name: ns
+    default: ""
+
+- node:
+    pkg: imu_transformer
+    exec: imu_transformer_node
+    name: imu_tf
+    namespace: "$(var ns)/imu"
+    param:
+      - name: target_frame
+        value: rgb
+    remap:
+      - from: mag_in
+        to: magnetic_rect
+      - from: imu_in
+        to: imu_rect

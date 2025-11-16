@@ -1,6 +1,7 @@
 from typing import Optional
 
 import scipy.spatial.transform
+import yaml
 from scipy.spatial.transform import Rotation, RigidTransform
 import rclpy
 import rclpy.time
@@ -32,8 +33,8 @@ class OrbSetter(SmartNode):
     def run(self):
         while self.ci is None:
             rclpy.spin_once(self, timeout_sec=0.1)
-        t = self.tf_buffer.lookup_transform(self.cam_frame_id,
-                                            self.imu_frame_id,
+        t = self.tf_buffer.lookup_transform(self.imu_frame_id,
+                                            self.cam_frame_id,
                                             rclpy.time.Time(),
                                             rclpy.time.Duration(seconds=5))
         # write settings file here...
@@ -41,6 +42,9 @@ class OrbSetter(SmartNode):
         q = t.transform.rotation
         rotation = Rotation.from_quat([q.x, q.y, q.z, q.w])
         transform = RigidTransform.from_components(translation, rotation)
+
+        with open(self.imu_noise_url) as f:
+            imu_noise_data = yaml.safe_load(f)
         self.get_logger().info(f"Writing ORB_SLAM3 settings to {self.settings_url}")
         config_file = aip.get_package_share_path("cyclops") / "config" / "orb_slam3.yaml.tpl"
         with open(config_file) as f:

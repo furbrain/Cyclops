@@ -9,8 +9,8 @@ launch:
 #- include:
 #    file: "$(find-pkg-share cyclops)/launch/calibration.yaml"
 
-- include:
-    file: "$(find-pkg-share cyclops)/launch/cleaning.yaml"
+#- include:
+#    file: "$(find-pkg-share cyclops)/launch/cleaning.yaml"
 
 - node:
     pkg: cyclops
@@ -21,4 +21,4 @@ launch:
       - name: cal_fname
         value: "$(find-pkg-share cyclops)/launch/calibration.yaml"
       - name: capture_fname
-        value: "$(find-pkg-share cyclops)/launch/orb.yaml"
+        value: "$(find-pkg-share cyclops)/launch/orb.launch.py"

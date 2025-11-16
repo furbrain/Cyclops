@@ -8,10 +8,10 @@ File.version: "1.0"
 Camera.type: "PinHole"
 
 # Right Camera calibration and distortion parameters (OpenCV)
-Camera1.fx: {rgb_ci.p[0]}
-Camera1.fy: {rgb_ci.p[5]}
-Camera1.cx: {rgb_ci.p[2]}
-Camera1.cy: {rgb_ci.p[6]}
+Camera1.fx: {rgb_ci.k[0]}
+Camera1.fy: {rgb_ci.k[4]}
+Camera1.cx: {rgb_ci.k[2]}
+Camera1.cy: {rgb_ci.k[5]}
 # distortion parameters
 Camera1.k1: {rgb_ci.d[0]}
 Camera1.k2: {rgb_ci.d[1]}
@@ -45,14 +45,15 @@ IMU.T_b_c1: !!opencv-matrix
 # Do not insert KFs when recently lost
 IMU.InsertKFsWhenLost: 0
 
-# IMU noise (Use those from VINS-mono)
-# TODO
-IMU.NoiseGyro: 1e-2 # 3 # 2.44e-4 #1e-3 # rad/s^0.5
-IMU.NoiseAcc: 1e-1 #2 # 1.47e-3 #1e-2 # m/s^1.5
-IMU.GyroWalk: 1e-6 # rad/s^1.5
-IMU.AccWalk: 1e-4 # m/s^2.5
-IMU.Frequency: 500.0
-
+# IMU noise (from imu_noise.yaml)
+IMU.NoiseGyro: {imu_noise_data['gyroscope_noise_density']}
+IMU.NoiseAcc: {imu_noise_data['accelerometer_noise_density']}
+IMU.GyroWalk: {imu_noise_data['gyroscope_random_walk']}
+IMU.AccWalk: {imu_noise_data['accelerometer_random_walk']}
+IMU.Frequency: {imu_noise_data['update_rate']:.2f}
+IMU.UseImuTrajectory: 0
+IMU.UseImuPose: 1
+IMU.NoisePose: 0.034 #0.034 radians  = ~2 degree uncertainty
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
 #--------------------------------------------------------------------------------------------

@@ -34,7 +34,10 @@ setup(
             "orb_make_settings = cyclops.orb_make_settings:main",
             "register = cyclops.register:main",
             "beeper = cyclops.beeper:main",
-            "switcher = cyclops.switcher:main"
+            "switcher = cyclops.switcher:main",
+            "tracker  = cyclops.tracker:main",
+            "orb_beeper = cyclops.orb_beeper:main",
+            "orb_state_beeper = cyclops.orb_state_beeper:main",
         ],
     },
 )

@@ -138,7 +138,7 @@ class CameraNode(SmartNode):
         if self.state == State.INIT:
             if self.rgb_stamps.ready() and self.tof_stamps.ready():
                 self.state = State.WATCHING
-                self.get_logger().info("Entering Watching mode")
+                self.get_logger().debug("Entering Watching mode")
         elif self.state == State.WATCHING:
             valid_period, period = self.tof_stamps.period()
             self.get_logger().debug(f"Watching: {valid_period}, {period}")
@@ -154,17 +154,17 @@ class CameraNode(SmartNode):
                     new_duration = (period + correction) // 1000 #convert to us for picamera!
                     self.cam.set_controls({'FrameDurationLimits':(new_duration, new_duration)})
                     self.state = State.CORRECTING
-                    self.get_logger().warn(f"Starting correction. Correction: {new_duration}")
+                    self.get_logger().debug(f"Starting correction. Correction: {new_duration}")
         elif self.state == State.CORRECTING:
             self.cam.set_controls({'FrameDurationLimits': (self.period_us, self.period_us)})
             self.state = State.COOLDOWN
             self.frame_count = 0
-            self.get_logger().info(f"Correction finished, new_period: {self.period_us} ")
+            self.get_logger().debug(f"Correction finished, new_period: {self.period_us} ")
         elif self.state == State.COOLDOWN:
             self.frame_count += 1
             if self.frame_count >= self.sync_frame_count*2:
                 self.state = State.WATCHING
-                self.get_logger().info("Returning to Watching mode")
+                self.get_logger().debug("Returning to Watching mode")
 
     def sync_handler(self, msg: Sync):
         self.tof_stamps.store(msg.nanoseconds)
