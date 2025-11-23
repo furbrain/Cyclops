@@ -1,0 +1,19 @@
+<h3>Accelerometer Calibration</h3>
+<div class="row align-items-center">
+    <div class="col-sm">
+        <div class="ros-viewer" id="imu-viewer"
+             data-pointclouds="/imu/cal/collate/paired_accel_points"
+             data-markers="/imu/cal/marker"
+             data-scale="4">
+        </div>
+    </div>
+    <div class="col-sm">
+        <br/>
+        <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/calibrate_accel">
+            Calibrate Accelerometer
+        </button>
+        <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/reset">
+            Reset
+        </button>
+    </div>
+</div>

@@ -1,0 +1,65 @@
+<h3>Recordings</h3>
+<div class="row justify-content-center">
+    <div class="col-sm-6 " id="recordings_holder">
+        {% include "recordings_fragment.html" %}
+    </div>
+</div>
+<div class="row align-items-center justify-content-center">
+        <div class="card border-secondary" style="max-width: 50rem;">
+            <div class="card-header">Modelling output</div>
+            <div class="card-body text-bg-dark">
+                <pre class="pre-scrollable" id="recording_log" style="max-height: 200px; overflow-y: scroll"></pre>
+            </div>
+        </div>
+</div>
+
+<div class="row justify-content-center align-items-center">
+    <div class="col-sm-6">
+    <button class="btn btn-outline-primary" onclick="reloadRecordings()">Refresh</button>
+    <button class="btn btn-outline-primary" onclick="clearLog()">Clear</button>
+    <button class="btn btn-outline-danger" onclick="addMessage('plib')">Cancel</button>
+    </div>
+</div>
+<!-- Rename Modal -->
+<div class="modal fade" id="renameModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Rename File</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="currentFileName">
+            <div class="mb-3">
+                <label for="newFileName" class="form-label">New name</label>
+                <input type="text" id="newFileName" class="form-control">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn btn-primary" onclick="handleRename()">Rename</button>
+        </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Rename File</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                Are you sure you want to delete <label id="deleteFileName"></label>?
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn btn-danger" onclick="handleDelete()">Delete</button>
+        </div>
+    </div>
+  </div>
+</div>
+

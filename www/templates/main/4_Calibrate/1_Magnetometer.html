@@ -1,0 +1,19 @@
+<h3>Magnetometer Calibration</h3>
+<div class="row align-items-center">
+    <div class="col-sm">
+        <div class="ros-viewer" id="mag-viewer"
+             data-pointclouds="/imu/cal/all_scaled_mag_points"
+             data-markers="/imu/cal/marker"
+             data-scale="100">
+        </div>
+    </div>
+    <div class="col-sm">
+        <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/calibrate_mag">
+            Calibrate Magnetometer
+        </button>
+        <hr/>
+        <button class="btn btn-primary ros-service" type="button" data-ros-service="/imu/cal/reset">
+            Reset
+        </button>
+    </div>
+</div>

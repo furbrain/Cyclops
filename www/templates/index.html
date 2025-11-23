@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+<title>Cyclops</title>
+<script src="/js/three.min.js"></script>
+<script src="/js/eventemitter3.umd.js"></script>
+<script src="/js/roslib.js"></script>
+<script src="/js/ros3d.min.js"></script>
+<style>
+    /* Container that will show vertical scrollbar */
+    .log-box {
+        max-height: 320px; /* adjust to taste */
+        overflow-y: auto; /* vertical scrollbar */
+        white-space: pre-wrap; /* preserve line breaks for pasted text */
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+        font-size: 0.95rem;
+        padding: 0.75rem;
+        background: #0f172a; /* dark background for log look */
+        color: #e6eef8;
+        border-radius: 0.5rem;
+    }
+
+</style>
+</head>
+
+<body>
+<!-- Nav bar menu -->
+<ul class="nav nav-tabs" id="nav-tab">
+{% for key, value in entries.items() %}
+    {% if value is mapping %}
+       <li class="nav-item dropdown">
+           <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">Calibrate</a>
+            <ul class="dropdown-menu">
+                {% for key2, value2 in value.items() %}
+                    {% if value2.suffix == ".split" %}
+                        <li><hr class="dropdown-divider"></li>
+                    {% else %}
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="tab" data-bs-target="#{{key2 | lower | replace(' ','-')}}-tab-pane" type="button">{{key2}}</a></li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+       </li>
+    {% else %}
+    <li class="nav-item" >
+        <button class="nav-link {{'active' if loop.first}}" id="{{key | lower | replace(' ','-')}}-tab" data-bs-toggle="tab" data-bs-target="#{{key | lower}}-tab-pane" type="button">{{key}}</button>
+    </li>
+    {% endif %}
+{% endfor %}
+</ul>
+
+<!-- Panes -->
+<div class="tab-content">
+{% for key, value in entries.items() %}
+    {% if value is mapping %}
+        {% for key2, value2 in value.items() %}
+            {% if value2.suffix == ".split" %}
+            {% else %}
+                <div class="tab-pane fade show mode" id="{{key2 | lower | replace(' ','-')}}-tab-pane" data-mode="{{key | lower}}">
+                    {% include value2 | string +%}
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+    <div class="tab-pane fade show {{'active' if loop.first}} mode" id="{{key | lower | replace(' ','-')}}-tab-pane" data-mode="{{key | lower}}">
+        {% include value | string +%}
+    </div>
+    {% endif %}
+{% endfor %}
+</div>
+
+<!-- Scripts -->
+<script src="/js/bootstrap.bundle.min.js"></script>
+{% for js in js_files -%}
+    <script src="{{js}}"></script>
+{% endfor -%}
+</body>
+</html>
