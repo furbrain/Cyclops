@@ -1,0 +1,14 @@
+<table class="table">
+    <tr><th>Name</th><th>Size</th><th>Rough</th><th>Refined</th></tr>
+    {% for model in models %}
+        <tr>
+            <td>{{model.name}}
+                <button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button>
+                <button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button>
+            </td>
+            <td>{{model.size | filesizeformat}}</td>
+            <td>{{model.has_rough}}</td>
+            <td>{{model.has_refined}}</td>
+        </tr>
+    {% endfor %}
+</table>

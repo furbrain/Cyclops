@@ -1,0 +1,9 @@
+uint8 ROUGH = 0
+uint8 REFINED = 1
+
+string name
+uint8 style
+---
+bool success
+---
+string output

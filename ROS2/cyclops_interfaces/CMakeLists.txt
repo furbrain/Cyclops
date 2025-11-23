@@ -12,9 +12,11 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/Calibrate.action"
+  "action/MakeModel.action"
   "srv/SetTransform.srv"
   "srv/Beep.srv"
   "srv/BeepPreset.srv"
+  "srv/SetMode.srv"
   "msg/Sync.msg"
   DEPENDENCIES geometry_msgs
 )
