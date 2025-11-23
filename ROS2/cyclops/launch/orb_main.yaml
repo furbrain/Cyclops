@@ -11,6 +11,9 @@ launch:
   - arg:
       name: log_level
       default: 'INFO'
+  - arg:
+      name: bag_uri
+      default: /data/current/recording
 
   - node:
       pkg: orb_slam3
@@ -105,3 +108,7 @@ launch:
           to: $(var ns)/orb/ORB/state
         - from: preset
           to: $(var ns)/beeper/preset
+
+  - executable:
+      cmd: "ros2 bag record --topics /imu/imu_madg /orb/ORB/keyframes/compressed /orb/ORB/atlas /rgb/camera_info -o $(var bag_uri)"
+      output: screen
