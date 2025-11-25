@@ -36,7 +36,7 @@ class Modeller(Node):
                 continue
             if out:
                 out = out.strip()
-                self.get_logger().info(f"Lin2e: {repr(out)}")
+                self.get_logger().debug(f"make_model output: {repr(out)}")
                 self.gh.publish_feedback(MakeModel.Feedback(output=out))
             self.process.poll()
         self.get_logger().info("subprocess complete")

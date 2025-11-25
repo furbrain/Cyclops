@@ -1,14 +1,31 @@
 <table class="table">
-    <tr><th>Name</th><th>Size</th><th>Rough</th><th>Refined</th></tr>
+    <tr><th>Name</th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
     {% for model in models %}
         <tr>
-            <td>{{model.name}}
-                <button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button>
-                <button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button>
-            </td>
+            <td>{{model.name}}</td>
+            <td><button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button></td>
+            <td><button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button></td>
             <td>{{model.size | filesizeformat}}</td>
-            <td>{{model.has_rough}}</td>
-            <td>{{model.has_refined}}</td>
+            <td>
+                {% if model.has_rough %}
+                    Download
+                {% else %}
+                    <button class="btn btn-outline-primary ros-make-model"
+                            data-name="{{model.name}}" data-model-style="0">
+                    Make Model
+                    </button>
+                {% endif %}
+            </td>
+            <td>
+                {% if model.has_refined %}
+                    Download
+                {% else %}
+                    <button class="btn btn-outline-primary ros-make-model"
+                            data-name="{{model.name}}" data-model-style="1">
+                    Make Model
+                    </button>
+                {% endif %}
+            </td>
         </tr>
     {% endfor %}
 </table>

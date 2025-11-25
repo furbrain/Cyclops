@@ -44,8 +44,8 @@ class Model:
     def fromPath(cls, p: Path):
         name = p.stem
         size = sum_dirs(p)
-        has_rough = (p / "map_1" / "scene_dense_texture.ply").exists()
-        has_refined = (p / "map_1" / "scene_dense_texture_refined.ply").exists()
+        has_rough = (p / "map_1" / "rough.ply").exists()
+        has_refined = (p / "map_1" / "refined.ply").exists()
         return cls(name, size, has_rough, has_refined)
 
 

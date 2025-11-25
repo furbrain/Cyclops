@@ -85,3 +85,41 @@ function addMessage(text) {
         logger.scrollTo({ top: logger.scrollHeight, behavior: 'smooth' });
     }
 }
+
+const btns_make_model = document.querySelectorAll('button.ros-make-model');
+btns_make_model.forEach(function(btn) {
+    btn.old_text = btn.innerText;
+    btn.old_classes = btn.className;
+    btn.action = new ROSLIB.Action({
+        ros: ros,
+        name: '/make_model',
+        actionType: "cyclops_interfaces/MakeModel",
+        });
+    btn.onclick = function() {
+        goal = {name: btn.dataset.name, style: parseInt(btn.dataset.modelStyle)};
+        console.log(goal);
+        btn.action.sendGoal(goal,
+            function(response) {
+                console.debug("action result received");
+                if (response.success) {
+                    reset_button(btn);
+                    flash_button(btn,"success", response.message);
+                } else {
+                    flash_button(btn,"danger");
+                    alert("Call to " + btn.dataset.rosAction + " failed with message: " + response.message);
+                }
+            },
+            function(feedback) {
+                console.debug("action feedback received");
+                addMessage(feedback.output);
+            },
+            function(err) {
+                console.log("action error received");
+                reset_button(btn);
+                flash_button(btn,"danger");
+                alert("Error during call to " + btn.dataset.rosAction + ": " + err);
+        });
+    };
+    btn.end_func = function() {
+    }
+});

@@ -338,9 +338,9 @@ if __name__ == "__main__":
     # os.system("docker pull furbrain/cyclops_mvs:latest")
     if opts.refined:
         os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
-                  f"-v {model_dir.absolute()}:/working -it "
+                  f"-v {model_dir.absolute()}:/working "
                   "furbrain/cyclops_mvs:latest make_refined.sh")
     else:
         os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
-                  f"-v {model_dir.absolute()}:/working -it "
+                  f"-v {model_dir.absolute()}:/working "
                   "furbrain/cyclops_mvs:latest make_rough.sh")
