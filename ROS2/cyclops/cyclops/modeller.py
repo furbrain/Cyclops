@@ -36,7 +36,7 @@ class Modeller(Node):
                 continue
             if out:
                 out = out.strip()
-                self.get_logger().info(f"Line: {out}")
+                self.get_logger().info(f"Lin2e: {repr(out)}")
                 self.gh.publish_feedback(MakeModel.Feedback(output=out))
             self.process.poll()
         self.get_logger().info("subprocess complete")
@@ -55,7 +55,7 @@ class Modeller(Node):
 def main(args=None):
     rclpy.init(args=args)
     b = Modeller()
-    rclpy.spin(b)
+    b.run()
 
 if __name__ == "__main__":
     main()
