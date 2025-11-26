@@ -50,7 +50,7 @@ class Model:
 
 
 def get_models():
-   return [Model.fromPath(x) for x in MODEL_ROOT.iterdir()]
+   return [Model.fromPath(x) for x in sorted(MODEL_ROOT.iterdir())]
 
 
 @app.route("/")

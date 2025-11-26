@@ -104,9 +104,11 @@ btns_make_model.forEach(function(btn) {
                 if (response.success) {
                     reset_button(btn);
                     flash_button(btn,"success", response.message);
+                    reloadRecordings();
                 } else {
                     flash_button(btn,"danger");
                     alert("Call to " + btn.dataset.rosAction + " failed with message: " + response.message);
+                    reloadRecordings();
                 }
             },
             function(feedback) {
