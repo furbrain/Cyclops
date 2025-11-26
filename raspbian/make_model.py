@@ -86,7 +86,6 @@ def as_usec_from_stamp(stamp):
         raise ValueError(f"Unsupported stamp type: {type(stamp)} - value: {stamp}")
     if nsec is None:
         nsec = 0
-    print(sec, nsec)
     return int(sec) * 1_000_000 + int(nsec) // 1000
 
 def export_map(mp, points, map_dir: pathlib.Path, known_images: Set[int]):
@@ -190,7 +189,6 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
             # try using the timestamp from the bag (timestamp provided by reader.messages())
             stamp_usec = int(timestamp) // 1000
             raise
-        print(stamp_usec)
         if stamp_usec in tss:
             path = str(images_dir / f"{stamp_usec}.jpg")
             # remove from set so we don't write duplicates
@@ -246,13 +244,14 @@ def get_available_images(reader: Reader, topic: str) -> Set[int]:
     return tss
 
 def create_colmap():
-    # Use AnyReader which unifies ROS1 and ROS2 bags. It will auto-register message definitions if the bag contains them.
-    bag_path = ROOT_DIR / BAG_NAME
+    bag_path = model_dir / BAG_NAME
+    if not (bag_path / "metadata.yaml").exists():
+        os.system(f"ros2 bag reindex {bag_path}")
     setup_typestore()
-    with Reader(opts.bag) as reader:
+    with Reader(bag_path) as reader:
         known_images = get_available_images(reader, IMAGE_TOPIC)
 
-    with Reader(opts.bag) as reader:
+    with Reader(bag_path) as reader:
         # 1) try to find camera info and write cameras.txt
         ok = add_camera_from_bag(reader)
         if not ok:
@@ -284,8 +283,8 @@ def create_colmap():
         print(f"Need to extract {len(frame_tss)} images")
         # Re-open reader to iterate through images (AnyReader supports re-iterating)
         # export images
-    with Reader(opts.bag) as reader:
-        export_images_from_bag(reader, frame_tss, opts.image_topic)
+    with Reader(bag_path) as reader:
+        export_images_from_bag(reader, frame_tss, IMAGE_TOPIC)
         if len(frame_tss) > 0:
             print("missing images: ", frame_tss)
         else:
