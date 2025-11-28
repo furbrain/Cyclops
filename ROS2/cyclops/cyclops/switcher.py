@@ -54,7 +54,7 @@ class SwitcherNode(Node):
         self.launch_service = None
         self.current_mode = "reset"
 
-    async def start_mode(self, fname: str):
+    async def start_mode(self, fname: str, mode: str):
         if self.current_mode == fname:
             return
         await self._reset_mode()
@@ -64,19 +64,31 @@ class SwitcherNode(Node):
         logger = get_logger("launch")
         logger.info(f"starting {fname}")
         asyncio.create_task(self.launch_service.run_async())
-        self.current_mode = fname
+        self.current_mode = mode
 
     @service(SetMode)
     async def set_mode(self, req:SetMode.Request, rsp:SetMode.Response):
+        self.get_logger().info(f"Switching mode to {req.mode}")
         if req.mode == "calibrate":
-            await self.start_mode(self.cal_fname)
+            await self.start_mode(self.cal_fname, req.mode)
         elif req.mode == "capture":
             self.clean_recording_dir()
-            await self.start_mode(self.capture_fname)
+            await self.start_mode(self.capture_fname, req.mode)
         else:
             await self._reset_mode()
         rsp.success = True
+        self.get_logger().info(f"Switching mode complete")
         return rsp
+
+    @service(SetMode)
+    async def toggle_mode(self, req:SetMode.Request, rsp:SetMode.Response):
+        if req.mode == self.current_mode:
+            await self._reset_mode()
+            rsp.success = True
+            return rsp
+        else:
+            return await self.set_mode(req, rsp)
+
 
     async def run(self):
         while rclpy.ok():

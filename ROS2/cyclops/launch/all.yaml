@@ -28,3 +28,8 @@ launch:
     exec: modeller
     name: modeller
     output: screen
+
+- node:
+    pkg: cyclops
+    exec: button_monitor
+    name: button_monitor
