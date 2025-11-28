@@ -1,0 +1,26 @@
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+# gunicorn can let systemd know when it is ready
+Type=notify
+NotifyAccess=main
+# the specific user that our service will run as
+User=pi
+Group=pi
+# this user can be transiently created by systemd
+# DynamicUser=true
+RuntimeDirectory=gunicorn
+WorkingDirectory=/home/pi/Cyclops/www/py
+Environment="FLASK_ENV=development"
+ExecStart=/usr/bin/gunicorn -b 127.0.0.1:5000 app:app --reload
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+# if your app does not need administrative capabilities, let systemd know
+# ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
