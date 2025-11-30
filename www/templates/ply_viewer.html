@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>PLY Viewer (Three.js r160)</title>
+    <title>PLY Viewer</title>
     <style>
         body {
             margin: 0;
@@ -16,18 +16,18 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    "three": "/js/ply/three.module.js"
   }
 }
 </script>
 
 </head>
 <body>
-
+<canvas id="viewer"></canvas>
 <script type="module">
 import * as THREE from "three";
-import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-import { PLYLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/PLYLoader.js";
+import { OrbitControls } from "/js/ply/OrbitControls.js";
+import { PLYLoader } from "/js/ply/PLYLoader.js";
 
 // viewer code goes here...
 console.log("three.js loaded", THREE);
@@ -53,6 +53,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 // renderer.outputColorSpace = THREE.SRGBColorSpace;
 // renderer.toneMapping = THREE.ACESFilmicToneMapping;
 // renderer.toneMappingExposure = 1.0;
+//document.getElementById("viewer").appendChild(renderer.domElement);
 document.body.appendChild(renderer.domElement);
 
 // Controls
@@ -70,14 +71,14 @@ scene.add(light2);
 
 // Load PLY
 const loader = new PLYLoader();
-loader.load('/ply/current/map_1/scene_dense_texture.ply', (geometry) => {
+loader.load('/ply/trips/{{target}}/map_1/{{style}}.ply', (geometry) => {
 
     geometry.computeVertexNormals();
     console.log(geometry.attributes);
 
     // Load texture referenced in PLY header
     const texture = new THREE.TextureLoader().load(
-        '/ply/current/map_1/scene_dense_texture0.png'
+        '/ply/trips/{{target}}/map_1/{{style}}0.png'
     );
     texture.flipY = true; // critical for GLTF-style UVs
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -90,8 +91,8 @@ loader.load('/ply/current/map_1/scene_dense_texture.ply', (geometry) => {
 
     const mesh = new THREE.Mesh(geometry, material);
 
-    geometry.center();
-    mesh.scale.set(1, 1, 1);
+    //geometry.center();
+    //mesh.scale.set(1, 1, 1);
 
     scene.add(mesh);
 });

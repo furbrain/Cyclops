@@ -1,10 +1,12 @@
 import shutil
+from typing import Sequence
 
-from flask import Flask, render_template
+from flask import Flask, render_template, Response
 from pathlib import Path
 from glob import glob
 from collections import OrderedDict
 from dataclasses import dataclass
+from zipstream import ZipStream
 
 WEB_ROOT = Path(__file__).parent.parent
 MODEL_ROOT = Path("/data/trips")
@@ -84,3 +86,31 @@ def delete(target: str):
     except IOError:
         return {"success": False}
     return {"success": True}
+
+def zip_response(paths: Sequence[Path], name: str):
+    zs = ZipStream(sized=True)
+    for p in paths:
+        zs.add_path(p)
+    return Response(
+        zs,
+        mimetype="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={name}.zip",
+            "Content-Length": len(zs),
+            "Last-Modified": zs.last_modified,
+        }
+    )
+
+@app.route("/download/<target>/<payload>")
+def downloads(target: str, payload: str):
+    if payload == "bag":
+        target_path = MODEL_ROOT / target / "recording"
+        return zip_response([target_path], f"{target}_bag")
+    target_path = MODEL_ROOT / target / "map_1"
+    ply = target_path / f"{payload}.ply"
+    png = target_path / f"{payload}0.png"
+    return zip_response([ply,png], f"{target}_{payload}")
+
+@app.route("/viewer/<target>/<style>")
+def ply_viewer(target: str, style: str):
+    return render_template("ply_viewer.html", target=target, style=style)

@@ -1,14 +1,16 @@
 <table class="table">
-    <tr><th>Name</th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
+    <tr><th>Name</th><th></th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
     {% for model in models %}
         <tr>
             <td>{{model.name}}</td>
+            <td><a class="btn btn-outline-primary" href="/download/{{model.name}}/bag">Download</a></td>
             <td><button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button></td>
             <td><button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button></td>
             <td>{{model.size | filesizeformat}}</td>
             <td>
                 {% if model.has_rough %}
-                    Download
+                    <a href="/download/{{model.name}}/rough">Download</a>
+                    <a href="/viewer/{{model.name}}/rough">View</a>
                 {% else %}
                     <button class="btn btn-outline-primary ros-make-model"
                             data-name="{{model.name}}" data-model-style="0">
@@ -18,7 +20,8 @@
             </td>
             <td>
                 {% if model.has_refined %}
-                    Download
+                    <a href="/download/{{model.name}}/refined">Download</a>
+                    <a href="/viewer/{{model.name}}/refined">View</a>
                 {% else %}
                     <button class="btn btn-outline-primary ros-make-model"
                             data-name="{{model.name}}" data-model-style="1">
