@@ -5,9 +5,11 @@ After=network.target
 [Service]
 Type=simple
 User=pi
+Group=pi
 #Environment=ROS_DOMAIN_ID=0
 #Environment="RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
 # Source ROS 2 and workspace setup
+WorkingDirectory=/home/pi
 ExecStart=/bin/bash -c "\
   source /home/pi/ros2_ws/install/setup.bash && \
   ros2 launch cyclops all.yaml \
