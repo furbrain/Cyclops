@@ -6,4 +6,8 @@
   (lib (name "61300515721")(type "KiCad")(uri "${KICAD_USER_TEMPLATE_DIR}/61300515721/61300515721.kicad_sym")(options "")(descr ""))
   (lib (name "STIC-rescue")(type "KiCad")(uri "/home/phil/Projects/STIC/hardware/PCB/STIC-rescue.kicad_sym")(options "")(descr ""))
   (lib (name "ICM-20948")(type "KiCad")(uri "${KIPRJMOD}/ICM-20948.kicad_sym")(options "")(descr ""))
+  (lib (name "TYPE-C-31-M-12")(type "KiCad")(uri "${KIPRJMOD}/TYPE-C-31-M-12.kicad_sym")(options "")(descr ""))
+  (lib (name "cm5_group")(type "KiCad")(uri "${KIPRJMOD}/cm5_group.kicad_sym")(options "")(descr ""))
+  (lib (name "cm5_b")(type "KiCad")(uri "${KIPRJMOD}/cm5_b.kicad_sym")(options "")(descr ""))
+  (lib (name "cm5_a")(type "KiCad")(uri "${KIPRJMOD}/cm5_a.kicad_sym")(options "")(descr ""))
 )

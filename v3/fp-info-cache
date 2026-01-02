@@ -1,4 +1,4 @@
-23559013146070929
+23564270783029535
 Battery
 BatteryClip_Keystone_54_D16-19mm
 Battery clip for batteries with a diameter between 16-19 mm: https://www.keyelco.com/product.cfm/product_id/826
@@ -2555,6 +2555,13 @@ speaker CUI
 2
 2
 CM5IO
+AMPHENOL_10164227-1001A1RLF
+
+
+0
+100
+100
+CM5IO
 ASM330LHHTR
 
 ASM330LHHTR 
@@ -2569,12 +2576,26 @@ Keystone type 3034 coin cell retainer
 3
 2
 CM5IO
+CM5_connector
+Raspberry Pi 5 Compute Module
+Raspberry Pi 5 Compute Module
+0
+100
+100
+CM5IO
 EDAC 690-019-298-412
 
 
 0
 23
 23
+CM5IO
+HRO_TYPE-C-31-M-12
+
+
+0
+16
+16
 CM5IO
 Hirose_FH12-22S-0.5SH_1x22-1MP_P0.50mm_Horizontal
 Molex FH12, FFC/FPC connector, FH12-22S-0.5SH, 22 Pins per row (https://www.hirose.com/product/en/products/FH12/FH12-24S-0.5SH(55)/), generated with kicad-footprint-generator
