@@ -3177,6 +3177,12 @@
 		(uuid "494d4ce3-60c4-4021-8bd1-ab41a12b14ed")
 	)
 	(junction
+		(at 146.05 53.34)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "4b6c79a6-2880-4a80-a1ad-ac29b91e6071")
+	)
+	(junction
 		(at 101.6 147.32)
 		(diameter 1.016)
 		(color 0 0 0 0)
@@ -3253,6 +3259,12 @@
 		(diameter 1.016)
 		(color 0 0 0 0)
 		(uuid "84febc35-87fd-4cad-8e04-2b66390cfc12")
+	)
+	(junction
+		(at 148.59 58.42)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "9661df1c-55b7-4ad1-98f2-b264e40d3667")
 	)
 	(junction
 		(at 35.56 48.26)
@@ -3457,6 +3469,16 @@
 			(type solid)
 		)
 		(uuid "0d095387-710d-4633-a6c3-04eab60b585a")
+	)
+	(wire
+		(pts
+			(xy 146.05 50.8) (xy 146.05 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0ddba1ff-8375-4428-813b-d84a777e2c0e")
 	)
 	(wire
 		(pts
@@ -3670,7 +3692,7 @@
 	)
 	(wire
 		(pts
-			(xy 148.59 55.88) (xy 148.59 63.5)
+			(xy 148.59 55.88) (xy 148.59 58.42)
 		)
 		(stroke
 			(width 0)
@@ -3800,6 +3822,16 @@
 	)
 	(wire
 		(pts
+			(xy 148.59 58.42) (xy 151.13 58.42)
+		)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(uuid "35cc0734-f155-44f3-a19c-f6c49adb8a8e")
+	)
+	(wire
+		(pts
 			(xy 21.59 127) (xy 38.1 127)
 		)
 		(stroke
@@ -3827,6 +3859,16 @@
 			(type solid)
 		)
 		(uuid "3ab3cf2d-c04a-488b-ac10-19a593bcbcf1")
+	)
+	(wire
+		(pts
+			(xy 151.13 50.8) (xy 146.05 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3af85dba-cf63-4398-8f8c-69350de1741e")
 	)
 	(wire
 		(pts
@@ -4020,6 +4062,16 @@
 	)
 	(wire
 		(pts
+			(xy 146.05 53.34) (xy 151.13 53.34)
+		)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(uuid "589b2f72-d4f3-451f-a120-d9d2bf427087")
+	)
+	(wire
+		(pts
 			(xy 142.24 137.16) (xy 151.13 137.16)
 		)
 		(stroke
@@ -4067,16 +4119,6 @@
 			(type solid)
 		)
 		(uuid "5a319d05-1a85-43fe-a179-ebcee7212a03")
-	)
-	(wire
-		(pts
-			(xy 134.62 58.42) (xy 151.13 58.42)
-		)
-		(stroke
-			(width 0)
-			(type solid)
-		)
-		(uuid "5cc7655c-62f2-43d2-a7a5-eaa4635dada8")
 	)
 	(wire
 		(pts
@@ -4140,7 +4182,7 @@
 	)
 	(wire
 		(pts
-			(xy 134.62 53.34) (xy 151.13 53.34)
+			(xy 134.62 53.34) (xy 146.05 53.34)
 		)
 		(stroke
 			(width 0)
@@ -4167,6 +4209,16 @@
 			(type solid)
 		)
 		(uuid "6ba19f6c-fa3a-4bf3-8c57-119de0f02b65")
+	)
+	(wire
+		(pts
+			(xy 148.59 58.42) (xy 148.59 63.5)
+		)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(uuid "6c9f3208-5293-4a35-99e5-fe3c19f8361f")
 	)
 	(wire
 		(pts
@@ -4607,16 +4659,6 @@
 			(type solid)
 		)
 		(uuid "9f95f1fc-aa31-4ce6-996a-4b385731d8eb")
-	)
-	(wire
-		(pts
-			(xy 134.62 50.8) (xy 151.13 50.8)
-		)
-		(stroke
-			(width 0)
-			(type solid)
-		)
-		(uuid "a08c061a-7f5b-4909-b673-0d0a59a012a3")
 	)
 	(wire
 		(pts
@@ -5449,15 +5491,15 @@
 		)
 		(uuid "058e77a4-10af-4bc8-a984-5984d3bbee4c")
 	)
-	(label "DPHY0_D2_N"
-		(at 134.62 50.8 0)
+	(label "+3.3vLED"
+		(at 135.89 53.34 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "0ab1512b-eb91-4574-b11f-326e0ff10082")
+		(uuid "096394b7-3870-4f23-bf4d-5258a8d576aa")
 	)
 	(label "HDMI1_CEC"
 		(at 102.87 86.36 0)
@@ -5949,16 +5991,6 @@
 		)
 		(uuid "8aa8d47e-f495-4049-8ac9-7f2ac3205412")
 	)
-	(label "DPHY0_D2_P"
-		(at 134.62 53.34 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "9a458d6a-a84c-4faf-913e-90bab231d3f8")
-	)
 	(label "DPHY0_D1_N"
 		(at 114.935 50.8 180)
 		(effects
@@ -5968,16 +6000,6 @@
 			(justify right bottom)
 		)
 		(uuid "9bac5a37-2a55-41dd-96ea-ec02b69e3ef4")
-	)
-	(label "DPHY0_D3_P"
-		(at 134.62 60.96 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a1d977e9-aa2c-4b7a-b2e3-8ff3b816e1f2")
 	)
 	(label "HDMI1_CK_P"
 		(at 21.59 104.14 0)
@@ -5998,16 +6020,6 @@
 			(justify left bottom)
 		)
 		(uuid "a2a4b1ad-c51a-492d-9e99-410eec4f55a3")
-	)
-	(label "DPHY0_D3_N"
-		(at 134.62 58.42 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a4a80e68-9a9c-4dac-84a7-a9f3c47a0961")
 	)
 	(label "USB3-1-RX_N"
 		(at 102.87 96.52 0)
@@ -6320,6 +6332,17 @@
 		)
 		(uuid "02b1295e-cf95-47ff-9c57-f8ada28f2e94")
 	)
+	(hierarchical_label "+1.8v"
+		(shape input)
+		(at 134.62 60.96 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "19cdabde-393e-48ce-b565-078af971c04f")
+	)
 	(hierarchical_label "PCIE_PWR_EN"
 		(shape output)
 		(at 31.75 30.48 180)
@@ -6342,7 +6365,7 @@
 		)
 		(uuid "25247d0c-5910-484b-9651-5750d422a450")
 	)
-	(hierarchical_label "CAM_GPIO0"
+	(hierarchical_label "CAM_RST"
 		(shape input)
 		(at 143.51 66.04 180)
 		(effects
@@ -6507,7 +6530,7 @@
 		)
 		(uuid "bb673c7a-d2b0-45b0-bfe2-0b113c092a77")
 	)
-	(hierarchical_label "CAM_GPIO1"
+	(hierarchical_label "CAM_CLK"
 		(shape input)
 		(at 143.51 68.58 180)
 		(effects
@@ -6539,6 +6562,17 @@
 			(justify right)
 		)
 		(uuid "d68589fa-205b-4356-a20d-821c85f5f45e")
+	)
+	(hierarchical_label "+3.3vLED"
+		(shape input)
+		(at 134.62 53.34 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "ddf6fdef-3475-4524-8e92-2cfe133fd645")
 	)
 	(symbol
 		(lib_id "power:GND")

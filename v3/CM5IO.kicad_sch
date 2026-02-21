@@ -1071,6 +1071,16 @@
 	)
 	(wire
 		(pts
+			(xy 166.37 96.52) (xy 166.37 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "077cb769-50e2-443d-95d1-66036f8d2376")
+	)
+	(wire
+		(pts
 			(xy 186.69 130.81) (xy 195.58 130.81)
 		)
 		(stroke
@@ -1138,6 +1148,16 @@
 			(type solid)
 		)
 		(uuid "2bef89de-08c7-4a13-9d85-67948d429ca0")
+	)
+	(wire
+		(pts
+			(xy 115.57 80.01) (xy 129.54 80.01)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "393a0a4b-1aa5-40c8-9a07-44e57d552083")
 	)
 	(wire
 		(pts
@@ -1211,6 +1231,26 @@
 	)
 	(wire
 		(pts
+			(xy 129.54 83.82) (xy 115.57 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "763c8412-94e2-42c7-a2b7-a2bfa844f26e")
+	)
+	(wire
+		(pts
+			(xy 186.69 134.62) (xy 195.58 134.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7861efd7-6d8b-45c0-82af-36bac277a799")
+	)
+	(wire
+		(pts
 			(xy 72.39 80.01) (xy 72.39 82.55)
 		)
 		(stroke
@@ -1221,13 +1261,23 @@
 	)
 	(wire
 		(pts
-			(xy 170.18 96.52) (xy 170.18 111.76)
+			(xy 175.26 96.52) (xy 175.26 111.76)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "7aaa8496-fa91-4cdd-a95c-0fb4934a563f")
+	)
+	(wire
+		(pts
+			(xy 186.69 138.43) (xy 195.58 138.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7b104060-29e5-46ce-82e4-411ea4362857")
 	)
 	(wire
 		(pts
@@ -1238,6 +1288,16 @@
 			(type default)
 		)
 		(uuid "8a953fbc-8812-47cd-a07e-673d270bd824")
+	)
+	(wire
+		(pts
+			(xy 171.45 96.52) (xy 171.45 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8c54df9d-4ed2-4c05-aa65-9c52fc12d13d")
 	)
 	(wire
 		(pts
@@ -1402,6 +1462,16 @@
 		)
 		(uuid "28c76331-1bb2-429e-88ba-1bacab9de126")
 	)
+	(label "+3.3vLED"
+		(at 115.57 80.01 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2e7d472e-6956-4aa1-bcbf-a9a823394ca4")
+	)
 	(label "CC2"
 		(at 119.38 133.35 0)
 		(effects
@@ -1433,7 +1503,7 @@
 		(uuid "55992e35-fe7b-468a-9b7a-1e4dc931b904")
 	)
 	(label "+5v"
-		(at 120.015 72.39 0)
+		(at 115.57 72.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -1441,6 +1511,36 @@
 			(justify left bottom)
 		)
 		(uuid "5740c959-93d8-47fd-8f68-62f0109e753d")
+	)
+	(label "+1.8v"
+		(at 115.57 83.82 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "59450573-75f6-4839-aa3e-494e87912755")
+	)
+	(label "+3.3vLED"
+		(at 189.23 134.62 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6632140f-1522-4540-9d57-accbada2fd5d")
+	)
+	(label "+1.8v"
+		(at 189.23 138.43 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6dbab1f9-5f3c-46a9-8ea9-7e0bf0e4c67c")
 	)
 	(label "USB2_P"
 		(at 119.38 48.26 0)
@@ -1503,7 +1603,7 @@
 		(uuid "b532ad03-d730-4722-b183-37a3404eced4")
 	)
 	(label "+3.3v"
-		(at 120.015 76.2 0)
+		(at 115.57 76.2 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3046,7 +3146,7 @@
 			(uuid "79a90b88-0173-4019-b6c5-e1009f0c139f")
 		)
 		(pin "USBOTG" output
-			(at 170.18 111.76 90)
+			(at 175.26 111.76 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -3064,6 +3164,46 @@
 				(justify left)
 			)
 			(uuid "37882526-c078-4e94-a0b9-fffe82b129e1")
+		)
+		(pin "CAM_RST" output
+			(at 166.37 111.76 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "780d2d17-9f95-40ca-8839-806de70c18fb")
+		)
+		(pin "CAM_CLK" output
+			(at 171.45 111.76 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "5bc3cf98-07d4-47e8-943c-8f2608ae7fbe")
+		)
+		(pin "+1.8v" output
+			(at 186.69 138.43 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "6f478354-c894-489d-806f-a9a0cfda8626")
+		)
+		(pin "+3.3vLED" output
+			(at 186.69 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "859f2af4-26c4-4324-9d11-bbdeb223b05a")
 		)
 		(instances
 			(project "CM5IO"
@@ -3264,7 +3404,7 @@
 			(uuid "4c8eb964-bdf4-44de-90e9-e2ab82dd5313")
 		)
 		(pin "USBOTG_ID" input
-			(at 170.18 96.52 270)
+			(at 175.26 96.52 270)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -3322,6 +3462,46 @@
 				(justify left)
 			)
 			(uuid "cc308e1b-5fdf-487c-b567-00ff68875e44")
+		)
+		(pin "CAM_RST" input
+			(at 166.37 96.52 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "df9a3d75-91b1-46cc-a952-7b04d75d9f31")
+		)
+		(pin "CAM_CLK" input
+			(at 171.45 96.52 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "901a95f8-ddf4-41ae-ac61-edd9a197af5c")
+		)
+		(pin "+1.8v" input
+			(at 129.54 83.82 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "538dc83c-169e-4768-912a-477d38e9af37")
+		)
+		(pin "+3.3vLED" input
+			(at 129.54 80.01 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "3d781715-de73-4ad9-a503-1d6ebb5de7cb")
 		)
 		(instances
 			(project "CM5IO"

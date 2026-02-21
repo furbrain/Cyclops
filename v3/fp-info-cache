@@ -1,4 +1,4 @@
-23564270783029535
+23573732670187779
 Battery
 BatteryClip_Keystone_54_D16-19mm
 Battery clip for batteries with a diameter between 16-19 mm: https://www.keyelco.com/product.cfm/product_id/826
@@ -2657,8 +2657,8 @@ Raspberry-Pi-5-Compute-Module
 Raspberry Pi 5 Compute Module
 Raspberry Pi 5 Compute Module
 0
-200
-200
+0
+0
 CM5IO
 SDCARD_MOLEX_503398-1892
 
@@ -94800,3 +94800,38 @@ Varistor VF
 0
 2
 2
+footprint
+DFN-16_L5.0-W4.0-P0.50-BL-EP
+DFN-16_L5.0-W4.0-P0.50-BL-EP footprint
+DFN-16_L5.0-W4.0-P0.50-BL-EP footprint C684106
+0
+17
+17
+footprint
+FPC-SMD_AFC07-S20FCC-00
+FPC-SMD_AFC07-S20FCC-00 footprint
+FPC-SMD_AFC07-S20FCC-00 footprint C11055
+0
+22
+22
+footprint
+FPC-SMD_AFC07-S22FCC-00
+FPC-SMD_AFC07-S22FCC-00 footprint
+FPC-SMD_AFC07-S22FCC-00 footprint C11056
+0
+24
+24
+footprint
+IND-SMD_L4.0-W4.0-A
+IND-SMD_L4.0-W4.0-A footprint
+IND-SMD_L4.0-W4.0-A footprint C3033018
+0
+2
+2
+footprint
+VSON-14_L4.0-W3.0-P0.50-BL-EP_TI_DSJ
+VSON-14_L4.0-W3.0-P0.50-BL-EP_TI_DSJ footprint
+VSON-14_L4.0-W3.0-P0.50-BL-EP_TI_DSJ footprint C15483
+0
+15
+15
