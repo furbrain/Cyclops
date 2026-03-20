@@ -11,84 +11,37 @@ It then uses docker to create a rough or refined model
 """
 
 import argparse
+import json
 import os
 import pathlib
 import sys
-import time
 from collections import defaultdict
-from typing import Union, Set
-from pathlib import Path
+from typing import Dict, Tuple
 
-import cv_bridge
 import cv2
 
 # rosbags high-level reader
 from rosbags.rosbag2 import Reader
-from rosbags.typesys import Stores, get_typestore, get_types_from_msg
 
-from ament_index_python import get_package_share_directory
+from utils import ROOT_DIR, IMAGE_TOPIC, BAG_NAME, CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME, \
+    TS_MAP_FILENAME, SPARSE_POINTS_FILENAME, bridge, as_usec_from_stamp, \
+    get_image_from_timestamp, deserialize
 
-ROOT_DIR = Path('/data/trips/')
-IMAGE_TOPIC = "/orb/ORB/keyframes/compressed"
-BAG_NAME = "recording"
-# Create a typestore and get the string class.
-typestore = get_typestore(Stores.LATEST)
-
-bridge = cv_bridge.CvBridge()
 
 parser = argparse.ArgumentParser(description="Create a colmap from a bag (ROS1 or ROS2)")
 parser.add_argument('-n', '--name', help="Name of Recording")
 parser.add_argument('-r', '--refined', help="Create a refined model, rather than rough", action="store_true")
 parser.add_argument('-s', '--submap', help="Submap to create", default=1, type=int)
+parser.add_argument('-p', '--prep-only', help="Just create data for colmap and indices", action="store_true")
 opts = parser.parse_args()
 
 model_dir = ROOT_DIR / opts.name
-cam_filename = "cameras.txt"
-image_filename = "images.txt"
-points_filename = "points3D.txt"
-cam_file = model_dir / cam_filename
+cam_file = model_dir / CAM_FILENAME
 images_dir = model_dir / "images"
 images_dir.mkdir(parents=True, exist_ok=True)
 
-def as_usec_from_stamp(stamp):
-    """
-    stamp: a message header stamp-like object or tuple
-    we attempt to handle:
-      - ROS2: object with .sec and .nanosec
-      - ROS1: object with .secs and .nsecs
-      - dict-like: {'sec':.., 'nanosec':..} or ('secs','nsecs')
-      - integer timestamp in nanoseconds
-    """
-    # if stamp already integer (nanoseconds)
-    if isinstance(stamp, int):
-        return stamp // 1000
-    # object styles
-    sec = None
-    nsec = None
-    for a in ('sec', 'secs'):
-        if hasattr(stamp, a):
-            sec = getattr(stamp, a)
-            break
-        if isinstance(stamp, dict) and a in stamp:
-            sec = stamp[a]
-            break
-    for a in ('nanosec', 'nsecs', 'nsec'):
-        if hasattr(stamp, a):
-            nsec = getattr(stamp, a)
-            break
-        if isinstance(stamp, dict) and a in stamp:
-            nsec = stamp[a]
-            break
-    # fallback if stamp is tuple/list (sec, nsec)
-    if sec is None and isinstance(stamp, (list, tuple)) and len(stamp) >= 2:
-        sec, nsec = stamp[0], stamp[1]
-    if sec is None:
-        raise ValueError(f"Unsupported stamp type: {type(stamp)} - value: {stamp}")
-    if nsec is None:
-        nsec = 0
-    return int(sec) * 1_000_000 + int(nsec) // 1000
 
-def export_map(mp, points, map_dir: pathlib.Path, known_images: Set[int]):
+def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, int]):
     sparse_dir = map_dir / "sparse"
     sparse_dir.mkdir(parents=True, exist_ok=True)
     # create symlink to images (like original)
@@ -101,14 +54,15 @@ def export_map(mp, points, map_dir: pathlib.Path, known_images: Set[int]):
 
     # camera file symlink in sparse
     try:
-        if not (sparse_dir / cam_filename).exists():
-            os.symlink("../../" + cam_filename, sparse_dir / cam_filename)
+        if not (sparse_dir / CAM_FILENAME).exists():
+            os.symlink("../../" + CAM_FILENAME, sparse_dir / CAM_FILENAME)
     except Exception:
         pass
 
     required_points = defaultdict(list)
     frame_tss = set()
-    with open(sparse_dir / image_filename, "w") as image_f:
+    sparse_points: Dict[int, Tuple] = {}
+    with open(sparse_dir / IMAGE_FILENAME, "w") as image_f:
         for f in mp.frames:
             stamp_usec = as_usec_from_stamp(f.stamp)
             if stamp_usec not in known_images:
@@ -119,12 +73,22 @@ def export_map(mp, points, map_dir: pathlib.Path, known_images: Set[int]):
             t = f.pose.position
             image_f.write(f"{f.id} {o.w} {o.x} {o.y} {o.z} {t.x} {t.y} {t.z} 1 {stamp_usec}.jpg\n")
             line = []
+            bag_path = model_dir / BAG_NAME
+            with Reader(bag_path) as reader:
+                image = get_image_from_timestamp(reader, known_images, stamp_usec)
             for idx, pt in enumerate(f.points):
-                required_points[pt.point3d_id].append(f"{f.id} {idx}")
-                line.append(f"{pt.x} {pt.y} {pt.point3d_id}")
+                p3d_id = pt.point3d_id
+                required_points[p3d_id].append(f"{f.id} {idx}")
+                line.append(f"{pt.x} {pt.y} {p3d_id}")
+                if p3d_id not in sparse_points:
+                    p3d = points[p3d_id]
+                    b, g, r = image[int(pt.y), int(pt.x)]
+                    sparse_points[p3d_id] = (p3d.x, p3d.y, p3d.z, int(r), int(g), int(b))
             image_f.write(" ".join(line) + "\n")
-    with open(sparse_dir / points_filename, "w") as points_f:
-        for pt in points:
+    with open(map_dir / SPARSE_POINTS_FILENAME, "w") as f:
+        json.dump(list(sparse_points.values()), f)
+    with open(sparse_dir / POINTS_FILENAME, "w") as points_f:
+        for pt in points.values():
             if pt.id in required_points:
                 track = " ".join(required_points[pt.id])
                 points_f.write(f"{pt.id} {pt.x} {pt.y} {pt.z} 255 255 255 0 {track}\n")
@@ -139,7 +103,7 @@ def add_camera_from_bag(reader):
         topic = connection.topic
         # accept camera_info topic names ending with camera_info
         if topic.endswith("camera_info") or topic.endswith("camera/camera_info"):
-            msg = typestore.deserialize_cdr(rawdata, "sensor_msgs/msg/CameraInfo")
+            msg = deserialize(rawdata, "sensor_msgs/msg/CameraInfo")
             # try to read width/height and K and D fields from msg
             width = getattr(msg, "width", None)
             height = getattr(msg, "height", None)
@@ -174,7 +138,7 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
     for connection, timestamp, rawdata in reader.messages():
         if connection.topic != image_topic:
             continue
-        msg = typestore.deserialize_cdr(rawdata, connection.msgtype)
+        msg = deserialize(rawdata, connection.msgtype)
 
         # attempt to get header stamp
         header = getattr(msg, "header", None)
@@ -183,12 +147,7 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
             stamp = getattr(msg, "stamp", None)
         else:
             stamp = header.stamp
-        try:
-            stamp_usec = as_usec_from_stamp(stamp)
-        except Exception:
-            # try using the timestamp from the bag (timestamp provided by reader.messages())
-            stamp_usec = int(timestamp) // 1000
-            raise
+        stamp_usec = as_usec_from_stamp(stamp)
         if stamp_usec in tss:
             path = str(images_dir / f"{stamp_usec}.jpg")
             # remove from set so we don't write duplicates
@@ -234,20 +193,19 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
                     # unknown image message type
                     print(f"Unknown image message type for topic {connection.topic}; skipping timestamp {stamp_usec}")
 
-def get_available_images(reader: Reader, topic: str) -> Set[int]:
-    tss: Set[int] = set()
+def get_available_images(reader: Reader, topic: str) -> Dict[int, int]:
+    tss: Dict[int, int] = {}
     for connection, timestamp, rawdata in reader.messages():
         if connection.topic == topic:
-            msg = typestore.deserialize_cdr(rawdata, connection.msgtype)
+            msg = deserialize(rawdata, connection.msgtype)
             ts = as_usec_from_stamp(msg.header.stamp)
-            tss.add(ts)
+            tss[ts] = timestamp
     return tss
 
 def create_colmap():
     bag_path = model_dir / BAG_NAME
     if not (bag_path / "metadata.yaml").exists():
         os.system(f"ros2 bag reindex {bag_path}")
-    setup_typestore()
     with Reader(bag_path) as reader:
         known_images = get_available_images(reader, IMAGE_TOPIC)
 
@@ -263,83 +221,50 @@ def create_colmap():
         last_atlas = None
         for connection, timestamp, rawdata in reader.messages():
             if connection.topic == atlas_topic:
-                msg = typestore.deserialize_cdr(rawdata, connection.msgtype)
+                msg = deserialize(rawdata, connection.msgtype)
                 last_atlas = msg
                 last_ts = timestamp
         if last_atlas is None:
             raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
 
-        # The original script sorted maps by their frame count and exported each.
-        # We'll follow same logic. The fields expected on atlas message are 'maps' and 'points'.
-        # These are user-defined types produced by ORB_SLAM3 - we assume the structure used in your ROS1 bag.
-        maps = list(sorted(last_atlas.maps, key=lambda x: len(x.frames), reverse=True))
-        frame_tss = set()
-        for map_idx, mp in enumerate(maps, start=1):
-            map_dir = model_dir / f"map_{map_idx}"
-            map_dir.mkdir(parents=True, exist_ok=True)
-            tss = export_map(mp, last_atlas.points, map_dir, known_images)
-            frame_tss = frame_tss.union(tss)
+    # The original script sorted maps by their frame count and exported each.
+    # We'll follow same logic. The fields expected on atlas message are 'maps' and 'points'.
+    # These are user-defined types produced by ORB_SLAM3 - we assume the structure used in your ROS1 bag.
+    maps = list(sorted(last_atlas.maps, key=lambda x: len(x.frames), reverse=True))
+    frame_tss = set()
+    points_dict = {x.id: x for x in last_atlas.points}
+    for map_idx, mp in enumerate(maps, start=1):
+        map_dir = model_dir / f"map_{map_idx}"
+        map_dir.mkdir(parents=True, exist_ok=True)
+        tss = export_map(mp, points_dict, map_dir, known_images)
+        frame_tss = frame_tss.union(tss)
 
-        print(f"Need to extract {len(frame_tss)} images")
-        # Re-open reader to iterate through images (AnyReader supports re-iterating)
-        # export images
+    print(f"Need to extract {len(frame_tss)} images")
+    # Re-open reader to iterate through images (AnyReader supports re-iterating)
+    # export images
     with Reader(bag_path) as reader:
         export_images_from_bag(reader, frame_tss, IMAGE_TOPIC)
         if len(frame_tss) > 0:
             print("missing images: ", frame_tss)
         else:
             print("All images exported.")
+    return known_images
 
-def find_msg_file(package_name: str, msg_name: str) -> Union[pathlib.Path, None]:
-    """
-    Try to find the .msg file for package_name/msg_name in several likely places:
-      - get_package_share_directory(pkg)/msg/<msg_name>.msg
-      - the installed python package dir: <site-packages>/orb_slam3/msg/Atlas.msg
-      - inside the python package module path (pkg.__file__) / msg/<msg>.msg
-    Returns Path or None.
-    """
-    candidates = []
-
-    # 1) try package share (standard in ROS 2)
-    share = pathlib.Path(get_package_share_directory(package_name))
-    candidates.append(share / "msg" / f"{msg_name}.msg")
-    candidates.append(share / "msg" / f"{msg_name}.idl")  # sometimes IDL - not common
-
-    # Deduplicate and test existence
-    seen = set()
-    for c in candidates:
-        if c is None:
-            continue
-        p = pathlib.Path(c)
-        if str(p) in seen:
-            continue
-        seen.add(str(p))
-        if p.exists() and p.is_file():
-            return p
-
-    # nothing found
-    return None
-
-def setup_typestore():
-    custom_msgs = {}
-    for tp in ('Atlas', 'Map', 'KeyFrame', 'KeyPoint', 'Point3D'):
-        msg = find_msg_file("orb_slam3", tp)
-        tp_data = get_types_from_msg(msg.read_text(), f"orb_slam3/msg/{tp}")
-        custom_msgs.update(tp_data)
-    typestore.register(custom_msgs)
 
 if __name__ == "__main__":
     if not cam_file.exists():
-        create_colmap()
+        ts_map = create_colmap()
+        json.dump(ts_map, open(model_dir / TS_MAP_FILENAME, "w"))
     else:
         print("COLMAP data already exists\n")
     sys.stdout.flush()
     # os.system("docker pull furbrain/cyclops_mvs:latest")
-    if opts.refined:
-        os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
-                  f"-v {model_dir.absolute()}:/working "
-                  "furbrain/cyclops_mvs:latest make_refined.sh")
-    else:
-        os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
-                  f"-v {model_dir.absolute()}:/working "
-                  "furbrain/cyclops_mvs:latest make_rough.sh")
+    if not opts.prep_only:
+        if opts.refined:
+            os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
+                      f"-v {model_dir.absolute()}:/working "
+                      "furbrain/cyclops_mvs:latest make_refined.sh")
+        else:
+            os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
+                      f"-v {model_dir.absolute()}:/working "
+                      "furbrain/cyclops_mvs:latest make_rough.sh")

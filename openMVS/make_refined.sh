@@ -31,10 +31,10 @@ else
   echo "Refined Mesh Found"
 fi
 
-if [ ! -e refined.ply ]
+if [ ! -e refined.obj ]
 then
   echo "Texturing Mesh"
-  TextureMesh -i scene_dense.mvs -m scene_dense_mesh_refine.ply -o refined.ply
+  TextureMesh -i scene_dense.mvs -m scene_dense_mesh_refine.ply -o refined.obj --export-type obj
 else
   echo "Textured Mesh found"
 fi
