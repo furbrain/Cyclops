@@ -1,15 +1,21 @@
+import io
+import json
 import shutil
 from typing import Sequence
 
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, send_file
 from pathlib import Path
 from glob import glob
 from collections import OrderedDict
 from dataclasses import dataclass
+
+from rosbags.rosbag2 import Reader
 from zipstream import ZipStream
 
+from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
+
 WEB_ROOT = Path(__file__).parent.parent
-MODEL_ROOT = Path("/data/trips")
+
 
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
 app.jinja_env.trim_blocks = True
@@ -46,13 +52,13 @@ class Model:
     def fromPath(cls, p: Path):
         name = p.stem
         size = sum_dirs(p)
-        has_rough = (p / "map_1" / "rough.ply").exists()
-        has_refined = (p / "map_1" / "refined.ply").exists()
+        has_rough = (p / "map_1" / "rough.obj").exists()
+        has_refined = (p / "map_1" / "refined.obj").exists()
         return cls(name, size, has_rough, has_refined)
 
 
 def get_models():
-   return [Model.fromPath(x) for x in sorted(MODEL_ROOT.iterdir())]
+   return [Model.fromPath(x) for x in sorted(ROOT_DIR.iterdir())]
 
 
 @app.route("/")
@@ -70,8 +76,8 @@ def api_link():
 
 @app.route("/api/rename/<src>/<dest>")
 def rename(src: str, dest: str):
-    src = MODEL_ROOT / src
-    dest = MODEL_ROOT / dest
+    src = ROOT_DIR / src
+    dest = ROOT_DIR / dest
     try:
         src.rename(dest)
     except IOError:
@@ -80,7 +86,7 @@ def rename(src: str, dest: str):
 
 @app.route("/api/delete/<target>")
 def delete(target: str):
-    target = MODEL_ROOT /target
+    target = ROOT_DIR / target
     try:
         shutil.rmtree(target)
     except IOError:
@@ -104,13 +110,22 @@ def zip_response(paths: Sequence[Path], name: str):
 @app.route("/download/<target>/<payload>")
 def downloads(target: str, payload: str):
     if payload == "bag":
-        target_path = MODEL_ROOT / target / "recording"
+        target_path = ROOT_DIR / target / BAG_NAME
         return zip_response([target_path], f"{target}_bag")
-    target_path = MODEL_ROOT / target / "map_1"
-    ply = target_path / f"{payload}.ply"
-    png = target_path / f"{payload}0.png"
-    return zip_response([ply,png], f"{target}_{payload}")
+    target_path = ROOT_DIR / target / "map_1"
+    files = target_path.glob(f"{payload}*.*")
+    return zip_response(files, f"{target}_{payload}")
 
 @app.route("/viewer/<target>/<style>")
 def ply_viewer(target: str, style: str):
     return render_template("ply_viewer.html", target=target, style=style)
+
+@app.route("/viewer/<target>/image/<int:index>")
+def image(target: str, index: int):
+    bag = ROOT_DIR / target / BAG_NAME
+    frame_dict = load_ts_map(target)
+    frame_ts = sorted(frame_dict.keys())[index]
+    with Reader(bag) as r:
+        msg = get_raw_image_from_timestamp(r, frame_dict, frame_ts)
+    buffer = io.BytesIO(msg.data)
+    return send_file(buffer,"image/jpeg")

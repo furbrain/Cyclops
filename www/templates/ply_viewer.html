@@ -13,104 +13,62 @@
             display: block;
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "/js/ply/three.module.js"
-  }
-}
-</script>
+<script src="/js/three.min.js"></script>
+<script src="/js/eventemitter3.umd.js"></script>
+<script src="/js/roslib.js"></script>
+<script src="/js/ros3d.min.js"></script>
+<script src="/js/OBJLoader.js"></script>
+<script src="/js/MTLLoader.js"></script>
 
 </head>
 <body>
-<canvas id="viewer"></canvas>
+<div id="viewer"></div>
 <script type="module">
-import * as THREE from "three";
-import { OrbitControls } from "/js/ply/OrbitControls.js";
-import { PLYLoader } from "/js/ply/PLYLoader.js";
+var viewer = new ROS3D.Viewer({
+    divID: 'viewer',
+    width: 800,
+    height: 600,
+    antialias: true,
+    intensity: 0
+    //background: '#111111'
+});
 
-// viewer code goes here...
-console.log("three.js loaded", THREE);
+// Optional: add lighting
+//viewer.scene.add(new THREE.AmbientLight(0x505050, 0.5));
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
+var directionalLight = new THREE.DirectionalLight(0xffffff, 2); // color, intensity
+directionalLight.position.set(0, -10, 10); // set light position
+viewer.scene.add(directionalLight);
 
-// Camera
-const camera = new THREE.PerspectiveCamera(
-    60,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
-camera.position.x = -5;
-camera.position.y = -5;
-camera.position.z = 2;
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-// renderer.outputEncoding = THREE.sRGBEncoding;
-// renderer.outputColorSpace = THREE.SRGBColorSpace;
-// renderer.toneMapping = THREE.ACESFilmicToneMapping;
-// renderer.toneMappingExposure = 1.0;
-//document.getElementById("viewer").appendChild(renderer.domElement);
-document.body.appendChild(renderer.domElement);
+var mtlLoader = new THREE.MTLLoader();
+mtlLoader.setPath('/ply/trips/{{target}}/map_1/');                 // Folder containing model.mtl
+mtlLoader.load('{{style}}.mtl', function (materials) {
 
-// Controls
-const controls = new OrbitControls(camera, renderer.domElement);
-//const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
-//scene.add(light);
+    materials.preload();
 
-// Lighting
-const light1 = new THREE.DirectionalLight(0xffffff, 0.6);
-light1.position.set(1, 2, 1);
-scene.add(light1);
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath('/ply/trips/{{target}}/map_1/');             // Folder containing model.obj + textures
 
-const light2 = new THREE.AmbientLight(0xffffff, 0.8);
-scene.add(light2);
-
-// Load PLY
-const loader = new PLYLoader();
-loader.load('/ply/trips/{{target}}/map_1/{{style}}.ply', (geometry) => {
-
-    geometry.computeVertexNormals();
-    console.log(geometry.attributes);
-
-    // Load texture referenced in PLY header
-    const texture = new THREE.TextureLoader().load(
-        '/ply/trips/{{target}}/map_1/{{style}}0.png'
-    );
-    texture.flipY = true; // critical for GLTF-style UVs
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    const material = new THREE.MeshStandardMaterial({
-        map: texture,
-        metalness: 0.2,
-        roughness: 0.8
+    objLoader.load('{{style}}.obj', function (object) {
+        object.traverse(function(child) {
+            if (child.isMesh) {
+                child.geometry.computeVertexNormals();
+                child.material = new THREE.MeshPhongMaterial({
+                    map: child.material.map,
+                    color: 0xffffff,
+                    shininess: 0
+                });
+                child.material.map.encoding = THREE.sRGBEncoding;
+            };
+        });
+        viewer.scene.add(object);
     });
-
-    const mesh = new THREE.Mesh(geometry, material);
-
-    //geometry.center();
-    //mesh.scale.set(1, 1, 1);
-
-    scene.add(mesh);
+    viewer.renderer.gammaInput = true;
+    viewer.renderer.gammaOutput = true;
+    //viewer.renderer.gammaFactor = 2.2;
 });
-
-// Resize handling
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Render loop
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-}
-animate();
 </script>
 
 </body>
