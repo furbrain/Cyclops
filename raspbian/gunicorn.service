@@ -14,7 +14,7 @@ Group=pi
 RuntimeDirectory=gunicorn
 WorkingDirectory=/home/pi/Cyclops/www/py
 Environment="FLASK_ENV=development"
-ExecStart=/usr/bin/gunicorn -b 127.0.0.1:5000 app:app --reload
+ExecStart=/home/pi/Cyclops/raspbian/start_gunicorn.sh
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
 TimeoutStopSec=5
