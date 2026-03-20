@@ -9,7 +9,7 @@ from subprocess import Popen
 from launch import LaunchService
 from launch.launch_description_sources import get_launch_description_from_any_launch_file
 from launch.logging import get_logger
-from cyclops_interfaces.srv import SetMode
+from cyclops_interfaces.srv import SetMode, BeepPreset
 
 from autonode import Node, service
 
@@ -25,7 +25,14 @@ class SwitcherNode(Node):
         self.launch_service: Optional[LaunchService] = None
         self.current_mode: str = "reset"
         self.clean_recording_dir()
+        self.beeper = self.create_client(BeepPreset, "/beeper/preset")
+        self.beep(BeepPreset.Request.HAPPY)
 
+
+    def beep(self, tune):
+        req = BeepPreset.Request()
+        req.tune = tune
+        self.beeper.call_async(req)
 
     def get_latest_trip_number(self) -> int:
         pattern = re.compile(r"^trip_(\d+)$")
@@ -51,6 +58,7 @@ class SwitcherNode(Node):
         if self.launch_service is not None:
             await self.launch_service.shutdown()
             self.clean_recording_dir()
+            self.beep(BeepPreset.Request.FINISH)
         self.launch_service = None
         self.current_mode = "reset"
 
@@ -71,9 +79,11 @@ class SwitcherNode(Node):
         self.get_logger().info(f"Switching mode to {req.mode}")
         if req.mode == "calibrate":
             await self.start_mode(self.cal_fname, req.mode)
+            self.beep(BeepPreset.Request.BIP)
         elif req.mode == "capture":
             self.clean_recording_dir()
             await self.start_mode(self.capture_fname, req.mode)
+            self.beep(BeepPreset.Request.HAPPY)
         else:
             await self._reset_mode()
         rsp.success = True
@@ -94,6 +104,7 @@ class SwitcherNode(Node):
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.01)
             await asyncio.sleep(0.01)
+
 
 def main(args=None):
     rclpy.init(args=args)

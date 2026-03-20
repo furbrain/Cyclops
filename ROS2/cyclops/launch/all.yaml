@@ -3,8 +3,8 @@ launch:
 - include:
     file: "$(find-pkg-share cyclops)/launch/web.yaml"
 
-- include:
-    file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
+#- include:
+#    file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
 
 #- include:
 #    file: "$(find-pkg-share cyclops)/launch/calibration.yaml"
@@ -33,3 +33,10 @@ launch:
     pkg: cyclops
     exec: button_monitor
     name: button_monitor
+
+- node:
+    pkg: cyclops
+    exec: beeper
+    name: beeper
+    namespace: "$(var ns)/beeper"
+

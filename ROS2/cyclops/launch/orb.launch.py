@@ -15,6 +15,12 @@ def generate_launch_description():
         name='orb_make_settings',
     )
 
+    sensors_launch = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            PathJoinSubstitution([FindPackageShare('cyclops'), 'launch', 'sensors.yaml'])
+        )
+    )
+
     after_first_launch = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
             PathJoinSubstitution([FindPackageShare('cyclops'), 'launch', 'orb_main.yaml'])
@@ -31,5 +37,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         first_node,
+        sensors_launch,
         start_second_after_first
     ])

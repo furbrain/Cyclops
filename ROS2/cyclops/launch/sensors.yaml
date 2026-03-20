@@ -80,9 +80,3 @@ launch:
         value: rgb
       - name: child_frame
         value: imu
-
-- node:
-    pkg: cyclops
-    exec: beeper
-    name: beeper
-    namespace: "$(var ns)/beeper"

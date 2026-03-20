@@ -3,6 +3,9 @@ launch:
     name: ns
     default: ""
 
+- include:
+    file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
+
 - node: # RGB Camera
     pkg: cyclops
     exec: calibrate
