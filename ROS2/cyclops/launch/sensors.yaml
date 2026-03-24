@@ -3,31 +3,9 @@ launch:
     name: ns
     default: ""
 
-- node:
-    pkg: cyclops
-    exec: tof
-    name: camera
-    namespace: "$(var ns)/tof"
+- include:
+    file: "$(find-pkg-share cyclops)/launch/binoc.py"
 
-- node:
-    pkg: cyclops
-    exec: rgb
-    name: camera
-    namespace: "$(var ns)/rgb"
-    param:
-      - name: crop_x
-        value: 480
-      - name: crop_y
-        value: 320
-      - name: width
-        value: 960
-      - name: height
-        value: 540
-      - name: resize_width
-        value: 740
-    remap:
-      - from: sync
-        to: "$(var ns)/tof/sync"
 
 - node:
     pkg: ros2_rtimu
@@ -62,21 +40,21 @@ launch:
 - node:
     pkg: cyclops
     exec: tf2_dynamic
-    name: rgb_tof
+    name: left_right
     namespace: /tf
     param:
       - name: frame
-        value: rgb
+        value: left
       - name: child_frame
-        value: tof
+        value: right
 
 - node:
     pkg: cyclops
     exec: tf2_dynamic
-    name: rgb_imu
+    name: left_imu
     namespace: /tf
     param:
       - name: frame
-        value: rgb
+        value: left
       - name: child_frame
         value: imu
