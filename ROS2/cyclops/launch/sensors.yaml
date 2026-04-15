@@ -16,7 +16,7 @@ launch:
 
 - node:
     pkg: mimu_calibrate
-    exec: rectify
+    exec: rectify_node
     name: rectify
     namespace: "$(var ns)/imu"
     remap:

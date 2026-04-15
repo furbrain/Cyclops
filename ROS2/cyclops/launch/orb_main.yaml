@@ -1,7 +1,7 @@
 launch:
   - arg:
       name: orb_exec
-      default: "rgbd_inertial"
+      default: "stereo_inertial"
   - arg:
       name: ros_home
       default: '$(env ROS_HOME "$(env HOME)/.ros")'
@@ -30,51 +30,51 @@ launch:
         - name: world_frame_id
           value: map
         - name: cam_frame_id
-          value: rgb
+          value: left
         - name: imu_frame_id
           value: base_link
 #        - name: lost_images_path
 #          value: /home/pi/lost/
       remap:
-        - from: /camera/rgb/image_raw
-          to: /rgb/image_rect
-        - from: /camera/depth_registered/image_raw
-          to: /rgb/depth_registered
+        - from: /camera/left/image_raw
+          to: /left/image_raw
+        - from: /camera/right/image_raw
+          to: /right/image_raw
         - from: /imu
           to: /imu/imu_madg
 
-  - node:
-      pkg: cyclops_cpp
-      exec: register_node
-      name: register
-      namespace: "$(var ns)/tof"
-      param:
-        - name: radial_source
-          value: True
-        - name: rectified_source
-          value: False
-        - name: rectified_dest
-          value: False
-        - name: fill_upsampling_holes
-          value: True
-      remap:
-        - from: rgb/camera_info
-          to: "$(var ns)/rgb/camera_info"
-        - from: depth/image_rect
-          to: depth_raw
-        - from: depth/camera_info
-          to: camera_info
-        - from: depth_registered/image_rect
-          to: "$(var ns)/rgb/depth_registered"
+#  - node:
+#      pkg: cyclops_cpp
+#      exec: register_node
+#      name: register
+#      namespace: "$(var ns)/tof"
+#      param:
+#        - name: radial_source
+#          value: True
+#        - name: rectified_source
+#          value: False
+#        - name: rectified_dest
+#          value: False
+#        - name: fill_upsampling_holes
+#          value: True
+#      remap:
+#        - from: rgb/camera_info
+#          to: "$(var ns)/rgb/camera_info"
+#        - from: depth/image_rect
+#          to: depth_raw
+#        - from: depth/camera_info
+#          to: camera_info
+#        - from: depth_registered/image_rect
+#          to: "$(var ns)/rgb/depth_registered"
 
-  - node:
-      pkg: image_proc
-      exec: rectify_node
-      name: rectify
-      namespace: "$(var ns)/rgb"
-      remap:
-        - from: image
-          to: image_raw
+#  - node:
+#      pkg: image_proc
+#      exec: rectify_node
+#      name: rectify
+#      namespace: "$(var ns)/rgb"
+#      remap:
+#        - from: image
+#          to: image_raw
 
   - node:
       pkg: imu_filter_madgwick
@@ -110,5 +110,5 @@ launch:
           to: $(var ns)/beeper/preset
 
   - executable:
-      cmd: "ros2 bag record --topics /imu/imu_madg /orb/ORB/keyframes/compressed /orb/ORB/atlas /rgb/camera_info -o $(var bag_uri)"
+      cmd: "ros2 bag record --topics /imu/imu_madg /orb/ORB/keyframes/compressed /orb/ORB/keyframes_right/compressed /orb/ORB/atlas /left/camera_info /right/camera_info -o $(var bag_uri)"
       output: screen
