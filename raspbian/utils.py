@@ -16,6 +16,7 @@ from sensor_msgs.msg import CompressedImage
 
 ROOT_DIR = Path('/data/trips/')
 IMAGE_TOPIC = "/orb/ORB/keyframes/compressed"
+IMAGE_TOPIC_RIGHT = "/orb/ORB/keyframes_right/compressed"
 BAG_NAME = "recording"
 CAM_FILENAME = "cameras.txt"
 IMAGE_FILENAME = "images.txt"

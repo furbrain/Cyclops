@@ -6,13 +6,13 @@ launch:
 - include:
     file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
 
-- node: # RGB Camera
+- node: # Left Camera
     pkg: cyclops
     exec: calibrate
     name: cal
     namespace: "$(var ns)/left"
 
-- node: # TOF Camera
+- node: # Right Camera
     pkg: cyclops
     exec: calibrate
     name: cal
@@ -59,4 +59,4 @@ launch:
         value: cam_imu
     remap:
       - from: set_transform
-        to: /tf/rgb_imu/set_transform
+        to: /tf/left_imu/set_transform

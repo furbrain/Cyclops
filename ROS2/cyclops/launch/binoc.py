@@ -5,16 +5,18 @@ from ament_index_python.packages import get_package_share_directory
 import os
 
 tuning_file = os.path.join(get_package_share_directory('cyclops'), 'config/imx462.json')
-STAGGER_DELAY = 5.0  # seconds to wait before starting second camera
+STAGGER_DELAY = 8.0  # seconds to wait before starting second camera
 
-#IPA_ENV = {'LIBCAMERA_IPA_FORCE_ISOLATION': '1'}
 IPA_ENV = {'LIBCAMERA_RPI_TUNING_FILE': tuning_file}
 PARAMS = {
     'SyncFrames': 10,   # should match between client and server
     'orientation': 180,
-    'FrameDurationLimits': [100000, 100000],
-#    'width': 640,
-#    'height': 480,
+    'FrameDurationLimits': [100000, 100000], #10fps
+    'width': 640,
+    'height': 480,
+    'ScalerCrop': [240, 0, 1440, 1080],
+    'format': "RGB888"
+#    'sensor_mode': '1920:1080',
 #    'role': 'video',
 }
 
@@ -27,9 +29,10 @@ def generate_launch_description():
         name='camera',
         namespace='left',
         parameters=[{
-            'camera': "/base/axi/pcie@1000120000/rp1/i2c@88000/arducam_pivariety@c",  # adjust to match your device index or path
+            'camera': "/base/axi/pcie@1000120000/rp1/i2c@70000/arducam_pivariety@c",
             'SyncMode': 2,      # SyncModeClient (should be started first)
             'frame_id': 'left',
+            'camera_info_url': 'file://${ROS_HOME}/camera_info/left.yaml'
         }, PARAMS],
         remappings=REMAPPINGS,
         additional_env=IPA_ENV,
@@ -44,9 +47,10 @@ def generate_launch_description():
                 name='camera',
                 namespace='right',
                 parameters=[{
-                    'camera': "/base/axi/pcie@1000120000/rp1/i2c@70000/arducam_pivariety@c",  # adjust to match your device index or path
+                    'camera': "/base/axi/pcie@1000120000/rp1/i2c@88000/arducam_pivariety@c",
                     'SyncMode': 1,      # SyncModeServer
                     'frame_id': 'right',
+                    'camera_info_url': 'file://${ROS_HOME}/camera_info/right.yaml'
                 }, PARAMS],
                 remappings=REMAPPINGS,
                 additional_env=IPA_ENV,
