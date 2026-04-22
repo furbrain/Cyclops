@@ -11,142 +11,6 @@
 		(comment 1 "www.raspberrypi.com")
 	)
 	(lib_symbols
-		(symbol "Device:C"
-			(pin_numbers hide)
-			(pin_names
-				(offset 0.254)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "C"
-				(at 0.635 2.54 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left)
-				)
-			)
-			(property "Value" "C"
-				(at 0.635 -2.54 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left)
-				)
-			)
-			(property "Footprint" ""
-				(at 0.9652 -3.81 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" "~"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "Unpolarized capacitor"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "cap capacitor"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_fp_filters" "C_*"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "C_0_1"
-				(polyline
-					(pts
-						(xy -2.032 -0.762) (xy 2.032 -0.762)
-					)
-					(stroke
-						(width 0.508)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.032 0.762) (xy 2.032 0.762)
-					)
-					(stroke
-						(width 0.508)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "C_1_1"
-				(pin passive line
-					(at 0 3.81 270)
-					(length 2.794)
-					(name "~"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 0 -3.81 90)
-					(length 2.794)
-					(name "~"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-		)
 		(symbol "Device:R"
 			(pin_numbers hide)
 			(pin_names
@@ -1283,6 +1147,12 @@
 		)
 	)
 	(junction
+		(at 110.49 163.83)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "3817a591-7416-4c6c-a5d0-7b7909c47970")
+	)
+	(junction
 		(at 60.96 64.77)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1293,12 +1163,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "8a20d0d7-d4f8-4791-a807-25655838de05")
-	)
-	(junction
-		(at 72.39 80.01)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "bf5901c0-daf4-45af-a380-5243d8455cd9")
 	)
 	(no_connect
 		(at 186.69 64.77)
@@ -1357,16 +1221,6 @@
 			(type default)
 		)
 		(uuid "0960173d-4d3a-4077-97d1-109a5780d489")
-	)
-	(wire
-		(pts
-			(xy 180.34 96.52) (xy 180.34 111.76)
-		)
-		(stroke
-			(width 0)
-			(type solid)
-		)
-		(uuid "0b18ae4b-e508-4f6f-a23a-00f2ca64dfe7")
 	)
 	(wire
 		(pts
@@ -1440,16 +1294,6 @@
 	)
 	(wire
 		(pts
-			(xy 60.96 44.45) (xy 87.63 44.45)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2467d49c-fd3b-41d7-b900-f309f4a1e1f5")
-	)
-	(wire
-		(pts
 			(xy 134.62 96.52) (xy 134.62 111.76)
 		)
 		(stroke
@@ -1470,6 +1314,16 @@
 	)
 	(wire
 		(pts
+			(xy 110.49 163.83) (xy 119.38 163.83)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2ee6d48c-ea55-40cb-96bf-90f8503b4cab")
+	)
+	(wire
+		(pts
 			(xy 100.33 163.83) (xy 110.49 163.83)
 		)
 		(stroke
@@ -1487,16 +1341,6 @@
 			(type default)
 		)
 		(uuid "33ffe85e-10df-4971-8791-62a4751090c0")
-	)
-	(wire
-		(pts
-			(xy 72.39 80.01) (xy 83.82 80.01)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "39d79b58-5a57-4b31-9f92-5bb5950bd5d6")
 	)
 	(wire
 		(pts
@@ -1550,16 +1394,6 @@
 	)
 	(wire
 		(pts
-			(xy 116.84 133.35) (xy 129.54 133.35)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "532c6793-fcef-48e2-94ae-3d6f4bca00a7")
-	)
-	(wire
-		(pts
 			(xy 66.04 166.37) (xy 80.01 166.37)
 		)
 		(stroke
@@ -1587,6 +1421,16 @@
 			(type default)
 		)
 		(uuid "5922afcb-ab3c-4d70-a05f-51ca3578ed79")
+	)
+	(wire
+		(pts
+			(xy 203.2 83.82) (xy 212.09 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5afc145c-c689-4f78-8c30-753e53fe9f22")
 	)
 	(wire
 		(pts
@@ -1660,26 +1504,6 @@
 	)
 	(wire
 		(pts
-			(xy 72.39 80.01) (xy 72.39 82.55)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "79fb0591-2d1a-49fe-9fbe-de0dec22a571")
-	)
-	(wire
-		(pts
-			(xy 170.18 96.52) (xy 170.18 111.76)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7aaa8496-fa91-4cdd-a95c-0fb4934a563f")
-	)
-	(wire
-		(pts
 			(xy 186.69 137.16) (xy 195.58 137.16)
 		)
 		(stroke
@@ -1687,16 +1511,6 @@
 			(type default)
 		)
 		(uuid "7e7f1e8e-ea38-49fc-9796-9a0c17956112")
-	)
-	(wire
-		(pts
-			(xy 72.39 72.39) (xy 83.82 72.39)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8a953fbc-8812-47cd-a07e-673d270bd824")
 	)
 	(wire
 		(pts
@@ -1850,13 +1664,23 @@
 	)
 	(wire
 		(pts
-			(xy 116.84 130.81) (xy 129.54 130.81)
+			(xy 203.2 81.28) (xy 212.09 81.28)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "d87ec662-6851-453c-bedf-778aa8c258c8")
+		(uuid "d04967f6-a4fd-4800-b3bc-247ecaab7701")
+	)
+	(wire
+		(pts
+			(xy 60.96 44.45) (xy 69.85 44.45)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "daadc4aa-af54-4d0b-84b1-8dce0795536a")
 	)
 	(wire
 		(pts
@@ -1877,16 +1701,6 @@
 			(type default)
 		)
 		(uuid "dc47f335-9494-496e-ac06-b5a1e993ed9f")
-	)
-	(wire
-		(pts
-			(xy 115.57 72.39) (xy 129.54 72.39)
-		)
-		(stroke
-			(width 0)
-			(type solid)
-		)
-		(uuid "dcc1b707-1c31-480b-a92c-629b791978dc")
 	)
 	(wire
 		(pts
@@ -1939,16 +1753,6 @@
 		)
 		(uuid "3cfcbcc7-4f45-46ab-82a8-c414c7972161")
 	)
-	(text "Discharge Resistor\nNeeded by some\nType C PSUs"
-		(exclude_from_sim no)
-		(at 99.314 48.514 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-		)
-		(uuid "710a1632-709e-4159-b2c0-e34b4ead79a5")
-	)
 	(text "TypeC Power connector"
 		(exclude_from_sim no)
 		(at 36.068 33.528 0)
@@ -1971,7 +1775,7 @@
 		)
 		(uuid "a501555e-bbc7-4b58-ad89-28a0cd3dd6d0")
 	)
-	(label "+5v"
+	(label "Vbus"
 		(at 203.2 72.39 0)
 		(effects
 			(font
@@ -1991,15 +1795,15 @@
 		)
 		(uuid "09c1e198-a665-43e5-923e-79b5cd2e3e6f")
 	)
-	(label "+5v"
-		(at 72.39 72.39 0)
+	(label "CM5_5V"
+		(at 195.58 125.73 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left bottom)
+			(justify right bottom)
 		)
-		(uuid "09f3f04e-f789-44e1-b801-79a009ead9da")
+		(uuid "0cac9116-8d3f-4b1a-86ef-e5fe43a05348")
 	)
 	(label "PWR_D-"
 		(at 71.12 163.83 0)
@@ -2011,18 +1815,8 @@
 		)
 		(uuid "13677cdb-032f-4149-b332-c1e6da20980c")
 	)
-	(label "CC1"
-		(at 119.38 130.81 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "28c76331-1bb2-429e-88ba-1bacab9de126")
-	)
 	(label "DSEL"
-		(at 106.68 163.83 180)
+		(at 119.38 163.83 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2051,16 +1845,6 @@
 		)
 		(uuid "46c250b8-9c6e-4e86-a3b7-b8d908297ded")
 	)
-	(label "CC2"
-		(at 119.38 133.35 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "472fd7ea-ce2f-4e97-bffc-46e1b7b99dbe")
-	)
 	(label "CM5_USB2_N"
 		(at 115.57 50.8 0)
 		(effects
@@ -2070,16 +1854,6 @@
 			(justify left bottom)
 		)
 		(uuid "4befaf9e-f09a-4029-8c4b-b079b311cb21")
-	)
-	(label "+5v"
-		(at 189.23 125.73 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "55992e35-fe7b-468a-9b7a-1e4dc931b904")
 	)
 	(label "CM5_USB2_N"
 		(at 66.04 168.91 0)
@@ -2141,6 +1915,16 @@
 		)
 		(uuid "7d653a5d-3c1b-4582-9efa-903411d4717a")
 	)
+	(label "CC1"
+		(at 203.2 81.28 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "84b3dac4-e348-4dc6-89d3-bb511c488482")
+	)
 	(label "PWR_SCL"
 		(at 195.58 137.16 180)
 		(effects
@@ -2150,6 +1934,16 @@
 			(justify right bottom)
 		)
 		(uuid "8cd3ae09-b0cb-482a-b8da-35d2caa2e72c")
+	)
+	(label "CC2"
+		(at 203.2 83.82 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "8d5228c1-126a-4e58-a6ab-229f6ab81016")
 	)
 	(label "USB2_N"
 		(at 66.04 52.07 0)
@@ -2251,13 +2045,13 @@
 		)
 		(uuid "ce8037f3-217c-4454-a069-39d88cd6d016")
 	)
-	(label "+5v"
-		(at 64.77 44.45 0)
+	(label "Vbus"
+		(at 69.85 44.45 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left bottom)
+			(justify right bottom)
 		)
 		(uuid "d4106691-9af4-4d1a-b5eb-d17aeb47a3f6")
 	)
@@ -2300,16 +2094,6 @@
 			(justify left bottom)
 		)
 		(uuid "e95b4185-fb59-4e51-aaa5-376f49fb9869")
-	)
-	(label "CM5_5V"
-		(at 115.57 72.39 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "fa8d5ec5-c4f7-4f08-995b-fd5e558dc038")
 	)
 	(label "USB2_N"
 		(at 19.05 54.61 0)
@@ -2800,203 +2584,6 @@
 		)
 	)
 	(symbol
-		(lib_id "power:GND")
-		(at 87.63 52.07 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "0f587d05-4aa1-46ea-a0c4-07798c4d83f9")
-		(property "Reference" "#PWR3"
-			(at 87.63 58.42 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 87.757 56.4642 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 87.63 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 87.63 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 87.63 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "c7f90bb2-0431-4d78-adca-17ef654f711b")
-		)
-		(instances
-			(project "CM5IO"
-				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "#PWR3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 83.82 76.2 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "3c5f4bb0-04d2-46c1-9c7f-c06460df6a62")
-		(property "Reference" "C2"
-			(at 86.741 75.0316 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100n"
-			(at 86.741 77.343 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 84.7852 80.01 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "https://search.murata.co.jp/Ceramy/image/img/A01X/G101/ENG/GRM155R71C104KA88-01.pdf"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field4" "Farnell"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field5" "2611911"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field6" "RM EMK105 B7104KV-F"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field7" "TAIYO YUDEN EUROPE GMBH"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field8" "110091611"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Part Description" "	0.1uF 10% 16V Ceramic Capacitor X7R 0402 (1005 Metric)"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC PN" "C92753"
-			(at 83.82 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "291ccd32-a37d-4fac-b11d-c12157e045a7")
-		)
-		(pin "2"
-			(uuid "d83594dc-e88c-4a0a-8e24-5cdfbaac4255")
-		)
-		(instances
-			(project "CM5IO"
-				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "C2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "TYPE-C-31-M-12:TYPE-C-31-M-12")
 		(at 43.18 54.61 0)
 		(unit 1)
@@ -3255,7 +2842,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "52a2749e-5240-471b-9a63-50a6cf7ac0c6")
-		(property "Reference" "#PWR16"
+		(property "Reference" "#PWR2"
 			(at 90.17 185.42 0)
 			(effects
 				(font
@@ -3305,7 +2892,7 @@
 		(instances
 			(project "CM5IO"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "#PWR16")
+					(reference "#PWR2")
 					(unit 1)
 				)
 			)
@@ -3318,10 +2905,10 @@
 		(exclude_from_sim no)
 		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(fields_autoplaced yes)
 		(uuid "7041d4b9-c3af-4de6-9852-0e8982fc489c")
-		(property "Reference" "U6"
+		(property "Reference" "U1"
 			(at 99.06 122.5549 0)
 			(effects
 				(font
@@ -3369,7 +2956,7 @@
 		(instances
 			(project ""
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "U6")
+					(reference "U1")
 					(unit 1)
 				)
 			)
@@ -3385,7 +2972,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "7a9f932d-e803-452f-a433-45cb05b4266a")
-		(property "Reference" "R8"
+		(property "Reference" "R1"
 			(at 113.03 154.9399 0)
 			(effects
 				(font
@@ -3448,138 +3035,6 @@
 		(instances
 			(project "CM5IO"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "R8")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 87.63 48.26 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "b30c000d-795b-488f-8e69-a058391ab578")
-		(property "Reference" "R1"
-			(at 83.058 46.355 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "2.2K 1%"
-			(at 77.978 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 85.852 48.26 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "https://fscdn.rohm.com/en/products/databook/datasheet/passive/resistor/chip_resistor/mcr-e.pdf"
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field4" "Farnell"
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field5" ""
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field7" ""
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field6" "0402WGF2201TCE"
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Part Description" "Resistor 2.2K M1005 1% 63mW"
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field8" ""
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC PN" "C25879"
-			(at 87.63 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "31bcfe0a-bb6a-4e1b-98c4-465ef952edcd")
-		)
-		(pin "2"
-			(uuid "b96ce79e-de64-4bb5-8b7f-4429c99aa19f")
-		)
-		(instances
-			(project "CM5IO"
-				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
 					(reference "R1")
 					(unit 1)
 				)
@@ -3596,7 +3051,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "cdb124ac-866f-44b9-b591-059d1170b7ec")
-		(property "Reference" "U1"
+		(property "Reference" "U2"
 			(at 90.17 153.67 0)
 			(effects
 				(font
@@ -3641,7 +3096,16 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C128396"
+		(property "LCSC" ""
+			(at 90.17 166.37 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC PN" "C128396"
 			(at 90.17 166.37 0)
 			(effects
 				(font
@@ -3683,139 +3147,7 @@
 		(instances
 			(project ""
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "U1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 72.39 76.2 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "cf24492d-8526-4d53-a0eb-2486aa3ca298")
-		(property "Reference" "C1"
-			(at 75.311 75.0316 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100n"
-			(at 75.311 77.343 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 73.3552 80.01 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "https://search.murata.co.jp/Ceramy/image/img/A01X/G101/ENG/GRM155R71C104KA88-01.pdf"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field4" "Farnell"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field5" "2611911"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field6" "RM EMK105 B7104KV-F"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field7" "TAIYO YUDEN EUROPE GMBH"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Field8" "110091611"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Part Description" "	0.1uF 10% 16V Ceramic Capacitor X7R 0402 (1005 Metric)"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC PN" "C92753"
-			(at 72.39 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "b8d7b860-3ed6-457c-a4fe-755e37bbede8")
-		)
-		(pin "2"
-			(uuid "6f6e9283-9dfc-4003-89e3-ea1d47079c07")
-		)
-		(instances
-			(project "CM5IO"
-				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "C1")
+					(reference "U2")
 					(unit 1)
 				)
 			)
@@ -3881,71 +3213,6 @@
 			(project "CM5IO"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
 					(reference "#PWR1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 72.39 82.55 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "fc0d6f0d-075c-4218-becf-ed01d64d2241")
-		(property "Reference" "#PWR2"
-			(at 72.39 88.9 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 72.517 86.9442 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 72.39 82.55 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 72.39 82.55 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 72.39 82.55 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "0dbfcac6-1605-43aa-90dc-4a5b4c38b7be")
-		)
-		(instances
-			(project "CM5IO"
-				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
-					(reference "#PWR2")
 					(unit 1)
 				)
 			)
@@ -4041,16 +3308,6 @@
 			)
 			(uuid "5fc27c35-3e1c-4f96-817c-93b5570858a6")
 		)
-		(pin "GPIO_VREF" output
-			(at 180.34 111.76 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-			(uuid "b1086f75-01ba-4188-8d36-75a9e2828ca9")
-		)
 		(pin "CAM_GPIO0" output
 			(at 157.48 111.76 90)
 			(effects
@@ -4070,36 +3327,6 @@
 				(justify right)
 			)
 			(uuid "cddfa975-6d49-4b75-a22c-585a33d831c6")
-		)
-		(pin "CC1" output
-			(at 129.54 130.81 180)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-			(uuid "79a90b88-0173-4019-b6c5-e1009f0c139f")
-		)
-		(pin "USBOTG" output
-			(at 170.18 111.76 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-			(uuid "d6d4dc9c-0e44-420e-8240-37c70ea3c763")
-		)
-		(pin "CC2" output
-			(at 129.54 133.35 180)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-			(uuid "37882526-c078-4e94-a0b9-fffe82b129e1")
 		)
 		(pin "PWR_BUT" output
 			(at 186.69 134.62 0)
@@ -4229,16 +3456,6 @@
 			)
 			(uuid "1831fb37-1c5d-42c4-b898-151be6fca9dc")
 		)
-		(pin "+5v" input
-			(at 129.54 72.39 180)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-			(uuid "0f22151c-f260-4674-b486-4710a2c42a55")
-		)
 		(pin "PCIE_CLK_P" output
 			(at 186.69 57.15 0)
 			(effects
@@ -4328,26 +3545,6 @@
 				(justify left)
 			)
 			(uuid "4c8eb964-bdf4-44de-90e9-e2ab82dd5313")
-		)
-		(pin "USBOTG_ID" input
-			(at 170.18 96.52 270)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-			(uuid "aa14c3bd-4acc-4908-9d28-228585a22a9d")
-		)
-		(pin "GPIO_VREF" input
-			(at 180.34 96.52 270)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-			(uuid "9bb20359-0f8b-45bc-9d38-6626ed3a939d")
 		)
 		(pin "PCIE_PWR_EN" output
 			(at 186.69 72.39 0)
@@ -4507,7 +3704,27 @@
 			)
 			(uuid "6fc00432-5ad8-4197-85c5-d869c0cdf7ba")
 		)
-		(pin "+5V" output
+		(pin "CC2" input
+			(at 212.09 83.82 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "ac0e0d7f-ffac-4fce-be9b-c14f8ae29e63")
+		)
+		(pin "CC1" input
+			(at 212.09 81.28 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "f3550841-576d-4cae-b734-96fe929a34f7")
+		)
+		(pin "PMID" output
 			(at 212.09 74.93 180)
 			(effects
 				(font
@@ -4515,7 +3732,7 @@
 				)
 				(justify left)
 			)
-			(uuid "70029922-8544-4d74-a334-fcf46471c169")
+			(uuid "cc4f8bdc-c93c-442a-886b-b7b08bc65363")
 		)
 		(instances
 			(project "CM5IO"
