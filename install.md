@@ -26,7 +26,7 @@ add:
 sudo pip install empy==3.3.4 --break-system-packages
 
 #install mag_cal and rosbags
-sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab
+sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab gevent
 
 Clone cyclops folder: git clone https://github.com/furbrain/Cyclops.git
 
