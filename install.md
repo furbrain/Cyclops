@@ -2,7 +2,7 @@ start with CM5 with Raspberry Pi OS (bookworm)
 install ros2 jazzy as described here: https://github.com/Ar-Ray-code/rpi-bullseye-ros2/tree/jazzy
 
 #install other apt packages:
-sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng
+sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent
 
 #set up distcc
 export CMAKE_C_COMPILER=aarch64-linux-gnu-gcc
@@ -26,7 +26,7 @@ add:
 sudo pip install empy==3.3.4 --break-system-packages
 
 #install mag_cal and rosbags
-sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab gevent
+sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab
 
 Clone cyclops folder: git clone https://github.com/furbrain/Cyclops.git
 
