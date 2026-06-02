@@ -17,6 +17,7 @@ Camera1.k1: {left_ci.d[0]}
 Camera1.k2: {left_ci.d[1]}
 Camera1.p1: {left_ci.d[2]}
 Camera1.p2: {left_ci.d[3]}
+Camera1.k3: {left_ci.d[4]}
 
 
 # Right Camera calibration and distortion parameters (OpenCV)
@@ -29,6 +30,7 @@ Camera2.k1: {right_ci.d[0]}
 Camera2.k2: {right_ci.d[1]}
 Camera2.p1: {right_ci.d[2]}
 Camera2.p2: {right_ci.d[3]}
+Camera2.k3: {right_ci.d[4]}
 
 
 # Camera resolution

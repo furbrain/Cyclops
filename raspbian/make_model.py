@@ -34,6 +34,7 @@ parser.add_argument('-n', '--name', help="Name of Recording")
 parser.add_argument('-r', '--refined', help="Create a refined model, rather than rough", action="store_true")
 parser.add_argument('-s', '--submap', help="Submap to create", default=1, type=int)
 parser.add_argument('-p', '--prep-only', help="Just create data for colmap and indices", action="store_true")
+parser.add_argument('-a', '--atlas', help="provide an atlas message file to use", default="")
 opts = parser.parse_args()
 
 model_dir = ROOT_DIR / opts.name
@@ -279,15 +280,20 @@ def create_colmap():
 
         # 2) find the last atlas message on /orb_slam3/atlas (mimics original script behavior)
         # We'll find all messages on that topic then pick last
-        atlas_topic = "/orb/ORB/atlas"
-        last_atlas = None
-        for connection, timestamp, rawdata in reader.messages():
-            if connection.topic == atlas_topic:
-                msg = deserialize(rawdata, connection.msgtype)
-                last_atlas = msg
-                last_ts = timestamp
-        if last_atlas is None:
-            raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
+        if opts.atlas:
+            with open(opts.atlas, "rb") as f:
+                atlas_data = f.read()
+        else:
+            atlas_topic = "/orb/ORB/atlas"
+            atlas_data = None
+            for connection, timestamp, rawdata in reader.messages():
+                if connection.topic == atlas_topic:
+                    atlas_data = rawdata
+                    print(connection.msgtype, type(connection.msgtype))
+            if atlas_data is None:
+                raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
+
+        last_atlas = deserialize(atlas_data, 'orb_slam3/msg/Atlas')
 
     # The original script sorted maps by their frame count and exported each.
     # We'll follow same logic. The fields expected on atlas message are 'maps' and 'points'.
