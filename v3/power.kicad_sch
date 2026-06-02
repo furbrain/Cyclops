@@ -5736,7 +5736,7 @@
 	)
 	(hierarchical_label "PWR_SDA"
 		(shape bidirectional)
-		(at 144.78 175.26 0)
+		(at 144.78 177.8 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -5769,7 +5769,7 @@
 	)
 	(hierarchical_label "PWR_SCL"
 		(shape bidirectional)
-		(at 144.78 177.8 0)
+		(at 144.78 175.26 0)
 		(effects
 			(font
 				(size 1.27 1.27)

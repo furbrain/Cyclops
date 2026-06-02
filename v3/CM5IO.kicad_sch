@@ -1826,7 +1826,7 @@
 		(uuid "340c2cf9-6202-455c-94e2-09dec50cf4cb")
 	)
 	(label "PWR_SCL"
-		(at 203.2 44.45 0)
+		(at 203.2 46.99 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2086,7 +2086,7 @@
 		(uuid "e28ba236-a2da-4d73-8be8-c6cbbf544d5f")
 	)
 	(label "PWR_SDA"
-		(at 203.2 46.99 0)
+		(at 203.2 44.45 0)
 		(effects
 			(font
 				(size 1.27 1.27)
