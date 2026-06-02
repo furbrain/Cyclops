@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "TPS22965DSGR")(type "KiCad")(uri "/home/phil/JLC2KiCad_lib/symbol/TPS22965DSGR.kicad_sym")(options "")(descr ""))
+  (lib (name "BQ25895RTWR")(type "KiCad")(uri "/home/phil/JLC2KiCad_lib/symbol/BQ25895RTWR.kicad_sym")(options "")(descr ""))
+)
