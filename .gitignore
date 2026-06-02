@@ -7,3 +7,10 @@ __pycache__
 *npy
 *npz
 *.bag
+/ROS2/cyclops/log/
+*.stl
+*.FCBak
+*.dxf
+*.step
+**/production/*
+**/gerbers/*
