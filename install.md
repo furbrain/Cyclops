@@ -51,7 +51,8 @@ git clone https://github.com/fkie/async_web_server_cpp.git
 git clone git@github.com:furbrain/image_common.git -b jazzy
 git clone git@github.com:Box-Robotics/ros2_numpy.git -b jazzy
 git clone git@github.com:ros-perception/image_pipeline.git -b jazzy # add -fPIC to relevant cxxflags in CMakelists.txt for image_proc and depth_image_proc
-
+git clone git@github.com:ros/diagnostics.git -b ros2
+git clone git@github.com:AgoraRobotics/ros2-system-monitor.git
 
 git clone https://github.com/christianrauch/camera_ros.git # not sure this is needed...
 
