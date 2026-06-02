@@ -7,12 +7,12 @@ launch:
     file: "$(find-pkg-share cyclops)/launch/binoc.py"
 
 
-- node:
-    pkg: ros2_rtimu
-    exec: imu
-    name: imu
-    namespace: "$(var ns)/imu"
-    output: screen
+#- node:
+#    pkg: ros2_rtimu
+#    exec: imu
+#    name: imu
+#    namespace: "$(var ns)/imu"
+#    output: screen
 
 - node:
     pkg: mimu_calibrate
@@ -24,6 +24,26 @@ launch:
         to: mag_raw
       - from: magnetic_rect
         to: mag_rect
+
+- node:
+    pkg: icm20948_ros2
+    exec: icm20948_raw
+    name: imu
+    namespace: "$(var ns)/imu"
+    param:
+      - name: i2c_bus
+        value: 1
+      - name: i2c_address
+        value: 0x69
+      - name: odr
+        value: 50
+      - name: gyro_fss
+        value: 1000
+    remap:
+      - from: imu
+        to: imu_raw
+      - from: mag
+        to: mag_raw
 
 
 #- node:
@@ -47,6 +67,8 @@ launch:
         value: left
       - name: child_frame
         value: right
+      - name: inverted
+        value: true
 
 - node:
     pkg: cyclops

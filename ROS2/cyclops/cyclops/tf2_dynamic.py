@@ -8,6 +8,24 @@ from cyclops_interfaces.srv import SetTransform
 import yaml
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from rosidl_runtime_py import message_to_yaml, set_message_fields
+import copy
+import numpy as np
+
+from scipy.spatial.transform import RigidTransform as Tf, Rotation as R
+
+def invert_ros_transform(transform: TransformStamped) -> TransformStamped:
+    result = copy.deepcopy(transform)
+    q = result.transform.rotation
+    t = result.transform.translation
+
+    tf_inv = Tf.from_components(
+        [t.x, t.y, t.z],
+        R.from_quat([q.x, q.y, q.z, q.w])
+    ).inv()
+
+    t.x, t.y, t.z = tf_inv.translation
+    q.w, q.x, q.y, q.z = tf_inv.rotation.as_quat(scalar_first=True)
+    return result
 
 class TF2Dynamic (SmartNode):
     def __init__(self):
@@ -15,6 +33,7 @@ class TF2Dynamic (SmartNode):
         self.frame = self.get_initial_param("frame","map")
         self.child_frame = self.get_initial_param("child_frame","child")
         self.url = self.get_url_from_param("url", f'transforms/{self.frame}_{self.child_frame}.yaml')
+        self.inverted = self.get_initial_param("inverted", False)
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.transform = self.load_transform()
         self.timer = self.create_timer(0.1, self.publish)
@@ -31,6 +50,8 @@ class TF2Dynamic (SmartNode):
         except IOError:
             self.get_logger().warn(f"No calibration found at {self.url}")
             return None
+        if self.inverted:
+            t = invert_ros_transform(t)
         return t
 
     def publish(self):
