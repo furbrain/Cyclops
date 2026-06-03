@@ -1,0 +1,21 @@
+launch:
+
+- node:
+    pkg: cyclops
+    exec: battery_status
+    name: battery
+    param:
+      - name: i2c_bus
+        value: 3
+      - name: set_capacity
+        value: 12.0
+
+    output: screen
+
+- include:
+    file: "$(find-pkg-share ros2_system_monitor)/launch/system_monitor.launch.py"
+    arg:
+      - name: "enable_hdd_monitor"
+        value: "false"
+      - name: "enable_ntp_monitor"
+        value: "false"
