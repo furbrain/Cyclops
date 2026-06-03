@@ -109,6 +109,28 @@ launch:
         - from: preset
           to: $(var ns)/beeper/preset
 
+  - node:
+      pkg: cyclops
+      exec: process_monitor
+      name: process_monitor
+      param:
+        - name: process_name
+          value: $(var orb_exec)
+        - name: rate
+          value: 1.0
+
+  - arg:
+      name: orb_output_topics
+      default: /orb/ORB/keyframes/compressed /orb/ORB/keyframes_right/compressed /orb/ORB/atlas
+
+  - arg:
+      name: sensor_topics
+      default: /imu/imu_madg /left/camera_info /right/camera_info
+
+  - arg:
+      name: monitor_topics
+      default: /diagnostics /battery /process_monitor/rss_bytes /process_monitor/vms_bytes
+
   - executable:
-      cmd: "ros2 bag record --topics /imu/imu_madg /orb/ORB/keyframes/compressed /orb/ORB/keyframes_right/compressed /orb/ORB/atlas /left/camera_info /right/camera_info -o $(var bag_uri)"
+      cmd: "ros2 bag record --topics $(var orb_output_topics) $(var sensor_topics) $(var monitor_topics) -o $(var bag_uri)"
       output: screen
