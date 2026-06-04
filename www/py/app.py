@@ -1,5 +1,6 @@
 import io
 import json
+import time
 import shutil
 from typing import Sequence
 
@@ -129,3 +130,25 @@ def image(target: str, index: int):
         msg = get_raw_image_from_timestamp(r, frame_dict, frame_ts)
     buffer = io.BytesIO(msg.data)
     return send_file(buffer,"image/jpeg")
+
+@app.route("/viewer/<target>/slideshow")
+def slideshow(target: str):
+    bag = ROOT_DIR / target / BAG_NAME
+    frame_dict = load_ts_map(target)
+    frame_ts = sorted(frame_dict.keys())
+    def gen():
+        with Reader(bag) as r:
+            msgs = [get_raw_image_from_timestamp(r, frame_dict, ts) for ts in frame_ts]
+
+        while True:
+            for msg in msgs:
+                data = msg.data.tobytes()
+                yield(b'--frame\r\n' +
+                      b'Content-Type: image/jpeg\r\n' +
+                      f'Content-Length: {len(data)}\r\n\r\n'.encode() +
+                      msg.data.tobytes() +
+                      b'\r\n')
+                time.sleep(0.1)
+    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame',
+                    headers={'X-Accel-Buffering': 'no', 'Cache-Control': 'no-cache'})
+

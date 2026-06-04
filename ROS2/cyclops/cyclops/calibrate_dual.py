@@ -52,6 +52,8 @@ class CalibratorDual(CalNode):
         translation = cal_res[6][:,0]
         transform = Transform(translation=vector3_from_array(translation),
                               rotation=quat_from_sst(rotation))
+        self.get_logger().info(f"Calibration successful")
+        self.get_logger().info(f"Calibration error: {cal_res[0]}")
         self.get_logger().info(f"{transform}")
         self.get_logger().info(f"{rotation.as_quat()}")
         self.get_logger().info(f"{translation}, {cal_res[5]}")

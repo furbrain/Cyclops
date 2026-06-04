@@ -6,17 +6,17 @@ launch:
 - include:
     file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
 
-- node: # RGB Camera
+- node: # Left Camera
     pkg: cyclops
     exec: calibrate
     name: cal
-    namespace: "$(var ns)/rgb"
+    namespace: "$(var ns)/left"
 
-- node: # TOF Camera
+- node: # Right Camera
     pkg: cyclops
     exec: calibrate
     name: cal
-    namespace: "$(var ns)/tof"
+    namespace: "$(var ns)/right"
 
 - group:
   - push_ros_namespace:
@@ -27,28 +27,28 @@ launch:
         - name: ns
           value: "$(var ns)/imu"
 
-- node: # RGB -> TOF
+- node: # LEFT -> RIGHT
     pkg: cyclops
     exec: calibrate_dual
     name: cal
-    namespace: "$(var ns)/rgb_tof"
+    namespace: "$(var ns)/left_right"
     param:
       - name: ns_a
-        value: "$(var ns)/rgb"
+        value: "$(var ns)/left"
       - name: ns_b
-        value: "$(var ns)/tof"
+        value: "$(var ns)/right"
     remap:
       - from: set_transform
-        to: /tf/rgb_tof/set_transform
+        to: /tf/left_right/set_transform
 
-- node: # RGB -> IMU
+- node: # LEFT -> IMU
     pkg: cyclops
     exec: calibrate_cam_imu
     name: cal
-    namespace: "$(var ns)/rgb_imu"
+    namespace: "$(var ns)/left_imu"
     param:
       - name: ns_cam
-        value: "$(var ns)/rgb"
+        value: "$(var ns)/left"
       - name: ns_imu
         value: "$(var ns)/imu"
       - name: imu_topic
@@ -59,4 +59,4 @@ launch:
         value: cam_imu
     remap:
       - from: set_transform
-        to: /tf/rgb_imu/set_transform
+        to: /tf/left_imu/set_transform

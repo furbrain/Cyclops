@@ -41,6 +41,7 @@ setup(
             "modeller = cyclops.modeller:main",
             "button_monitor = cyclops.button_monitor:main",
             "battery_status = cyclops.battery_status:main",
+            "process_monitor = cyclops.process_monitor:main",
         ],
     },
 )

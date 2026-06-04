@@ -12,6 +12,9 @@ launch:
 #- include:
 #    file: "$(find-pkg-share cyclops)/launch/cleaning.yaml"
 
+- include:
+    file: "$(find-pkg-share cyclops)/launch/monitor.yaml"
+
 - node:
     pkg: cyclops
     exec: switcher

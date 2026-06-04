@@ -78,7 +78,7 @@ class CalibratorCamIMU(CalNode):
                     target_type: circlegrid  # gridtype
                     targetCols: {self.target_shape[0]}  # number of circles (cols)
                     targetRows: {self.target_shape[1]}  # number of circles (rows)
-                    spacingMeters: {self.target_size}  # distance between circles [m]
+                    spacingMeters: {self.target_size/2}  # distance between circles [m]
                     asymmetricGrid: True  # use asymmetric grid (opencv) [bool]
                 """))
         with open(self.cal_dir / "cam.yaml", "w") as f:
@@ -93,8 +93,11 @@ class CalibratorCamIMU(CalNode):
                   rostopic: {self.cam_topic}
                   resolution: [{ci.width}, {ci.height}]
             """))
-        shutil.copy(self.imu_noise_url, self.cal_dir / "imu.yaml") # copy the imu params
-
+        with open(self.imu_noise_url) as f:
+            data = yaml.safe_load(f)
+            data['rostopic'] = self.imu_topic
+        with open(self.cal_dir / "imu.yaml", "w") as f:
+            yaml.dump(data, f)
         # run kalibr in docker
         subprocess.run(['docker', 'run', '-v', f"{self.cal_dir}:/data", 'furbrain/kalibr:latest',
                         'rosrun', 'kalibr', 'kalibr_calibrate_imu_camera',

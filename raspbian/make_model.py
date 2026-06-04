@@ -17,13 +17,14 @@ import pathlib
 import sys
 from collections import defaultdict
 from typing import Dict, Tuple
-
+import numpy as np
 import cv2
+import yaml
 
 # rosbags high-level reader
 from rosbags.rosbag2 import Reader
 
-from utils import ROOT_DIR, IMAGE_TOPIC, BAG_NAME, CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME, \
+from utils import ROOT_DIR, IMAGE_TOPIC, IMAGE_TOPIC_RIGHT, BAG_NAME, CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME, \
     TS_MAP_FILENAME, SPARSE_POINTS_FILENAME, bridge, as_usec_from_stamp, \
     get_image_from_timestamp, deserialize
 
@@ -33,15 +34,83 @@ parser.add_argument('-n', '--name', help="Name of Recording")
 parser.add_argument('-r', '--refined', help="Create a refined model, rather than rough", action="store_true")
 parser.add_argument('-s', '--submap', help="Submap to create", default=1, type=int)
 parser.add_argument('-p', '--prep-only', help="Just create data for colmap and indices", action="store_true")
+parser.add_argument('-a', '--atlas', help="provide an atlas message file to use", default="")
 opts = parser.parse_args()
 
 model_dir = ROOT_DIR / opts.name
 cam_file = model_dir / CAM_FILENAME
 images_dir = model_dir / "images"
 images_dir.mkdir(parents=True, exist_ok=True)
+images_right_dir = model_dir / "right"
+images_right_dir.mkdir(parents=True, exist_ok=True)
 
 
-def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, int]):
+
+class Camera:
+    def __init__(self, camera_info, alpha: float = 0.2):
+        self.camera_info = camera_info
+        self.K = np.array(camera_info.k).reshape(3, 3)
+        self.D = np.array(camera_info.d)
+        self.h, self.w = camera_info.height, camera_info.width
+        #self.new_K, _ = cv2.getOptimalNewCameraMatrix(self.K, self.D, (self.w, self.h), alpha=alpha)
+        self.new_K = self.K
+        #print(self.K, self.D, self.h, self.w, self.new_K)
+        self.map1, self.map2 = cv2.initUndistortRectifyMap(self.K, self.D[:4], None, self.new_K, (self.w, self.h),
+                                                           cv2.CV_16SC2)
+        self.point_transform = self.new_K @ np.linalg.inv(self.K)
+
+    def undistort_image(self, image:np.ndarray) -> np.ndarray:
+        return cv2.remap(image, self.map1, self.map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+
+    def transform_point(self, point):
+        p = self.point_transform @ np.array([point.x, point.y, 1.0])
+        point.x = p[0]
+        point.y = p[1]
+
+    def get_camera_desc(self):
+        return f"PINHOLE {self.w} {self.h} {self.new_K[0,0]} {self.new_K[1,1]} {self.new_K[0,2]} {self.new_K[1,2]}"
+
+def quaternion_to_rotation_matrix(q):
+    """Convert quaternion [x, y, z, w] to 3x3 rotation matrix."""
+    x, y, z, w = q
+    R = np.array([
+        [1 - 2*(y**2 + z**2),     2*(x*y - z*w),         2*(x*z + y*w)],
+        [    2*(x*y + z*w),     1 - 2*(x**2 + z**2),     2*(y*z - x*w)],
+        [    2*(x*z - y*w),         2*(y*z + x*w),     1 - 2*(x**2 + y**2)]
+    ])
+    return R
+
+def load_stereo_extrinsics(yaml_path):
+    with open(yaml_path, 'r') as f:
+        data = yaml.safe_load(f)
+
+    t = data['translation']
+    T = np.array([t['x'], t['y'], t['z']])
+
+    r = data['rotation']
+    q = np.array([r['x'], r['y'], r['z'], r['w']])  # xyzw convention
+    R_mat = quaternion_to_rotation_matrix(q)
+
+    return R_mat, T
+
+
+def rectify_cam_pair(left:Camera, right: Camera):
+    R, T = load_stereo_extrinsics("/home/pi/.ros/transforms/left_right.yaml")
+    img_size = left.w, left.h
+    R1, R2, P1, P2, Q, roi_l, roi_r = cv2.stereoRectify(
+        left.K, left.D,
+        right.K, right.D,
+        img_size,
+        R, T,
+        flags=cv2.CALIB_ZERO_DISPARITY,  # principal points aligned
+    )
+    left.map1, left.map2 = cv2.initUndistortRectifyMap(left.K, left.D[:4], R1, P1, img_size, cv2.CV_16SC2)
+    right.map1, right.map2 = cv2.initUndistortRectifyMap(right.K, right.D[:4], R2, P2, img_size, cv2.CV_16SC2)
+    left.new_K = P1[:3, :3]
+    right.new_K = P2[:3, :3]
+
+
+def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, int], camera:Camera):
     sparse_dir = map_dir / "sparse"
     sparse_dir.mkdir(parents=True, exist_ok=True)
     # create symlink to images (like original)
@@ -77,6 +146,7 @@ def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, 
             with Reader(bag_path) as reader:
                 image = get_image_from_timestamp(reader, known_images, stamp_usec)
             for idx, pt in enumerate(f.points):
+                #camera.transform_point(pt)
                 p3d_id = pt.point3d_id
                 required_points[p3d_id].append(f"{f.id} {idx}")
                 line.append(f"{pt.x} {pt.y} {p3d_id}")
@@ -94,7 +164,7 @@ def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, 
                 points_f.write(f"{pt.id} {pt.x} {pt.y} {pt.z} 255 255 255 0 {track}\n")
     return frame_tss
 
-def add_camera_from_bag(reader):
+def get_camera_from_bag(reader, topic_name: str):
     """
     Search for a CameraInfo message in the bag and write cameras.txt
     Uses reader.messages() and reader.deserialize() for convenience.
@@ -102,39 +172,21 @@ def add_camera_from_bag(reader):
     for connection, timestamp, rawdata in reader.messages():
         topic = connection.topic
         # accept camera_info topic names ending with camera_info
-        if topic.endswith("camera_info") or topic.endswith("camera/camera_info"):
+        if topic==topic_name:
             msg = deserialize(rawdata, "sensor_msgs/msg/CameraInfo")
-            # try to read width/height and K and D fields from msg
-            width = getattr(msg, "width", None)
-            height = getattr(msg, "height", None)
-            K = getattr(msg, "k", None)
-            if K is None:
-                K = getattr(msg, "K", None)
-            D = getattr(msg, "d", None)
-            if D is None:
-                D = getattr(msg, "D", None)
-            # Fallback field names for ROS1/ROS2
-            if width is None or height is None:
-                # maybe field names with capital letters or different structure:
-                width = getattr(msg, "width", width)
-                height = getattr(msg, "height", height)
-            if width is None or height is None or K is None:
-                # not enough info
-                continue
-            with open(cam_file, "w") as f:
-                # PINHOLE requires fx fy cx cy
-                # MUST be rectified
-                f.write(f"1 PINHOLE {width} {height} {K[0]} {K[4]} {K[2]} {K[5]}")
-            return True
-    return False
+            cam = Camera(msg)
+            return True, cam
+    return False, None
 
-def export_images_from_bag(reader: Reader, tss, image_topic):
+def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth: pathlib.Path = None):
     """
     reader: AnyReader
     tss: set of expected timestamps in usec
     image_topic: topic string to filter
     """
     # iterate messages on image_topic
+    if pth is None:
+        pth = images_dir
     for connection, timestamp, rawdata in reader.messages():
         if connection.topic != image_topic:
             continue
@@ -149,7 +201,8 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
             stamp = header.stamp
         stamp_usec = as_usec_from_stamp(stamp)
         if stamp_usec in tss:
-            path = str(images_dir / f"{stamp_usec}.jpg")
+            path = str(pth / f"{stamp_usec}.jpg")
+            print(f"writing image: {path}")
             # remove from set so we don't write duplicates
             tss.remove(stamp_usec)
             # check message type shape
@@ -178,13 +231,14 @@ def export_images_from_bag(reader: Reader, tss, image_topic):
                 # Maybe sensor_msgs/CompressedImage
                 if getattr(msg, "format", None) is not None and getattr(msg, "data", None) is not None:
                     fmt = getattr(msg, "format", "")
-                    if "jpeg" in fmt.lower():
+                    if ("jpeg" in fmt.lower()) and False:
                         # save raw bytes
                         with open(path, "wb") as f:
                             f.write(bytes(msg.data))
                     else:
                         try:
                             img = bridge.compressed_imgmsg_to_cv2(msg)
+                            img = camera.undistort_image(img)
                             cv2.imwrite(path, img)
                         except Exception:
                             print(f"Couldn't decode compressed image at {stamp_usec}")
@@ -211,21 +265,35 @@ def create_colmap():
 
     with Reader(bag_path) as reader:
         # 1) try to find camera info and write cameras.txt
-        ok = add_camera_from_bag(reader)
+        ok, left_camera = get_camera_from_bag(reader, "/left/camera_info")
         if not ok:
             print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
+        ok, right_camera = get_camera_from_bag(reader,  "/right/camera_info")
+        if not ok:
+            print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
+        rectify_cam_pair(left_camera, right_camera) # rectify cameras
+        with open(cam_file, "w") as f:
+            # PINHOLE requires fx fy cx cy
+            # MUST be rectified
+            f.write(f"1 {left_camera.get_camera_desc()}\n")
+            f.write(f"2 {right_camera.get_camera_desc()}\n")
 
         # 2) find the last atlas message on /orb_slam3/atlas (mimics original script behavior)
         # We'll find all messages on that topic then pick last
-        atlas_topic = "/orb/ORB/atlas"
-        last_atlas = None
-        for connection, timestamp, rawdata in reader.messages():
-            if connection.topic == atlas_topic:
-                msg = deserialize(rawdata, connection.msgtype)
-                last_atlas = msg
-                last_ts = timestamp
-        if last_atlas is None:
-            raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
+        if opts.atlas:
+            with open(opts.atlas, "rb") as f:
+                atlas_data = f.read()
+        else:
+            atlas_topic = "/orb/ORB/atlas"
+            atlas_data = None
+            for connection, timestamp, rawdata in reader.messages():
+                if connection.topic == atlas_topic:
+                    atlas_data = rawdata
+                    print(connection.msgtype, type(connection.msgtype))
+            if atlas_data is None:
+                raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
+
+        last_atlas = deserialize(atlas_data, 'orb_slam3/msg/Atlas')
 
     # The original script sorted maps by their frame count and exported each.
     # We'll follow same logic. The fields expected on atlas message are 'maps' and 'points'.
@@ -236,18 +304,24 @@ def create_colmap():
     for map_idx, mp in enumerate(maps, start=1):
         map_dir = model_dir / f"map_{map_idx}"
         map_dir.mkdir(parents=True, exist_ok=True)
-        tss = export_map(mp, points_dict, map_dir, known_images)
+        tss = export_map(mp, points_dict, map_dir, known_images, left_camera)
         frame_tss = frame_tss.union(tss)
 
     print(f"Need to extract {len(frame_tss)} images")
     # Re-open reader to iterate through images (AnyReader supports re-iterating)
     # export images
     with Reader(bag_path) as reader:
-        export_images_from_bag(reader, frame_tss, IMAGE_TOPIC)
+        right_frame_tss = frame_tss.copy()
+        export_images_from_bag(reader, frame_tss, IMAGE_TOPIC, left_camera)
+        export_images_from_bag(reader, right_frame_tss, IMAGE_TOPIC_RIGHT, right_camera, images_right_dir)
         if len(frame_tss) > 0:
             print("missing images: ", frame_tss)
         else:
             print("All images exported.")
+    if len(right_frame_tss) > 0:
+        print("missing right images: ", right_frame_tss)
+    else:
+        print("All right images exported.")
     return known_images
 
 

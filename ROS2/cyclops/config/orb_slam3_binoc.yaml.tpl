@@ -1,0 +1,113 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+File.version: "1.0"
+
+Camera.type: "PinHole"
+
+# Left Camera calibration and distortion parameters (OpenCV)
+Camera1.fx: {left_ci.k[0]}
+Camera1.fy: {left_ci.k[4]}
+Camera1.cx: {left_ci.k[2]}
+Camera1.cy: {left_ci.k[5]}
+# distortion parameters
+Camera1.k1: {left_ci.d[0]}
+Camera1.k2: {left_ci.d[1]}
+Camera1.p1: {left_ci.d[2]}
+Camera1.p2: {left_ci.d[3]}
+Camera1.k3: {left_ci.d[4]}
+
+
+# Right Camera calibration and distortion parameters (OpenCV)
+Camera2.fx: {right_ci.k[0]}
+Camera2.fy: {right_ci.k[4]}
+Camera2.cx: {right_ci.k[2]}
+Camera2.cy: {right_ci.k[5]}
+# distortion parameters
+Camera2.k1: {right_ci.d[0]}
+Camera2.k2: {right_ci.d[1]}
+Camera2.p1: {right_ci.d[2]}
+Camera2.p2: {right_ci.d[3]}
+Camera2.k3: {right_ci.d[4]}
+
+
+# Camera resolution
+Camera.width: {left_ci.width}
+Camera.height: {left_ci.height}
+
+# Camera frames per second 
+Camera.fps: 10 # do we need to make this adjustment??
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1 # this is default...
+
+Stereo.ThDepth: 40.0
+Stereo.b: {baseline}
+
+
+Stereo.T_c1_c2: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: {list(right_left.as_matrix().flatten())}
+
+
+# Transformation from body-frame (imu) to left camera
+IMU.T_b_c1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: {list(imu_left.as_matrix().flatten())}
+
+
+# Do not insert KFs when recently lost
+IMU.InsertKFsWhenLost: 0
+
+# IMU noise (from imu_noise.yaml)
+IMU.NoiseGyro: {imu_noise_data['gyroscope_noise_density']}
+IMU.NoiseAcc: {imu_noise_data['accelerometer_noise_density']}
+IMU.GyroWalk: {imu_noise_data['gyroscope_random_walk']}
+IMU.AccWalk: {imu_noise_data['accelerometer_random_walk']}
+IMU.Frequency: {imu_noise_data['update_rate']:.2f}
+IMU.UseImuTrajectory: 0
+IMU.UseImuPose: 1
+IMU.NoisePose: 0.034 #0.034 radians  = ~2 degree uncertainty
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1250
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters 
+#--------------------------------------------------------------------------------------------
+# These are not used as pangolin has been excised...
+
+#Viewer.KeyFrameSize: 0.05
+#Viewer.KeyFrameLineWidth: 1.0
+#Viewer.GraphLineWidth: 0.9
+#Viewer.PointSize: 2.0
+#Viewer.CameraSize: 0.08
+#Viewer.CameraLineWidth: 3.0
+#Viewer.ViewpointX: 0.0
+#Viewer.ViewpointY: -0.7
+#Viewer.ViewpointZ: -3.5
+#Viewer.ViewpointF: 500.0
+
+#set a save file directory...
+System.SaveAtlasToFile: /data/current/atlas

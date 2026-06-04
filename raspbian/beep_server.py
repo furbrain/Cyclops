@@ -89,7 +89,7 @@ NOTES = {
 class BeepThread(Thread):
     def __init__(self):
         super().__init__(name="BeepThread")
-        self.b = Beeper(13, 19)
+        self.b = Beeper(12, 18)
         self.running = True
         self.playing = False
         self.q: Queue[Tuple[str, float]] = Queue()

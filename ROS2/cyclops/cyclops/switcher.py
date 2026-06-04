@@ -54,11 +54,25 @@ class SwitcherNode(Node):
         shutil.rmtree(CURRENT_DIR, ignore_errors=True)
         CURRENT_DIR.mkdir(parents=True)
 
+    async def _wait_for_atlas(self, timeout: float = 5.0):
+        """Wait until the named node is no longer visible on the ROS2 graph."""
+        deadline = self.get_clock().now() + rclpy.duration.Duration(seconds=timeout)
+        atlas_path = CURRENT_DIR / "atlas.osa"
+        while self.get_clock().now() < deadline:
+            if atlas_path.exists():
+                return True
+            await asyncio.shield(asyncio.sleep(0.2))
+        self.get_logger().warn(f'Timeout waiting for atlas to appear')
+        return False
+
     async def _reset_mode(self):
         if self.launch_service is not None:
-            await self.launch_service.shutdown()
-            self.clean_recording_dir()
             self.beep(BeepPreset.Request.FINISH)
+            await self.launch_service.shutdown()
+            if self.current_mode=="capture":
+                await self._wait_for_atlas()
+            self.clean_recording_dir()
+            self.beep(BeepPreset.Request.BIP)
         self.launch_service = None
         self.current_mode = "reset"
 
@@ -93,7 +107,7 @@ class SwitcherNode(Node):
     @service(SetMode)
     async def toggle_mode(self, req:SetMode.Request, rsp:SetMode.Response):
         if req.mode == self.current_mode:
-            await self._reset_mode()
+            asyncio.ensure_future(self._reset_mode())
             rsp.success = True
             return rsp
         else:
