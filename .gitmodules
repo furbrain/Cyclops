@@ -1,0 +1,4 @@
+[submodule "ROS2/orb_slam3_ros"]
+	path = ROS2/orb_slam3_ros
+	url = git@github.com:furbrain/orb_slam3_ros.git
+	branch = ros2

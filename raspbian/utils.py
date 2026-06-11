@@ -11,8 +11,6 @@ from rosbags.typesys import get_typestore, Stores, get_types_from_msg
 from rosbags.typesys.store import Typestore
 
 import cv_bridge
-from ament_index_python import get_package_share_directory
-from sensor_msgs.msg import CompressedImage
 
 ROOT_DIR = Path('/data/trips/')
 IMAGE_TOPIC = "/orb/ORB/keyframes/compressed"
@@ -77,10 +75,22 @@ def find_msg_file(package_name: str, msg_name: str) -> Union[pathlib.Path, None]
     candidates = []
 
     # 1) try package share (standard in ROS 2)
-    share = pathlib.Path(get_package_share_directory(package_name))
-    candidates.append(share / "msg" / f"{msg_name}.msg")
-    candidates.append(share / "msg" / f"{msg_name}.idl")  # sometimes IDL - not common
-
+    try:
+        from ament_index_python import get_package_share_directory
+        from ament_index_python.packages import PackageNotFoundError
+        try:
+            share = pathlib.Path(get_package_share_directory(package_name))
+        except PackageNotFoundError:
+            raise IOError(f"Package {package_name} not found")
+        candidates.append(share / "msg" / f"{msg_name}.msg")
+        candidates.append(share / "msg" / f"{msg_name}.idl")  # sometimes IDL - not common
+    except (ImportError, IOError):
+        p = Path(__file__).parent.parent / "ROS2"/ "orb_slam3_ros" / "msg"/ f"{msg_name}.msg"
+        print(p)
+        if p.exists():
+            return p
+        else:
+            return None
     # Deduplicate and test existence
     seen = set()
     for c in candidates:
@@ -114,7 +124,7 @@ def get_image_from_timestamp(reader: Reader, ts_map: Dict[int, int], timestamp) 
     return img_data
 
 
-def get_raw_image_from_timestamp(reader: Reader, ts_map: Dict[int, int], timestamp) -> CompressedImage:
+def get_raw_image_from_timestamp(reader: Reader, ts_map: Dict[int, int], timestamp):
     bag_ts = ts_map.get(timestamp)
     if bag_ts is None:
         raise ValueError(f"Timestamp {timestamp} not found in map")

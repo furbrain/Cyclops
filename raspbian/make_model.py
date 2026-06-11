@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import pathlib
+import platform
 import sys
 from collections import defaultdict
 from typing import Dict, Tuple
@@ -30,14 +31,19 @@ from utils import ROOT_DIR, IMAGE_TOPIC, IMAGE_TOPIC_RIGHT, BAG_NAME, CAM_FILENA
 
 
 parser = argparse.ArgumentParser(description="Create a colmap from a bag (ROS1 or ROS2)")
-parser.add_argument('-n', '--name', help="Name of Recording")
+location = parser.add_mutually_exclusive_group(required=True)
+location.add_argument('-n', '--name', help="Name of Recording")
+location.add_argument('-d', '--dir', help="Recording directory")
 parser.add_argument('-r', '--refined', help="Create a refined model, rather than rough", action="store_true")
 parser.add_argument('-s', '--submap', help="Submap to create", default=1, type=int)
 parser.add_argument('-p', '--prep-only', help="Just create data for colmap and indices", action="store_true")
 parser.add_argument('-a', '--atlas', help="provide an atlas message file to use", default="")
 opts = parser.parse_args()
 
-model_dir = ROOT_DIR / opts.name
+if opts.dir:
+    model_dir = pathlib.Path(opts.dir)
+else:
+    model_dir = ROOT_DIR / opts.name
 cam_file = model_dir / CAM_FILENAME
 images_dir = model_dir / "images"
 images_dir.mkdir(parents=True, exist_ok=True)
@@ -95,7 +101,11 @@ def load_stereo_extrinsics(yaml_path):
 
 
 def rectify_cam_pair(left:Camera, right: Camera):
-    R, T = load_stereo_extrinsics("/home/pi/.ros/transforms/left_right.yaml")
+    try:
+        R, T = load_stereo_extrinsics("/home/pi/.ros/transforms/left_right.yaml")
+    except IOError:
+        R, T = load_stereo_extrinsics(model_dir / "left_right.yaml")
+
     img_size = left.w, left.h
     R1, R2, P1, P2, Q, roi_l, roi_r = cv2.stereoRectify(
         left.K, left.D,
@@ -289,7 +299,6 @@ def create_colmap():
             for connection, timestamp, rawdata in reader.messages():
                 if connection.topic == atlas_topic:
                     atlas_data = rawdata
-                    print(connection.msgtype, type(connection.msgtype))
             if atlas_data is None:
                 raise RuntimeError(f"No messages found on {atlas_topic} — cannot extract maps/points/frames")
 
@@ -324,6 +333,21 @@ def create_colmap():
         print("All right images exported.")
     return known_images
 
+def get_cuda_args():
+    CUDA_RUNTIME_ARGS = "--gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics "
+
+    CUDA_CONTAINER_SUFFIX = "-cuda"
+
+    # no need to do `xhost +` anymore
+    XSOCK = "/tmp/.X11-unix"
+    XAUTH = "/tmp/.docker.xauth"
+    DISPLAY_ARGS = (f"--volume={XSOCK}:{XSOCK}:rw --volume={XAUTH}:{XAUTH}:rw --env=XAUTHORITY={XAUTH} "
+                    f"--env=DISPLAY=unix:1")
+    args = CUDA_RUNTIME_ARGS + DISPLAY_ARGS + ' --ipc=host --shm-size=4gb'
+    return args, 'openmvs-ubuntu-cuda', '/working/'
+
+def get_pi_args():
+    return "--user $(id -u):$(id -g)", "furbrain/cyclops_mvs:latest", ""
 
 if __name__ == "__main__":
     if not cam_file.exists():
@@ -332,13 +356,18 @@ if __name__ == "__main__":
     else:
         print("COLMAP data already exists\n")
     sys.stdout.flush()
+    if platform.processor()=="x86_64":
+        args, image, prefix = get_cuda_args()
+    else:
+        args, image, prefix = get_pi_args()
     # os.system("docker pull furbrain/cyclops_mvs:latest")
     if not opts.prep_only:
         if opts.refined:
-            os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
+            os.system(f"docker run {args} -w /working/map_{opts.submap} "
                       f"-v {model_dir.absolute()}:/working "
-                      "furbrain/cyclops_mvs:latest make_refined.sh")
+                      f"{image} {prefix}make_refined.sh")
         else:
-            os.system(f"docker run --user $(id -u):$(id -g) -w /working/map_{opts.submap} "
+            os.system(f"docker run {args} -w /working/map_{opts.submap} "
                       f"-v {model_dir.absolute()}:/working "
-                      "furbrain/cyclops_mvs:latest make_rough.sh")
+                      f"{image} {prefix}make_rough.sh")
+

@@ -23,11 +23,12 @@ else
   echo "Mesh found"
 fi
 
+#CONSIDER REFINING HERE
 
 if [ ! -e rough.ply ]
 then
   echo "Texturing Mesh"
-  TextureMesh -i scene_dense.mvs -m scene_dense_mesh.ply -o rough.obj --export-type obj
+  TextureMesh -i scene_dense.mvs -m scene_dense_mesh.ply -o ../model.ply
 else
   echo "Textured Mesh found"
 fi
