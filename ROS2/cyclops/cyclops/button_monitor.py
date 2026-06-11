@@ -5,10 +5,12 @@ from cyclops_interfaces.srv import SetMode
 from autonode import Node
 
 class Button(Node):
+    pin: int = 26
+    bounce_time: float = 0.05
     def __init__(self):
         super().__init__()
         self.mode_client = self.create_client(SetMode, "toggle_mode")
-        self.button = gpiozero.Button(26, bounce_time=0.05)
+        self.button = gpiozero.Button(self.pin, bounce_time=self.bounce_time)
         self.button.when_pressed = self.trigger
 
     def trigger(self):

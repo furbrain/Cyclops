@@ -132,5 +132,19 @@ launch:
       default: /diagnostics /battery /process_monitor/rss_bytes /process_monitor/vms_bytes
 
   - executable:
-      cmd: "ros2 bag record --topics $(var orb_output_topics) $(var sensor_topics) $(var monitor_topics) -o $(var bag_uri)"
+      cmd: >
+        ros2 bag record
+        --topics
+        /orb/ORB/keyframes/compressed
+        /orb/ORB/keyframes_right/compressed
+        /orb/ORB/atlas
+        /imu/imu_madg
+        /left/camera_info
+        /right/camera_info
+        /diagnostics
+        /battery
+        /process_monitor/rss_bytes
+        /process_monitor/vms_bytes
+        -o $(var bag_uri)
       output: screen
+

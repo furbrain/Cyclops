@@ -36,6 +36,9 @@ launch:
     pkg: cyclops
     exec: button_monitor
     name: button_monitor
+    param:
+      - name: pin
+        value: 20
 
 - node:
     pkg: cyclops
