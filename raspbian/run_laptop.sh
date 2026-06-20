@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 #setup x for using cuda
+source /opt/ros/foxy/setup.bash
 XSOCK=/tmp/.X11-unix
 XAUTH=/tmp/.docker.xauth
 touch $XAUTH
@@ -22,7 +23,7 @@ fi
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 # copy recoding from pi
 scp -r pi@cm5.local:/data/trips/$ARG/recording .
-scp pi@cm5.local:.ros/transforms/left_right.yaml
+scp pi@cm5.local:.ros/transforms/left_right.yaml .
 cp $SCRIPT_DIR/../openMVS/make_laptop.sh ./make_rough.sh
 chmod 755 make_rough.sh
 $SCRIPT_DIR/make_model.py -d .
