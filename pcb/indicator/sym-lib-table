@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "LP5815DRLR")(type "KiCad")(uri "/home/phil/JLC2KiCad_lib/symbol/LP5815DRLR.kicad_sym")(options "")(descr ""))
+  (lib (name "AFA07-S04FCA-00")(type "KiCad")(uri "/home/phil/JLC2KiCad_lib/symbol/AFA07-S04FCA-00.kicad_sym")(options "")(descr ""))
+  (lib (name "LTST-S310F2KT")(type "KiCad")(uri "/home/phil/JLC2KiCad_lib/symbol/LTST-S310F2KT.kicad_sym")(options "")(descr ""))
+)
