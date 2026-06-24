@@ -1,0 +1,15 @@
+issues: not enough valid points to choose from
+because: image too dark
+ - spotlight effect - diffuser seems to help but light leakage hurts
+ - bad gamma selection - not tested
+ - bad gain selection  - small improvement
+ - bad shutter selection - small improvement
+Get proper headtorch with flood
+
+DEBUG:
+ need to be able to record or monitor gain and shutter speed;
+ play with a bit slower shutter speed??
+
+because: poor thFastThreshold?
+ - adjust the threshold
+ - issue with relocalisation - struggles to refind - maybe make windows bigger th in code
