@@ -17,10 +17,12 @@ import pathlib
 import platform
 import sys
 from collections import defaultdict
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, Tuple, Any, Union, Set, List
 import numpy as np
 import cv2
 import yaml
+import scipy.spatial.transform as sst
 
 # rosbags high-level reader
 from rosbags.rosbag2 import Reader
@@ -121,22 +123,7 @@ def rectify_cam_pair(left:Camera, right: Camera):
 
 
 def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, int], camera:Camera):
-    sparse_dir = map_dir / "sparse"
-    sparse_dir.mkdir(parents=True, exist_ok=True)
-    # create symlink to images (like original)
-    try:
-        if not (map_dir / "images").exists():
-            os.symlink("../images", map_dir / "images")
-    except Exception:
-        # on some filesystems / platforms symlink may fail; ignore
-        pass
-
-    # camera file symlink in sparse
-    try:
-        if not (sparse_dir / CAM_FILENAME).exists():
-            os.symlink("../../" + CAM_FILENAME, sparse_dir / CAM_FILENAME)
-    except Exception:
-        pass
+    sparse_dir = init_map_dir(map_dir)
 
     required_points = defaultdict(list)
     frame_tss = set()
@@ -174,6 +161,27 @@ def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, 
                 points_f.write(f"{pt.id} {pt.x} {pt.y} {pt.z} 255 255 255 0 {track}\n")
     return frame_tss
 
+
+def init_map_dir(map_dir: Path) -> Path:
+    sparse_dir = map_dir / "sparse"
+    sparse_dir.mkdir(parents=True, exist_ok=True)
+    # create symlink to images (like original)
+    try:
+        if not (map_dir / "images").exists():
+            os.symlink("../images", map_dir / "images")
+    except Exception:
+        # on some filesystems / platforms symlink may fail; ignore
+        pass
+
+    # camera file symlink in sparse
+    try:
+        if not (sparse_dir / CAM_FILENAME).exists():
+            os.symlink("../../" + CAM_FILENAME, sparse_dir / CAM_FILENAME)
+    except Exception:
+        pass
+    return sparse_dir
+
+
 def get_camera_from_bag(reader, topic_name: str):
     """
     Search for a CameraInfo message in the bag and write cameras.txt
@@ -188,7 +196,7 @@ def get_camera_from_bag(reader, topic_name: str):
             return True, cam
     return False, None
 
-def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth: pathlib.Path = None):
+def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth: pathlib.Path = None, right=False):
     """
     reader: AnyReader
     tss: set of expected timestamps in usec
@@ -211,7 +219,10 @@ def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth:
             stamp = header.stamp
         stamp_usec = as_usec_from_stamp(stamp)
         if stamp_usec in tss:
-            path = str(pth / f"{stamp_usec}.jpg")
+            if right:
+                path = str(pth / f"{stamp_usec}r.jpg")
+            else:
+                path = str(pth / f"{stamp_usec}.jpg")
             print(f"writing image: {path}")
             # remove from set so we don't write duplicates
             tss.remove(stamp_usec)
@@ -266,30 +277,82 @@ def get_available_images(reader: Reader, topic: str) -> Dict[int, int]:
             tss[ts] = timestamp
     return tss
 
+def create_colmap_from_atlas(url: str):
+    import orb_slam3_py
+    bag_path = model_dir / BAG_NAME
+    if not (bag_path / "metadata.yaml").exists():
+        os.system(f"ros2 bag reindex {bag_path}")
+    known_images, known_right_images = get_known_images(bag_path)
+    left_camera, right_camera = get_cameras(bag_path)
+    atlas = orb_slam3_py.load_atlas(url)
+    orb_slam3_py.align_atlas(atlas)
+    #sort maps
+    maps = reversed(sorted(atlas.get_all_maps(), key=lambda x:x.keyframes_in_map()))
+    good_ts: Set[orb_slam3_py.KeyFrame] = set()
+    right_ts: Set[orb_slam3_py.KeyFrame] = set()
+    for map_idx, m in enumerate(maps, start=1):
+        map_dir = model_dir / f"map_{map_idx}"
+        map_dir.mkdir(parents=True, exist_ok=True)
+        sparse_dir = init_map_dir(map_dir)
+        found_mps: Dict[orb_slam3_py.MapPoint, List[str]] = defaultdict(list)
+        right_id_offset = max(x.id for x in m.get_all_keyframes())+1
+        with open(sparse_dir / IMAGE_FILENAME, "w") as f:
+            for kf in m.get_all_keyframes():
+                stamp_usec = as_usec_from_stamp(kf.timestamp)
+                if stamp_usec in known_images:
+                    good_ts.add(stamp_usec)
+                    pose: sst.RigidTransform = kf.get_pose()
+                    o = pose.rotation.as_quat(scalar_first=True)
+                    t: np.array = pose.translation
+                    f.write(f"{kf.id} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {stamp_usec}.jpg\n")
+                    line = []
+                    idx = 0
+                    for mp, (x, y) in zip(kf.get_map_point_matches(), kf.get_keypoints_undistorted()):
+                        if mp:
+                            line.append(f"{x} {y} {mp.id}")
+                            found_mps[mp].append(f"{kf.id} {idx}")
+                            idx += 1
+                    f.write(" ".join(line) + "\n")
+                if stamp_usec in known_right_images:
+                    right_ts.add(stamp_usec)
+                    pose: sst.RigidTransform = kf.get_pose()
+                    T_left_right = sst.RigidTransform.from_translation([kf.baseline, 0, 0])
+                    pose = pose * T_left_right
+                    o = pose.rotation.as_quat(scalar_first=True)
+                    t: np.array = pose.translation
+                    f.write(f"{kf.id + right_id_offset} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {stamp_usec}r.jpg\n")
+                    line = []
+                    idx = 0
+                    for mp, (_, y), x in zip(kf.get_map_point_matches(), kf.get_keypoints_undistorted(), kf.get_u_right()):
+                        if mp and (x>=0):
+                            line.append(f"{x} {y} {mp.id}")
+                            found_mps[mp].append(f"{kf.id + right_id_offset} {idx}")
+                            idx += 1
+                    f.write(" ".join(line) + "\n")
+        with open(sparse_dir / POINTS_FILENAME, "w") as points_f:
+            for mp, track in found_mps.items():
+                pt = mp.get_world_pos()
+                points_f.write(f"{mp.id} {pt[0]} {pt[1]} {pt[2]} 255 255 255 0 {' '.join(track)}\n")
+    with Reader(bag_path) as reader:
+        export_images_from_bag(reader, good_ts, IMAGE_TOPIC, left_camera)
+        export_images_from_bag(reader, right_ts, IMAGE_TOPIC_RIGHT, right_camera, right=True)
+        if len(good_ts) > 0:
+            print("missing images: ", good_ts)
+        else:
+            print("All images exported.")
+        if len(right_ts) > 0:
+            print("missing right images: ", right_ts)
+        else:
+            print("All images exported.")
+
+
 def create_colmap():
     bag_path = model_dir / BAG_NAME
     if not (bag_path / "metadata.yaml").exists():
         os.system(f"ros2 bag reindex {bag_path}")
+    known_images, known_right_images = get_known_images(bag_path)
+    left_camera, right_camera = get_cameras(bag_path)
     with Reader(bag_path) as reader:
-        known_images = get_available_images(reader, IMAGE_TOPIC)
-
-    with Reader(bag_path) as reader:
-        # 1) try to find camera info and write cameras.txt
-        ok, left_camera = get_camera_from_bag(reader, "/left/camera_info")
-        if not ok:
-            print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
-        ok, right_camera = get_camera_from_bag(reader,  "/right/camera_info")
-        if not ok:
-            print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
-        rectify_cam_pair(left_camera, right_camera) # rectify cameras
-        with open(cam_file, "w") as f:
-            # PINHOLE requires fx fy cx cy
-            # MUST be rectified
-            f.write(f"1 {left_camera.get_camera_desc()}\n")
-            f.write(f"2 {right_camera.get_camera_desc()}\n")
-
-        # 2) find the last atlas message on /orb_slam3/atlas (mimics original script behavior)
-        # We'll find all messages on that topic then pick last
         if opts.atlas:
             with open(opts.atlas, "rb") as f:
                 atlas_data = f.read()
@@ -333,6 +396,36 @@ def create_colmap():
         print("All right images exported.")
     return known_images
 
+
+def get_known_images(bag_path: Union[Path, Any]) -> Tuple[Dict[int, int], Dict[int, int]]:
+    with Reader(bag_path) as reader:
+        known_images = get_available_images(reader, IMAGE_TOPIC)
+    with Reader(bag_path) as reader:
+        known_right_images = get_available_images(reader, IMAGE_TOPIC_RIGHT)
+    return known_images, known_right_images
+
+
+def get_cameras(bag_path: Union[Path, Any]) -> Tuple[Any, Any]:
+    with Reader(bag_path) as reader:
+        # 1) try to find camera info and write cameras.txt
+        ok, left_camera = get_camera_from_bag(reader, "/left/camera_info")
+        if not ok:
+            print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
+        ok, right_camera = get_camera_from_bag(reader, "/right/camera_info")
+        if not ok:
+            print("Warning: camera_info not found in bag. cameras.txt will not be created or may be incomplete.")
+        rectify_cam_pair(left_camera, right_camera)  # rectify cameras
+        with open(cam_file, "w") as f:
+            # PINHOLE requires fx fy cx cy
+            # MUST be rectified
+            f.write(f"1 {left_camera.get_camera_desc()}\n")
+            f.write(f"2 {right_camera.get_camera_desc()}\n")
+
+        # 2) find the last atlas message on /orb_slam3/atlas (mimics original script behavior)
+        # We'll find all messages on that topic then pick last
+    return left_camera, right_camera
+
+
 def get_cuda_args():
     CUDA_RUNTIME_ARGS = "--gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics "
 
@@ -351,8 +444,11 @@ def get_pi_args():
 
 if __name__ == "__main__":
     if not cam_file.exists():
-        ts_map = create_colmap()
-        json.dump(ts_map, open(model_dir / TS_MAP_FILENAME, "w"))
+        if opts.atlas and opts.atlas.endswith("osa"):
+            create_colmap_from_atlas(opts.atlas)
+        else:
+            ts_map = create_colmap()
+            json.dump(ts_map, open(model_dir / TS_MAP_FILENAME, "w"))
     else:
         print("COLMAP data already exists\n")
     sys.stdout.flush()

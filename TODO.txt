@@ -13,3 +13,11 @@ DEBUG:
 because: poor thFastThreshold?
  - adjust the threshold
  - issue with relocalisation - struggles to refind - maybe make windows bigger th in code
+
+get wifi setup working
+get map merge working
+improve relocalisation code
+redo BoW vocab
+get skeleton integration working
+
+polish UI

@@ -37,6 +37,8 @@ def as_usec_from_stamp(stamp):
     # if stamp already integer (nanoseconds)
     if isinstance(stamp, int):
         return stamp // 1000
+    if isinstance(stamp, float):
+        return int(stamp * 1_000_000)
     # object styles
     sec = None
     nsec = None
