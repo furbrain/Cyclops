@@ -49,8 +49,6 @@ else:
 cam_file = model_dir / CAM_FILENAME
 images_dir = model_dir / "images"
 images_dir.mkdir(parents=True, exist_ok=True)
-images_right_dir = model_dir / "right"
-images_right_dir.mkdir(parents=True, exist_ok=True)
 
 
 
@@ -126,7 +124,7 @@ def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, 
     sparse_dir = init_map_dir(map_dir)
 
     required_points = defaultdict(list)
-    frame_tss = set()
+    frame_tss: Dict[int, int] = {}
     sparse_points: Dict[int, Tuple] = {}
     with open(sparse_dir / IMAGE_FILENAME, "w") as image_f:
         for f in mp.frames:
@@ -134,10 +132,10 @@ def export_map(mp, points: Dict, map_dir: pathlib.Path, known_images: Dict[int, 
             if stamp_usec not in known_images:
                 print(f"Image {stamp_usec} not in bag ... skipping")
                 continue
-            frame_tss.add(stamp_usec)
+            frame_tss[stamp_usec] = f
             o = f.pose.orientation
             t = f.pose.position
-            image_f.write(f"{f.id} {o.w} {o.x} {o.y} {o.z} {t.x} {t.y} {t.z} 1 {stamp_usec}.jpg\n")
+            image_f.write(f"{f.id} {o.w} {o.x} {o.y} {o.z} {t.x} {t.y} {t.z} 1 {f.id}.jpg\n")
             line = []
             bag_path = model_dir / BAG_NAME
             with Reader(bag_path) as reader:
@@ -196,7 +194,7 @@ def get_camera_from_bag(reader, topic_name: str):
             return True, cam
     return False, None
 
-def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth: pathlib.Path = None, right=False):
+def export_images_from_bag(reader: Reader, tss: Dict[int, orb_slam3_py.KeyFrame], image_topic, camera:Camera, pth: pathlib.Path = None, right=False):
     """
     reader: AnyReader
     tss: set of expected timestamps in usec
@@ -220,12 +218,12 @@ def export_images_from_bag(reader: Reader, tss, image_topic, camera:Camera, pth:
         stamp_usec = as_usec_from_stamp(stamp)
         if stamp_usec in tss:
             if right:
-                path = str(pth / f"{stamp_usec}r.jpg")
+                path = str(pth / f"{tss[stamp_usec].id}r.jpg")
             else:
-                path = str(pth / f"{stamp_usec}.jpg")
+                path = str(pth / f"{tss[stamp_usec].id}.jpg")
             print(f"writing image: {path}")
             # remove from set so we don't write duplicates
-            tss.remove(stamp_usec)
+            del tss[stamp_usec]
             # check message type shape
             # For sensor_msgs/Image the deserialized msg should have .data / .height / .width / .encoding
             if getattr(msg, "_type", "").endswith("Image") or hasattr(msg, "data") and hasattr(msg, "height"):
@@ -288,8 +286,8 @@ def create_colmap_from_atlas(url: str):
     orb_slam3_py.align_atlas(atlas)
     #sort maps
     maps = reversed(sorted(atlas.get_all_maps(), key=lambda x:x.keyframes_in_map()))
-    good_ts: Set[orb_slam3_py.KeyFrame] = set()
-    right_ts: Set[orb_slam3_py.KeyFrame] = set()
+    good_ts: Dict[int, orb_slam3_py.KeyFrame] = dict()
+    right_ts: Dict[int, orb_slam3_py.KeyFrame] = dict()
     for map_idx, m in enumerate(maps, start=1):
         map_dir = model_dir / f"map_{map_idx}"
         map_dir.mkdir(parents=True, exist_ok=True)
@@ -300,11 +298,11 @@ def create_colmap_from_atlas(url: str):
             for kf in m.get_all_keyframes():
                 stamp_usec = as_usec_from_stamp(kf.timestamp)
                 if stamp_usec in known_images:
-                    good_ts.add(stamp_usec)
+                    good_ts[stamp_usec] = kf
                     pose: sst.RigidTransform = kf.get_pose()
                     o = pose.rotation.as_quat(scalar_first=True)
                     t: np.array = pose.translation
-                    f.write(f"{kf.id} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {stamp_usec}.jpg\n")
+                    f.write(f"{kf.id} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {kf.id}.jpg\n")
                     line = []
                     idx = 0
                     for mp, (x, y) in zip(kf.get_map_point_matches(), kf.get_keypoints_undistorted()):
@@ -314,13 +312,13 @@ def create_colmap_from_atlas(url: str):
                             idx += 1
                     f.write(" ".join(line) + "\n")
                 if stamp_usec in known_right_images:
-                    right_ts.add(stamp_usec)
+                    right_ts[stamp_usec] = kf
                     pose: sst.RigidTransform = kf.get_pose()
                     T_left_right = sst.RigidTransform.from_translation([kf.baseline, 0, 0])
                     pose = pose * T_left_right
                     o = pose.rotation.as_quat(scalar_first=True)
                     t: np.array = pose.translation
-                    f.write(f"{kf.id + right_id_offset} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {stamp_usec}r.jpg\n")
+                    f.write(f"{kf.id + right_id_offset} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {kf.id}r.jpg\n")
                     line = []
                     idx = 0
                     for mp, (_, y), x in zip(kf.get_map_point_matches(), kf.get_keypoints_undistorted(), kf.get_u_right()):
@@ -371,13 +369,14 @@ def create_colmap():
     # We'll follow same logic. The fields expected on atlas message are 'maps' and 'points'.
     # These are user-defined types produced by ORB_SLAM3 - we assume the structure used in your ROS1 bag.
     maps = list(sorted(last_atlas.maps, key=lambda x: len(x.frames), reverse=True))
-    frame_tss = set()
+    print(f"found {len(maps)} maps")
+    frame_tss = {}
     points_dict = {x.id: x for x in last_atlas.points}
     for map_idx, mp in enumerate(maps, start=1):
         map_dir = model_dir / f"map_{map_idx}"
         map_dir.mkdir(parents=True, exist_ok=True)
         tss = export_map(mp, points_dict, map_dir, known_images, left_camera)
-        frame_tss = frame_tss.union(tss)
+        frame_tss.update(tss)
 
     print(f"Need to extract {len(frame_tss)} images")
     # Re-open reader to iterate through images (AnyReader supports re-iterating)
@@ -385,7 +384,7 @@ def create_colmap():
     with Reader(bag_path) as reader:
         right_frame_tss = frame_tss.copy()
         export_images_from_bag(reader, frame_tss, IMAGE_TOPIC, left_camera)
-        export_images_from_bag(reader, right_frame_tss, IMAGE_TOPIC_RIGHT, right_camera, images_right_dir)
+        export_images_from_bag(reader, right_frame_tss, IMAGE_TOPIC_RIGHT, right_camera, right=True)
         if len(frame_tss) > 0:
             print("missing images: ", frame_tss)
         else:
