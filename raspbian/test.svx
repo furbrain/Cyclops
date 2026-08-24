@@ -1,0 +1,42 @@
+*begin ermintrude2
+
+; Locn:	Totes Gebirge, Austria - Loser/Augst-Eck Plateau (kataster group 1623)
+; Cave:	Steinbruckenhöhle
+*title "Ermintrudes corner"
+*date 2005.08.03 ;date the survey was done
+*team Insts Sarah White
+*team Notes Olly Madge
+*team Tape Phil Underwood
+*sd compass 0.1 degrees
+
+*export 1
+
+;from	to	tape	compass	clino	; remarks
+2       a       1.49    331     -82
+3       2       3.24    179     -23
+4       3       4.63    097     -79
+5       4       2.21    003     -55
+5       6       0.89    198     0
+6       B       0.375   312     +01
+B       9       4.20    345     +60
+9       C      2.74    149     +52     ; tape could be 20.74 ???!
+;B      7      13.4    -       DOWN    ; this leg does not work with Tactical Frog
+
+
+*data passage station left right up down ignoreall
+;stn	L	R	U	D	Desc
+1      1.0     0.8     2.0     0.5     Pink dot
+2      1.4     0.0     0.5     2.0     Nobble ceiling
+3      0.5     0.5     -       0       V-shape rock floor
+4      0.3     0.3     -       -       ??
+5      0.5     0.4     0.5     0.05    Keel with broken calcite on ceiling
+6      -       -       -       -
+7      -       -       -       -
+8      0.2     0.3     0       2.87
+9      -       -       -       -
+10     -       -       -       -
+
+*data normal from to clino compass tape
+
+C D -35 130 12.3
+*end ermintrude2
