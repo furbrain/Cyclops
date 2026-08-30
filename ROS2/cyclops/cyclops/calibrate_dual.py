@@ -52,6 +52,7 @@ class CalibratorDual(CalNode):
         translation = cal_res[6][:,0]
         transform = Transform(translation=vector3_from_array(translation),
                               rotation=quat_from_sst(rotation))
+        transform = transform.inv() # cv2 returns T_ab; we want T_ba
         self.get_logger().info(f"Calibration successful")
         self.get_logger().info(f"Calibration error: {cal_res[0]}")
         self.get_logger().info(f"{transform}")

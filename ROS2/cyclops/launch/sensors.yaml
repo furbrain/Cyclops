@@ -67,8 +67,6 @@ launch:
         value: left
       - name: child_frame
         value: right
-      - name: inverted
-        value: true
 
 - node:
     pkg: cyclops

@@ -60,10 +60,10 @@ class OrbSetter(SmartNode):
                                             rclpy.time.Time())
         imu_left = self.get_transform(imu_left_t)
 
-        right_left_t = self.tf_buffer.lookup_transform(self.right_cam_frame_id,
-                                            self.left_cam_frame_id,
+        left_right_t = self.tf_buffer.lookup_transform(self.left_cam_frame_id,
+                                            self.right_cam_frame_id,
                                             rclpy.time.Time())
-        right_left = self.get_transform(right_left_t)
+        left_right= self.get_transform(left_right_t)
 
 
         with open(self.imu_noise_url) as f:
@@ -74,7 +74,7 @@ class OrbSetter(SmartNode):
             template = f.read()
         left_ci = self.left_ci
         right_ci = self.right_ci
-        baseline = np.linalg.norm(right_left.translation)
+        baseline = np.linalg.norm(left_right.translation)
         output = eval(f'f"""{template}"""') # nested so text within template treated as f-string
         with open(self.settings_url,"w") as f:
             f.write(output)

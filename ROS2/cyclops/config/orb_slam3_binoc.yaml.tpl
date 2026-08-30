@@ -51,7 +51,7 @@ Stereo.T_c1_c2: !!opencv-matrix
    rows: 4
    cols: 4
    dt: f
-   data: {list(right_left.as_matrix().flatten())}
+   data: {list(left_right.as_matrix().flatten())}
 
 
 # Transformation from body-frame (imu) to left camera
