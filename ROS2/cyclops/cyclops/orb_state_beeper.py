@@ -12,6 +12,7 @@ class OrbBeeper(Node):
         self.beeper = self.create_client(BeepPreset, "preset")
         self.last_noise_tm = 0
         self.last_state = 0
+        self.lock_out = 0
 
     def elapsed(self, seconds: float):
         now = time.monotonic_ns()
@@ -22,19 +23,21 @@ class OrbBeeper(Node):
 
     @subscription(State)
     async def state(self, msg: State):
-        req = BeepPreset_Request()
-        if msg.state==msg.OK:
-            if self.elapsed(1.0):
-                req.tune = req.BOP
+        if self.lock_out < time.monotonic_ns():
+            req = BeepPreset_Request()
+            if msg.state==msg.OK:
+                if self.elapsed(1.0):
+                    req.tune = req.BOP
+                    self.beeper.call_async(req)
+            elif msg.state==msg.RECENTLY_LOST:
+                if self.elapsed(0.333):
+                    req.tune = req.BIP
+                    self.beeper.call_async(req)
+            elif msg.state==msg.LOST or msg.state==msg.OTHER:
+                req.tune = req.SAD
+                self.lock_out = time.monotonic_ns() + 2e9 # lock out for two seconds
                 self.beeper.call_async(req)
-        elif msg.state==msg.RECENTLY_LOST:
-            if self.elapsed(0.333):
-                req.tune = req.BIP
-                self.beeper.call_async(req)
-        elif msg.state==msg.LOST:
-            req.tune = req.SAD
-            self.beeper.call_async(req)
-        self.last_state = msg.state
+            self.last_state = msg.state
 
 def main(args=None):
     rclpy.init(args=args)

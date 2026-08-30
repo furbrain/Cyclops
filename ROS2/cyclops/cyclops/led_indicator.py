@@ -4,9 +4,10 @@ from typing import Dict, Tuple, List
 from ctypes import c_int16
 import smbus2
 import rclpy
-from autonode import Node
+from autonode import Node, subscription
 from sensor_msgs.msg import BatteryState
 import time
+from orb_slam3.msg import State
 
 
 
@@ -80,7 +81,7 @@ class Engine:
     bus: smbus2.SMBus
     address: int = 0x2d
     patterns: List[int] = field(default_factory=list)
-    repeats: int = INFINITE_REPEATS
+    repeats: int = 0x1
 
     CONFIG_REG = 0x06
     ENABLE_REG = 0x0A
@@ -211,34 +212,68 @@ class LP5815:
         self.bus.close()
 
 
-class IndicatorNode(Node):
-    i2c_bus: int = 0
-
+class OrbStateLed(Node):
+    BREATHE_INDEX = 0
+    FLASH_INDEX = 1
+    i2c_bus: int = 1
     def __init__(self):
         super().__init__()
-        self.led = smbus2.SMBus(self.i2c_bus)
-        self.pub = self.create_publisher(BatteryState, "battery", 5)
-        self.batt = Battery(self.i2c_bus)
-        self.timer = self.create_timer(self.report_interval, self.callback)
-        if self.set_capacity > 0:
-            self.get_logger().info(f"Setting capacity to {self.set_capacity}Ah")
-            self.batt.set_register_value("design_capacity", self.set_capacity)
+        self.led = LP5815(self.i2c_bus, green_I=15)
+        breathe = Pattern(self.BREATHE_INDEX, self.led.bus, self.led.address,
+                          pause_time=(0.0, 0.0),
+                          sloper_time=(0.5, 0.5, 0.5, 0.5),
+                          pwm_values=(0, 0.4, 0.6, 0.4, 0),
+                          repeat_count=1)
 
-    def setup_device(self):
-        pass
+        flash = Pattern(self.FLASH_INDEX, self.led.bus, self.led.address,
+                        pause_time=(0.0, 0.0),
+                        sloper_time=(0, 0.25, 0, 0.25),
+                        pwm_values=(0, 0.5, 0.5, 0, 0),
+                        repeat_count=3)
+        self.led.stop()
+        breathe.write_all_data()
+        flash.write_all_data()
+        breathe_engine = Engine(self.BREATHE_INDEX, self.led.bus, self.led.address, patterns=[breathe.index])
+        flash_engine = Engine(self.FLASH_INDEX, self.led.bus, self.led.address, patterns=[flash.index])
+        breathe_engine.write_data()
+        flash_engine.write_data()
+        self.led.update()
 
-    def callback(self):
-        msg = BatteryState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        fields = msg.get_fields_and_field_types().keys()
-        for field in fields:
-            if field in self.batt.REGISTERS:
-                setattr(msg, field, self.batt.get_register_value(field))
-        self.pub.publish(msg)
+        self.last_noise_tm = 0
+        self.last_state = 0
+        self.lock_out = 0
+        self.create_timer(1.0, self.timer_callback)
+
+    def elapsed(self, seconds: float):
+        now = time.monotonic_ns()
+        if self.last_noise_tm + int(seconds*1e9) < now:
+            self.last_noise_tm = now
+            return True
+        return False
+
+    @subscription(State)
+    async def state(self, msg: State):
+        if self.lock_out < time.monotonic_ns():
+            if msg.state==msg.OK:
+                if self.elapsed(1.0):
+                    self.led.set_led_engines(green=self.BREATHE_INDEX)
+            elif msg.state==msg.RECENTLY_LOST:
+                if self.elapsed(0.333):
+                    self.led.set_led_engines(red=self.FLASH_INDEX, green=self.FLASH_INDEX)
+            elif msg.state==msg.LOST or msg.state==msg.OTHER:
+                self.last_noise_tm = time.monotonic_ns()
+                self.led.set_led_engines(red=self.FLASH_INDEX)
+            self.last_state = msg.state
+
+    def timer_callback(self):
+        if self.elapsed(3.0): #we haven't done anything for a bit, breathe blue
+            self.led.set_led_engines(blue=self.BREATHE_INDEX)
+
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = IndicatorNode()
+    node = OrbStateLed()
     node.run()
 
 if __name__ == "__main__":
@@ -252,13 +287,13 @@ if __name__ == "__main__":
     # led.set_colours() # off
     # time.sleep(1)
     breathe = Pattern(0, led.bus, led.address,
-                      pause_time = (0.0,0.5),
-                      sloper_time= (1.0,1.0,1.0,1.0),
+                      pause_time = (0.0,0.0),
+                      sloper_time= (0.5,0.5,0.5,0.5),
                       pwm_values= (0,0.4,0.6,0.4,0),
-                      repeat_count=2)
+                      repeat_count=1)
 
     flash = Pattern(1, led.bus, led.address,
-                    pause_time = (1.0,1.0),
+                    pause_time = (0.0,0.0),
                     sloper_time= (0,0.25,0,0.25),
                     pwm_values= (0,0.5,0.5,0,0),
                     repeat_count=3)
@@ -266,7 +301,7 @@ if __name__ == "__main__":
     breathe.write_all_data()
     flash.write_all_data()
     breathe_engine = Engine(0, led.bus, led.address, patterns=[breathe.index])
-    fancy_engine = Engine(1, led.bus, led.address, patterns=[breathe.index, flash.index])
+    flash_engine = Engine(1, led.bus, led.address, patterns=[flash.index])
     breathe_engine.write_data()
     fancy_engine.write_data()
     led.update()

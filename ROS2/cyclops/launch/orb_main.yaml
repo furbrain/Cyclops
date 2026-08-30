@@ -111,6 +111,16 @@ launch:
 
   - node:
       pkg: cyclops
+      exec: led_indicator
+      name: led_indicator
+      namespace: $(var ns)/orb
+      remap:
+        - from: state
+          to: $(var ns)/orb/ORB/state
+
+
+  - node:
+      pkg: cyclops
       exec: process_monitor
       name: process_monitor
       param:
