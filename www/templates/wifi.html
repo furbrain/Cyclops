@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyclops Wi-Fi Setup</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body { max-width: 560px; margin: 0 auto; padding-bottom: 2rem; }
+    .network-row:hover { background-color: var(--bs-secondary-bg); cursor: pointer; }
+    .signal-bar { width: 3px; margin-right: 1px; background-color: var(--bs-secondary-color); display: inline-block; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="p-3">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0"><i class="bi bi-router"></i> Cyclops Wi-Fi</h4>
+    <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">
+      <i id="refreshIcon" class="bi bi-arrow-clockwise"></i> Scan
+    </button>
+  </div>
+
+  <div id="statusCard" class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="text-secondary small">Status</div>
+        <div id="statusText" class="fw-semibold">Checking…</div>
+      </div>
+      <div>
+        <button id="disconnectBtn" class="btn btn-sm btn-outline-danger d-none">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="alertArea"></div>
+
+  <div class="card">
+    <div class="card-header">Available networks</div>
+    <ul id="networkList" class="list-group list-group-flush">
+      <li class="list-group-item text-secondary text-center py-4">
+        <span class="spinner-border spinner-border-sm"></span> Scanning…
+      </li>
+    </ul>
+  </div>
+
+  <!-- Password modal -->
+  <div class="modal fade" id="passwordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Connect to <span id="modalSsid"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="connectForm">
+            <div class="mb-2">
+              <label class="form-label">Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="passwordInput" autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+            </div>
+            <div id="modalError" class="text-danger small d-none"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="modalConnectBtn">
+            <span id="modalSpinner" class="spinner-border spinner-border-sm d-none"></span>
+            Connect
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const networkList = document.getElementById('networkList');
+    const statusText = document.getElementById('statusText');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const refreshIcon = document.getElementById('refreshIcon');
+    const alertArea = document.getElementById('alertArea');
+    const passwordModalEl = document.getElementById('passwordModal');
+    const passwordModal = new bootstrap.Modal(passwordModalEl);
+    const modalSsid = document.getElementById('modalSsid');
+    const passwordInput = document.getElementById('passwordInput');
+    const modalConnectBtn = document.getElementById('modalConnectBtn');
+    const modalSpinner = document.getElementById('modalSpinner');
+    const modalError = document.getElementById('modalError');
+
+    let currentSsid = null;
+    let currentDevice = null;
+
+    function showAlert(message, type = 'danger') {
+      alertArea.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show py-2" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    }
+
+    function signalIcon(signal) {
+      if (signal >= 70) return 'bi-wifi';
+      if (signal >= 40) return 'bi-wifi-2';
+      return 'bi-wifi-1';
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/api/wifi/status');
+        const data = await res.json();
+        if (data.connected) {
+          statusText.innerHTML = `<i class="bi bi-check-circle-fill text-success"></i>
+            Connected to <strong>${escapeHtml(data.connection.ssid)}</strong>
+            <span class="text-secondary small d-block">${data.connection.ip || ''}</span>`;
+          disconnectBtn.classList.remove('d-none');
+          disconnectBtn.dataset.device = data.connection.device;
+        } else {
+          statusText.innerHTML = `<i class="bi bi-x-circle text-secondary"></i> Not connected`;
+          disconnectBtn.classList.add('d-none');
+        }
+      } catch (e) {
+        statusText.textContent = 'Unable to reach device';
+      }
+    }
+
+    async function scan(rescan = true) {
+      refreshIcon.classList.add('spin');
+      networkList.innerHTML = `<li class="list-group-item text-secondary text-center py-4">
+        <span class="spinner-border spinner-border-sm"></span> Scanning…</li>`;
+      try {
+        const res = await fetch(`/api/wifi/scan?rescan=${rescan ? 1 : 0}`);
+        const data = await res.json();
+        if (data.error) {
+          showAlert(escapeHtml(data.error));
+          networkList.innerHTML = '';
+          return;
+        }
+        renderNetworks(data.networks);
+      } catch (e) {
+        showAlert('Scan failed: could not reach the device.');
+      } finally {
+        refreshIcon.classList.remove('spin');
+      }
+    }
+
+    function renderNetworks(networks) {
+      networkList.innerHTML = '';
+      if (networks.length === 0) {
+        networkList.innerHTML = '<li class="list-group-item text-secondary text-center py-3">No networks found</li>';
+        return;
+      }
+      for (const net of networks) {
+        const li = document.createElement('li');
+        li.className = 'list-group-item network-row d-flex align-items-center justify-content-between';
+        li.innerHTML = `
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi ${signalIcon(net.signal)}"></i>
+            <span>${escapeHtml(net.ssid)}</span>
+            ${net.in_use ? '<span class="badge text-bg-success">current</span>' : ''}
+          </div>
+          <div class="d-flex align-items-center gap-2 text-secondary">
+            ${net.security !== 'Open' ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock"></i>'}
+            <small>${net.signal}%</small>
+          </div>`;
+        li.addEventListener('click', () => openConnect(net));
+        networkList.appendChild(li);
+      }
+    }
+
+    function openConnect(net) {
+      currentSsid = net.ssid;
+      modalSsid.textContent = net.ssid;
+      passwordInput.value = '';
+      modalError.classList.add('d-none');
+      passwordInput.disabled = net.security === 'Open';
+      passwordInput.placeholder = net.security === 'Open' ? 'No password required' : '';
+      passwordModal.show();
+      setTimeout(() => passwordInput.focus(), 300);
+    }
+
+    modalConnectBtn.addEventListener('click', async () => {
+      modalError.classList.add('d-none');
+      modalSpinner.classList.remove('d-none');
+      modalConnectBtn.disabled = true;
+      try {
+        const res = await fetch('/api/wifi/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: currentSsid, password: passwordInput.value })
+        });
+        const data = await res.json();
+        if (data.success) {
+          passwordModal.hide();
+          showAlert(
+            `Joining <strong>${escapeHtml(currentSsid)}</strong>… the hotspot will drop in a moment. ` +
+            `If the password was wrong or the network is unreachable, the hotspot comes back on its own ` +
+            `within about ${CONFIG_TIMEOUT_HINT}s and this page will reconnect and show what happened. ` +
+            `If it succeeds, this page won't come back — the device is now on the target network ` +
+            `(try its mDNS hostname, e.g. <code>cyclops.local:8080</code>, if you've set that up).`,
+            'info'
+          );
+          startConnectStatusPolling();
+        } else {
+          modalError.textContent = data.error || 'Connection failed';
+          modalError.classList.remove('d-none');
+        }
+      } catch (e) {
+        modalError.textContent = 'Could not reach the device.';
+        modalError.classList.remove('d-none');
+      } finally {
+        modalSpinner.classList.add('d-none');
+        modalConnectBtn.disabled = false;
+      }
+    });
+
+    // Rough hint only — real timeout lives server-side in CONFIG['connect_timeout'] + gateway check.
+    const CONFIG_TIMEOUT_HINT = 35;
+    let pollTimer = null;
+
+    function startConnectStatusPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/api/wifi/connect-status');
+          const data = await res.json();
+          if (data.status === 'failed') {
+            clearInterval(pollTimer);
+            showAlert(`Connection to <strong>${escapeHtml(data.ssid)}</strong> failed: ${escapeHtml(data.error || 'unknown error')}. Hotspot restored — you can retry.`, 'danger');
+            refreshStatus();
+            scan(true);
+          } else if (data.status === 'success') {
+            // We're back on a network that can reach this device — meaning
+            // this is most likely still the hotspot's own recovery path,
+            // OR you're on the same LAN as the target network. Either way,
+            // reflect the real state.
+            clearInterval(pollTimer);
+            showAlert(`Connected to <strong>${escapeHtml(data.ssid)}</strong>.`, 'success');
+            refreshStatus();
+            scan(false);
+          }
+          // status === 'connecting' -> keep polling silently
+        } catch (e) {
+          // Expected while the hotspot is down mid-switch; keep retrying.
+        }
+      }, 3000);
+    }
+
+    document.getElementById('togglePassword').addEventListener('click', () => {
+      passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
+    });
+
+    disconnectBtn.addEventListener('click', async () => {
+      const device = disconnectBtn.dataset.device;
+      const res = await fetch('/api/wifi/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('Disconnected', 'secondary');
+        refreshStatus();
+      } else {
+        showAlert(escapeHtml(data.error || 'Disconnect failed'));
+      }
+    });
+
+    refreshBtn.addEventListener('click', () => scan(true));
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    refreshStatus();
+    scan(true);
+    setInterval(refreshStatus, 10000);
+  </script>
+</body>
+</html>
