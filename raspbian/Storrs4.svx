@@ -1,0 +1,33 @@
+*begin Storrs4
+; Created with SexyTopo on 2026-09-03
+
+*date 2026.08.31
+*instrument insts "SAP6_GH"
+*team "Phil" notes instruments assistant explorer
+
+*date explored 2026.08.31
+
+;Comment from SexyTopo trip information
+;storrs 4
+
+*data normal from to tape compass clino ignoreall
+1	2	9.875	87.69	-14.86	
+;1	2	9.879	87.34	-14.64
+;1	2	9.879	87.09	-14.65
+;1	2	9.866	88.65	-15.27
+2	3	5.274	183.48	11.16	
+;2	3	5.277	183.27	11.25
+;2	3	5.281	183.29	11.01
+;2	3	5.263	183.89	11.22
+3	4	5.083	115.39	12.45	
+;3	4	5.077	115.27	12.51
+;3	4	5.100	115.46	12.45
+;3	4	5.073	115.43	12.37
+5	4	4.079	16.07	-19.36	
+;5	4	4.062	16.30	-19.04
+;5	4	4.088	16.62	-19.40
+;5	4	4.088	15.28	-19.64
+
+
+*extend start 1
+*end Storrs4
