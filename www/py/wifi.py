@@ -24,9 +24,9 @@ import subprocess
 import threading
 import time
 
-from flask import Flask, jsonify, render_template, request
+from flask import jsonify, render_template, request, Blueprint
 
-app = Flask(__name__)
+wifi_bp= Blueprint("wifi", __name__, template_folder="templates")
 
 NMCLI = "nmcli"
 
@@ -194,18 +194,18 @@ def scan_networks(rescan=True):
     return sorted(networks.values(), key=lambda n: n["signal"], reverse=True), None
 
 
-@app.route("/wifi")
+@wifi_bp.route("/")
 def index():
     return render_template("wifi.html")
 
 
-@app.route("/api/wifi/status")
+@wifi_bp.route("/api/status")
 def api_status():
     active = get_active_connection()
     return jsonify({"connected": active is not None, "connection": active})
 
 
-@app.route("/api/wifi/scan")
+@wifi_bp.route("/api/scan")
 def api_scan():
     rescan = request.args.get("rescan", "1") != "0"
     networks, err = scan_networks(rescan=rescan)
@@ -214,7 +214,7 @@ def api_scan():
     return jsonify({"networks": networks})
 
 
-@app.route("/api/wifi/connect", methods=["POST"])
+@wifi_bp.route("/api/connect", methods=["POST"])
 def api_connect():
     """
     Kicks off the join in a background thread and returns immediately.
@@ -244,12 +244,12 @@ def api_connect():
     })
 
 
-@app.route("/api/wifi/connect-status")
+@wifi_bp.route("/api/connect-status")
 def api_connect_status():
     return jsonify(get_connect_state())
 
 
-@app.route("/api/wifi/disconnect", methods=["POST"])
+@wifi_bp.route("/api/disconnect", methods=["POST"])
 def api_disconnect():
     data = request.get_json(silent=True) or {}
     device = data.get("device")
@@ -265,7 +265,7 @@ def api_disconnect():
     return jsonify({"success": False, "error": err or out}), 400
 
 
-@app.route("/api/wifi/forget", methods=["POST"])
+@wifi_bp.route("/api/forget", methods=["POST"])
 def api_forget():
     """Delete a saved connection profile by SSID name."""
     data = request.get_json(silent=True) or {}
@@ -276,11 +276,3 @@ def api_forget():
     if rc == 0:
         return jsonify({"success": True})
     return jsonify({"success": False, "error": err or out}), 400
-
-
-if __name__ == "__main__":
-    # threaded=True is required here: the /api/connect background thread
-    # needs the server to keep serving /api/connect-status polls (and, on
-    # the failure path, /api/scan etc.) concurrently once the hotspot is
-    # restored, rather than blocking on a single worker.
-    app.run(host="0.0.0.0", port=8080, debug=False, threaded=True)

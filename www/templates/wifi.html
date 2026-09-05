@@ -114,7 +114,7 @@
 
     async function refreshStatus() {
       try {
-        const res = await fetch('/api/wifi/status');
+        const res = await fetch('api/status');
         const data = await res.json();
         if (data.connected) {
           statusText.innerHTML = `<i class="bi bi-check-circle-fill text-success"></i>
@@ -136,7 +136,7 @@
       networkList.innerHTML = `<li class="list-group-item text-secondary text-center py-4">
         <span class="spinner-border spinner-border-sm"></span> Scanning…</li>`;
       try {
-        const res = await fetch(`/api/wifi/scan?rescan=${rescan ? 1 : 0}`);
+        const res = await fetch(`api/scan?rescan=${rescan ? 1 : 0}`);
         const data = await res.json();
         if (data.error) {
           showAlert(escapeHtml(data.error));
@@ -191,7 +191,7 @@
       modalSpinner.classList.remove('d-none');
       modalConnectBtn.disabled = true;
       try {
-        const res = await fetch('/api/wifi/connect', {
+        const res = await fetch('api/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ssid: currentSsid, password: passwordInput.value })
@@ -229,7 +229,7 @@
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(async () => {
         try {
-          const res = await fetch('/api/wifi/connect-status');
+          const res = await fetch('api/connect-status');
           const data = await res.json();
           if (data.status === 'failed') {
             clearInterval(pollTimer);
@@ -259,7 +259,7 @@
 
     disconnectBtn.addEventListener('click', async () => {
       const device = disconnectBtn.dataset.device;
-      const res = await fetch('/api/wifi/disconnect', {
+      const res = await fetch('api/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device })

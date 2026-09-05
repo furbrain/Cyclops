@@ -16,9 +16,10 @@ from zipstream import ZipStream
 from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
 
 WEB_ROOT = Path(__file__).parent.parent
-
+from wifi import wifi_bp
 
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
+app.register_blueprint(wifi_bp, url_prefix="/wifi")
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
