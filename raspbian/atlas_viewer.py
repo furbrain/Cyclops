@@ -16,7 +16,8 @@ from visualization_msgs.msg import MarkerArray, Marker
 
 import orb_slam3_py
 from orb_slam3_py import Leg
-from survey import get_station_symbol, SVXParser
+from survey import SVXParser
+
 
 def _get_point32_from_value(values, key):
     pos = Point()
@@ -51,19 +52,19 @@ class CaveViewer(rclpy.node.Node):
         points = np.array(points)
         print(points.shape)
         self.points = point_cloud2.create_cloud_xyz32(hdr, points.astype(np.float32))
-        # self.poses = PoseArray()
-        # self.poses.header = hdr
-        # pose: sst.RigidTransform
-        # for pose in poses:
-        #     p = Pose()
-        #     p.position.x, p.position.y, p.position.z = pose.translation()
-        #     q = pose.rotation()
-        #     p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w = q.x(), q.y(), q.z(), q.w()
-        #     self.poses.poses.append(p)
+        self.poses = PoseArray()
+        self.poses.header = hdr
+        pose: sst.RigidTransform
+        for pose in poses:
+            p = Pose()
+            p.position.x, p.position.y, p.position.z = pose.translation
+            q = pose.rotation.as_quat()
+            p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w = q
+            self.poses.poses.append(p)
 
     def callback(self):
         self.point_pub.publish(self.points)
-        # self.pose_pub.publish(self.poses)
+        self.pose_pub.publish(self.poses)
         # self.marker_pub.publish(self.markers)
 
 parser = argparse.ArgumentParser(description="Create a colmap from a bag (ROS1 or ROS2)")

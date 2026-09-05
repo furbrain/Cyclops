@@ -1,30 +1,19 @@
 #!/usr/bin/env python3
-import argparse
 from collections import defaultdict
 from pathlib import Path
 
 import orb_slam3_py as op
-import cv2
 import numpy as np
-import itertools
-from typing import List, Tuple, Any, Sequence, Dict, Set, Optional
+from typing import List, Tuple, Optional
 import scipy.spatial.transform as sst
 
-from orb_slam3_py import ArucoObservation
 import gtsam
-A = gtsam.symbol_shorthand.A # aruco points
-S = gtsam.symbol_shorthand.S # non-aruco survey points
 
+from atlas_tools import run_optimisation, Atlas, get_station_symbol
+from ply_maker import PlyMaker
 
-
-def get_station_symbol(text:str):
-    if len(text)==1 and text.isalpha():
-        return A(ord(text.upper()) - ord("A"))
-    else:
-        try:
-            return S(int(text))
-        except ValueError:
-            raise ValueError(f"Invalid station symbol '{text}': should be either a number or a single letter")
+MERGE_NOISE_BASE = gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
+MERGE_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.Create(1.345), MERGE_NOISE_BASE)
 
 
 class SVXParser:
@@ -117,28 +106,75 @@ def leg_offset_and_covariance(leg: op.Leg):
     Sigma_local = np.diag([var_az, var_d, var_incl])  # matches R's column order
     return offset, R @ Sigma_local @ R.T
 
-if __name__=="__main__":
-    if False: #testing branch
-        print("starting")
-        parser = SVXParser()
-        legs = parser.parse_file(Path(__file__).parent / "test.svx")
+def add_survey(atlas: Atlas, file_name: Path):
+    legs = SVXParser().parse_file(file_name)
+    atlas.atlas.add_survey(0, legs)
+
+def add_legs_to_graph(atlas: Atlas, G: gtsam.NonlinearFactorGraph, values: gtsam.Values) -> None:
+    legs: List[op.Leg]
+    for idx, legs in atlas.atlas.surveys.items():
         for leg in legs:
-            print(leg)
-    elif True:
-        pth = Path("/footage/storrs_aruco_3/")
-        atlas = op.load_atlas(str(pth / "aruco.txt.gz"), binary=False)
-        legs = SVXParser().parse_file(pth / "survey.svx")
-        print(legs)
-        atlas.add_survey(0, legs)
-        print(atlas.surveys)
-        op.save_atlas(atlas, str(pth / "atlas_all_data.txt.gz"), binary=False)
-    else:
-        l = op.Leg("1","2",10,0,0)#
-        print(l)
-        print(leg_offset_and_covariance(l))
-        l = op.Leg("1","2",1,60,0)#
-        print(l)
-        print(leg_offset_and_covariance(l))
-        l = op.Leg("1","2",1,315,30)#
-        print(l)
-        print(leg_offset_and_covariance(l))
+            from_station = get_station_symbol(leg.from_station_id)
+            to_station = get_station_symbol(leg.to_station_id)
+            offset, noise = leg_offset_and_covariance(leg)
+            noise_model = gtsam.noiseModel.Gaussian.Covariance(noise)
+            G.add(gtsam.BetweenFactorPoint3(from_station, to_station,offset, noise_model))
+            if not values.exists(from_station):
+                values.insert(from_station, gtsam.Point3(np.random.rand(3)))
+            if not values.exists(to_station):
+                values.insert(to_station, gtsam.Point3(np.random.rand(3)))
+
+
+def initialise_stations(atlas: Atlas) -> gtsam.Values:
+    G = gtsam.NonlinearFactorGraph()
+    factors: List[Tuple[gtsam.PinholePoseCal3_S2, Tuple[float,float], gtsam.Symbol]] = []
+    for m in atlas.maps.values():
+        for kf in m.kfs:
+            factors.extend(kf.get_aruco_observations())
+    cams = defaultdict(gtsam.CameraSetCal3_S2)
+    observations = defaultdict(gtsam.Point2Vector)
+    for cam, measurements, symbol in factors:
+        cams[symbol].append(cam)
+        observations[symbol].append(measurements)
+
+    params = gtsam.TriangulationParameters()
+    points = {}
+    for symbol, cam in cams.items():
+        point = gtsam.triangulateSafe(cam,observations[symbol], params)
+        print(gtsam.Symbol(symbol).string(), point.valid())
+        if point.valid():
+            points[symbol] = point.get()
+    values = gtsam.Values()
+    for symbol, point in points.items():
+        values.insert(symbol, point)
+        G.add(gtsam.PriorFactorPoint3(symbol, point, MERGE_NOISE))
+    add_legs_to_graph(atlas, G, values)
+    print("initialising stations")
+    #print(G)
+    #print(values)
+    result = run_optimisation(G, values)
+    print(result)
+    return result
+
+def make_survey_ply(file_name: Path, atlas: Atlas, values: gtsam.Values) -> None:
+    ply = PlyMaker()
+    for idx, legs in atlas.atlas.surveys.items():
+        for leg in legs:
+            from_station = get_station_symbol(leg.from_station_id)
+            from_pt = values.atPoint3(from_station)
+            to_station = get_station_symbol(leg.to_station_id)
+            to_pt = values.atPoint3(to_station)
+            ply.make_cylinder(from_pt, to_pt, color=(255,255,0))
+    for key in values.keys():
+        symbol = gtsam.Symbol(key)
+        if symbol.string().startswith("s"):
+            ply.make_sphere(values.atPoint3(key), color=(255,0,0))
+        elif symbol.string().startswith("a"):
+            ply.make_sphere(values.atPoint3(key), color=(0, 0, 255))
+    ply.write_ply(file_name)
+
+if __name__=="__main__":
+    pth = Path("/footage/storrs_aruco_4/")
+    atlas = Atlas.from_file(pth/ "aruco.txt.gz")
+    add_survey(atlas, pth / "survey.svx")
+    atlas.save_file(pth / "atlas_all_data.txt.gz")

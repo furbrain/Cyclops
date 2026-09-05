@@ -14,7 +14,9 @@ from sensor_msgs_py import point_cloud2
 from visualization_msgs.msg import MarkerArray, Marker
 
 from orb_slam3_py import Leg
-from survey import get_station_symbol, SVXParser
+from survey import SVXParser
+from atlas_tools import get_station_symbol
+
 
 def _get_point32_from_value(values, key):
     pos = Point()
@@ -67,9 +69,9 @@ class CaveViewer(rclpy.node.Node):
         lines.id = 1
         lines.scale.x = 0.1
         lines.type = Marker.LINE_LIST
-        # for leg in SVXParser().parse_file("/footage/storrs_aruco_3/survey.svx"):
-        #     lines.points.append(all_survey_points[get_station_symbol(leg.from_station_id)])
-        #     lines.points.append(all_survey_points[get_station_symbol(leg.to_station_id)])
+        for leg in SVXParser().parse_file("/footage/storrs_aruco_4/survey.svx"):
+             lines.points.append(all_survey_points[get_station_symbol(leg.from_station_id)])
+             lines.points.append(all_survey_points[get_station_symbol(leg.to_station_id)])
         lines.color = ColorRGBA(g=1.0, a=1.0)
         self.markers.markers.append(lines)
 
@@ -104,5 +106,5 @@ class CaveViewer(rclpy.node.Node):
 
 
 rclpy.init()
-viewer = CaveViewer("/data/raw_values.gtsam")
+viewer = CaveViewer("/data/values.gtsam")
 rclpy.spin(viewer)
