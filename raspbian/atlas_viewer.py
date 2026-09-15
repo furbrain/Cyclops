@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from typing import List, Dict
 
 import argparse
@@ -26,7 +27,7 @@ def _get_point32_from_value(values, key):
 
 
 class CaveViewer(rclpy.node.Node):
-    def __init__(self, fname: str, all_maps = False, align=True):
+    def __init__(self, fname: str, all_maps = False, connections=None, align=True):
         super().__init__('cave_viewer')
         self.point_pub = self.create_publisher(PointCloud2, '/points', 10)
         self.pose_pub = self.create_publisher(PoseArray, '/pose', 10)
@@ -44,14 +45,24 @@ class CaveViewer(rclpy.node.Node):
             m0 = list(sorted(atlas.get_all_maps(), key = lambda m: m.keyframes_in_map()))[-1]
             kfs = m0.get_all_keyframes()
             mps = m0.get_all_map_points()
+        mps = {x.id: x for x in mps}
         hdr = Header()
         hdr.frame_id = "map"
         hdr.stamp = self.get_clock().now().to_msg()
-        points: List[np.ndarray] = [m.get_world_pos() for m in mps]
+        points: List[np.ndarray] = [m.get_world_pos() for m in mps.values()]
         poses: List[gtsam.Pose3] = [kf.get_pose().inv() for kf in kfs]
         points = np.array(points)
         print(points.shape)
         self.points = point_cloud2.create_cloud_xyz32(hdr, points.astype(np.float32))
+        if connections:
+            pos = np.array([mps[x].get_world_pos() for x in connections])
+            print(connections)
+            print(pos)
+            self.connections = point_cloud2.create_cloud_xyz32(hdr, pos.astype(np.float32))
+            self.conn_pub = self.create_publisher(PointCloud2, '/connections', 10)
+        else:
+            self.connections = []
+            self.conn_pub = None
         self.poses = PoseArray()
         self.poses.header = hdr
         pose: sst.RigidTransform
@@ -65,13 +76,21 @@ class CaveViewer(rclpy.node.Node):
     def callback(self):
         self.point_pub.publish(self.points)
         self.pose_pub.publish(self.poses)
+        if self.conn_pub:
+            self.conn_pub.publish(self.connections)
         # self.marker_pub.publish(self.markers)
 
 parser = argparse.ArgumentParser(description="Create a colmap from a bag (ROS1 or ROS2)")
 parser.add_argument('-a', '--atlas', help="provide an atlas message file to use", required=True)
+parser.add_argument('-c', '--connections', help="list of connected points to highlight")
 parser.add_argument('--maps', '-m', help="show all maps", action="store_true")
 opts = parser.parse_args()
 
 rclpy.init()
-viewer = CaveViewer(opts.atlas, opts.maps)
+if opts.connections is not None:
+    with open(opts.connections) as f:
+        connections = json.load(f)
+else:
+    connections = []
+viewer = CaveViewer(opts.atlas, opts.maps, connections, align=False)
 rclpy.spin(viewer)
