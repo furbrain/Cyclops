@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from collections import defaultdict
 
 import gtsam
@@ -8,7 +9,7 @@ import orb_slam3_py as op
 import cv2
 import numpy as np
 import itertools
-from typing import List, Tuple, Any, Sequence, Dict
+from typing import List, Tuple, Any, Sequence, Dict, Union
 
 from atlas_tools import Map, KeyFrameData, M, T, Atlas, run_optimisation
 
@@ -17,6 +18,7 @@ MERGE_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.C
 
 #This is dict that stores a list of similar mappoints between pairs of maps
 ConnectionType = Dict[Tuple[Map, Map], List[Tuple[int,int]]]
+RelationType = Dict[Tuple[Map, Map], gtsam.Pose3]
 
 _matcher = cv2.BFMatcher.create(normType=cv2.NORM_HAMMING)
 
@@ -62,9 +64,46 @@ def find_connections(maps: Dict[int,Map]) -> ConnectionType:
     for m0,m1 in itertools.combinations(maps.values(), 2):
         results = compare_all_kfs(m0, m1)
         matches = find_good_matches(results)
-        if matches: #only report maps that are connected
+        if len(matches) >= 6: #only report maps that are well-connected
             connections[(m0,m1)] = matches
     return connections
+
+def ransac_horn_analysis(connections: ConnectionType, threshold =0.5, iters = 100):
+    new_connections = {}
+    relations = {}
+    for (m0, m1), matches in connections.items():
+        pts_a = np.array([m0.mps[x[0]].get_world_pos() for x in matches])
+        pts_b = np.array([m1.mps[x[1]].get_world_pos() for x in matches])
+        R, t, inliers = ransac_horn(pts_a, pts_b, threshold, iters)
+        print(m0.id, m1.id, R, t, inliers)
+        good_matches = [x for x, inlier in zip(matches, inliers) if inlier]
+        if len(good_matches) >= 6:
+            new_connections[(m0,m1)] = good_matches
+            relations[(m0,m1)] = gtsam.Pose3(gtsam.Rot3(R),t)
+    return new_connections, relations
+
+def ransac_horn(pts_a, pts_b, thresh=0.05, iters=1000):
+    # pts_a, pts_b: Nx3 correspondences, pts_b = R @ pts_a + t
+    best_inliers = None
+    n = len(pts_a)
+    for _ in range(iters):
+        idx = np.random.choice(n, 3, replace=False)
+        R, t = horn(pts_a[idx], pts_b[idx])
+        residuals = np.linalg.norm((R @ pts_a.T).T + t - pts_b, axis=1)
+        inliers = residuals < thresh
+        if best_inliers is None or inliers.sum() > best_inliers.sum():
+            best_inliers = inliers
+    R, t = horn(pts_a[best_inliers], pts_b[best_inliers])
+    return R, t, best_inliers
+
+def horn(A, B):
+    ca, cb = A.mean(0), B.mean(0)
+    H = (A - ca).T @ (B - cb)
+    U, _, Vt = np.linalg.svd(H)
+    d = np.sign(np.linalg.det(Vt.T @ U.T))
+    R = Vt.T @ np.diag([1, 1, d]) @ U.T
+    t = cb - R @ ca
+    return R, t
 
 def add_connections_to_graph(G: gtsam.NonlinearFactorGraph, values: gtsam.Values, connections: ConnectionType):
     for i, (src_map, dest_map) in enumerate(sorted_connection_keys(connections)):
@@ -74,23 +113,35 @@ def add_connections_to_graph(G: gtsam.NonlinearFactorGraph, values: gtsam.Values
             offset += values.atPoint3(M(dest_idx))
             offset -= values.atPoint3(M(src_idx))
         values.insert(T(i), gtsam.Pose3(gtsam.Rot3(), offset / len(connections[(src_map, dest_map)])))
+        print(f"rough pose at {i}")
+        print(values.atPose3(T(i)))
 
-def sorted_connection_keys(connections: ConnectionType):
+def sorted_connection_keys(connections: Union[ConnectionType, RelationType]):
     return sorted(connections.keys(), key=lambda x: (x[0].id, x[1].id))
 
-def transform_maps(atlas: Atlas, connections: ConnectionType, results: gtsam.Values) -> gtsam.Values:
-    map_graph = nx.DiGraph()
+def get_transform_from_vals(connections: ConnectionType, values: gtsam.Values) -> RelationType:
     sorted_map_pairs = sorted_connection_keys(connections)
     map_indexes = {k: i for i, k in enumerate(sorted_map_pairs)}
+    relations = {maps: values.atPose3(T(map_indexes[maps])) for maps in sorted_map_pairs}
+    return relations
+
+def transform_maps(relations: RelationType):
+    map_graph = nx.Graph()
+    sorted_map_pairs = sorted_connection_keys(relations)
     map_graph.add_edges_from(sorted_map_pairs)
     m0 = sorted_map_pairs[0][0]
     transforms: Dict[Map, gtsam.Pose3] = {m0: gtsam.Pose3()}
     for source, dest in nx.bfs_edges(map_graph, source=m0):
-        tr = results.atPose3(T(map_indexes[(source, dest)]))
-        print(f"Map connection: {source.id} -> {dest.id}: tr")
+        if (source, dest) in relations:
+            tr = relations[(source, dest)]
+        else:
+            tr = relations[(dest, source)].inverse()
+        print(f"Map connection: {source.id} -> {dest.id}: {tr}")
         transforms[dest] = tr.transformPoseFrom(transforms[source])
+    for m, tr in transforms.items():
+        print(m.id, tr)
     for mapp, t in transforms.items():
-        mapp.update_values(results, t)
+        mapp.apply_transform(t)
 
 def unify_maps(atlas: Atlas, connections: ConnectionType):
     links = [y for x in connections for y in connections[x]]
@@ -113,17 +164,41 @@ def merge_maps(atlas: Atlas):
     if len(atlas.maps) == 1:
         print("Only one map found, skipping merge step")
         return # only one map so no merge needed
-    G, values = atlas.create_graph(include_survey=False)
     print("Multiple maps: trying to merge")
     print("finding connections")
     connections = find_connections(atlas.maps)
-    print("Adding connections")
-    add_connections_to_graph(G, values, connections)
-    print("running optimisation")
-    results = run_optimisation(G, values)
+    for (m0,m1), matches in connections.items():
+        print(f"{m0.id} -> {m1.id}: {len(matches)} matches")
+    connections, relations = ransac_horn_analysis(connections)
+    mps = {x.id: x for x in atlas.atlas.get_all_map_points()}
+    for a,b in list(connections.values())[1]:
+        print(f"{a} -> {b}: {mps[a].get_world_pos()} -> {mps[b].get_world_pos()}")
+    print("After ransac")
+    for (m0,m1), matches in connections.items():
+        print(f"{m0.id} -> {m1.id}: {len(matches)} matches")
+    #relations = get_relations_from_optimisation(atlas, connections, relations)
     print("transforming maps")
-    transform_maps(atlas, connections, results)
+    transform_maps(relations)
+    connected = []
+    for matches in connections.values():
+        for x,y in matches:
+            connected.extend([x,y])
+    with open("connections.json", "w") as f:
+        json.dump(connected, f)
     print("unifying maps")
     unify_maps(atlas, connections)
     atlas.reload()
     print("Merge complete")
+
+
+def get_relations_from_optimisation(atlas: Atlas, connections: dict[Any, Any], relations: dict[tuple[Map, Map], Any]) -> \
+dict[tuple[Map, Map], Any]:
+    print("Adding connections")
+    G, values = atlas.create_graph(include_survey=False)
+    add_connections_to_graph(G, values, connections)
+    print("running optimisation")
+    results = run_optimisation(G, values)
+    relations = get_transform_from_vals(connections, results)
+    for m in atlas.maps:
+        m.update_values(results)
+    return relations

@@ -42,6 +42,12 @@ class KeyFrameData:
         self.arucos: Dict[int, op.ArucoObservation] = {get_station_symbol(obs.id): obs for obs in
                                                        self.kf.aruco_observations}
 
+    def get_pose(self) -> gtsam.Pose3:
+        return gtsam.Pose3(self.kf.get_pose().inv().as_matrix())
+
+    def set_pose(self, pose: gtsam.Pose3):
+        self.kf.set_pose(sst.RigidTransform.from_matrix(pose.inverse().matrix()))
+
     def get_rig_factor(self):
         return gtsam.BetweenFactorPose3(K(self.id), R(self.id), self.stereo_offset, RIG_NOISE)
 
@@ -122,34 +128,42 @@ class Map:
 
     def update_contents(self):
         self.kfs: List[KeyFrameData] = [KeyFrameData(kf) for kf in self.map.get_all_keyframes()]
-        self.mps: List[op.MapPoint] = self.map.get_all_map_points()
+        self.mps: Dict[int,op.MapPoint] = {x.id: x for x in self.map.get_all_map_points()}
 
     def update_values(self, values: gtsam.Values, transform: gtsam.Pose3 = None):
         if transform is None:
             transform = gtsam.Pose3() # use identity if no transform specified
         for kf in self.kfs:
-            pose = transform.transformPoseTo(values.atPose3(K(kf.id)))
-            kf.kf.set_pose(sst.RigidTransform.from_matrix(pose.inverse().matrix()))
-        for mp in self.mps:
-            point = transform.transformTo(values.atPoint3(M(mp.id)))
+            kf.set_pose(values.atPose3(K(kf.id)))
+        for mp in self.mps.values():
+            mp.set_world_pos(values.atPoint3(M(mp.id)))
+        if transform is not None:
+            self.apply_transform(transform)
+
+    def apply_transform(self, transform: gtsam.Pose3) -> None:
+        for kf in self.kfs:
+            pose = transform.transformPoseTo(kf.get_pose())
+            kf.set_pose(pose)
+        for mp in self.mps.values():
+            point = transform.transformTo(mp.get_world_pos())
             mp.set_world_pos(point)
+
 
     def merge_in(self, obsolete: "Map", connections: Dict[int, int]):
         for kf in obsolete.kfs:
             self.map.add_keyframe(kf.kf)
             obsolete.map.erase_keyframe(kf.kf)
-        for mp in obsolete.mps:
+        for mp in obsolete.mps.values():
             self.map.add_map_point(mp)
             obsolete.map.erase_map_point(mp)
         self.update_contents()
-        mp_index = {mp.id: mp for mp in self.mps}
         for kf in self.kfs:
             for i,mp in enumerate(kf.all_mps):
                 if mp is not None and mp.id in connections:
-                    kf.kf.replace_map_point(i,mp_index[connections[mp.id]])
+                    kf.kf.replace_map_point(i,self.mps[connections[mp.id]])
         for old in connections.keys():
-            if old in mp_index:
-                self.map.erase_map_point(mp_index[old])
+            if old in self.mps:
+                self.map.erase_map_point(self.mps[old])
 
 class Atlas:
     def __init__(self, atlas:op.Atlas):
@@ -157,14 +171,21 @@ class Atlas:
         self.kfs = {kf.id: KeyFrameData(kf) for kf in self.atlas.get_all_keyframes()}
         self.maps = {mapp.get_id(): Map(mapp) for mapp in self.atlas.get_all_maps()}
 
+    def get_biggest_map(self) -> Map:
+        sorted_maps = sorted(self.maps.values(), key=lambda x: len(x.kfs), reverse=True)
+        return sorted_maps[0]
+
     def reload(self):
         self.kfs = {kf.id: KeyFrameData(kf) for kf in self.atlas.get_all_keyframes()}
         self.maps = {mapp.get_id(): Map(mapp) for mapp in self.atlas.get_all_maps()}
 
     @classmethod
-    def from_file(cls, path: Path) -> "Atlas":
+    def from_file(cls, path: Path, pre_align: bool =True) -> "Atlas":
         binary = str(path).endswith(".osa")
-        return Atlas(op.load_atlas(str(path), binary=binary))
+        atlas = op.load_atlas(str(path), binary=binary)
+        if pre_align:
+            op.align_atlas(atlas)
+        return Atlas(atlas)
 
     def save_file(self, path: Path) -> None:
         binary = str(path).endswith(".osa")
@@ -189,11 +210,25 @@ class Atlas:
                     kf_nearest_distance = dist
                     kf_nearest_id = kf.id
                     kf_nearest_pose = kf.orig_pose
-            for mp in m.mps:
-                values.insert_point3(M(mp.id), mp.get_world_pos())
+            for mp in m.mps.values():
+                values.insert(M(mp.id), mp.get_world_pos())
             #this adds a translation anchor to the point in each map nearest the origin
             G.add(gtsam.PoseTranslationPrior3D(K(kf_nearest_id), kf_nearest_pose, ANCHOR_NOISE))
         return G, values
+
+    def update_from_values(self, values: gtsam.Values) -> None:
+        for mapp in self.maps.values():
+            mapp.update_values(values)
+        for key in values.keys():
+            symbol = gtsam.Symbol(key)
+            if symbol.string()[0] in "as": #it is a station
+                print("adding data from " + symbol.string())
+                ident = get_station_string(symbol)
+                pt = values.atPoint3(key)
+                st = op.Station(ident, pt)
+                print("adding station: " + str(st) )
+                ### FIXME maybe do the dataset index better???
+                self.atlas.add_station(0,st)
 
 
 def run_optimisation(G: gtsam.NonlinearFactorGraph, values: gtsam.Values, iters: int = 100) -> gtsam.Values:
@@ -220,3 +255,9 @@ def get_station_symbol(text:str):
             return S(int(text))
         except ValueError:
             raise ValueError(f"Invalid station symbol '{text}': should be either a number or a single letter")
+
+def get_station_string(symbol: gtsam.Symbol) -> str:
+    if symbol.string().startswith("s"):
+        return str(symbol.index())
+    elif symbol.string().startswith("a"):
+        return chr(ord("A") + symbol.index())

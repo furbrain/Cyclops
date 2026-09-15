@@ -11,14 +11,14 @@ from merge_maps import merge_maps
 from colmap import create_colmap
 from ply_maker import PlyMaker
 from survey import add_survey, initialise_stations, add_legs_to_graph, make_survey_ply
-import keyring
-import getpass
 import fabric
 import paramiko
 
 FROG_HOST="cm5.local"
 FROG_USER="pi"
 PASSWORD_PATH=Path("/footage/creds.txt")
+COMMAND_PATH=Path(f"/home/{FROG_USER}/Cyclops/raspbian")
+COMMAND = f"{COMMAND_PATH / 'ros_env.sh'} {COMMAND_PATH}"
 #get password
 
 def resolve_mdns(hostname):
@@ -50,11 +50,21 @@ def make_path(root: Path, name: str ) -> Path:
 
 def fetch_images(name: str, path: Path):
     remote_dir = Path("/data/trips/") / name
+    image_dir = remote_dir / "images"
     with get_connection() as conn:
         sftp = conn.sftp()
-        file_list = sftp.list_dir(remote_dir)
-        if file_list is None:
-            conn.run()
+        try:
+            file_list = sftp.listdir(str(image_dir))
+        except FileNotFoundError:
+            print("exporting images before upload")
+            conn.run(f"{COMMAND}/extract_images.py -a {remote_dir / 'atlas.osa'} -d {remote_dir}")
+            file_list = sftp.listdir(str(image_dir))
+        local_image_dir = path / "images"
+        local_image_dir.mkdir(parents=True, exist_ok=True)
+        for fname in file_list:
+            print(f"Getting {fname}")
+            sftp.get(str(image_dir / fname), str(local_image_dir / fname))
+
 def fetch_atlas(name: str, path: Path):
     remote_dir = Path("/data/trips/") / name
     with get_connection() as conn:
@@ -63,10 +73,10 @@ def fetch_atlas(name: str, path: Path):
             conn.get(str(remote_dir / "atlas.txt.gz"), str(path / "atlas.txt.gz"))
         except IOError:
             print("Portable atlas not found - converting")
-            conn.run(f"/home/{FROG_USER}/Cyclops/raspbian/portable.py -a {remote_dir / 'atlas.osa'} "
+            conn.run(f"{COMMAND}/portable.py -a {remote_dir / 'atlas.osa'} "
                      f"-o {remote_dir / 'atlas.txt.gz'}")
             print("Conversion complete, uploading")
-        conn.get(str(remote_dir / "atlas.txt.gz"), str(path / "atlas.txt.gz"))
+        conn.get(str(remote_dir / 'atlas.txt.gz'), str(path / "atlas.txt.gz"))
     print("atlas upload complete")
 
 def fetch_data(name: str, path: Path) -> threading.Thread:
@@ -75,7 +85,9 @@ def fetch_data(name: str, path: Path) -> threading.Thread:
     """
     fetch_atlas(name, path)
     print("fetch complete")
-    return None
+    th = threading.Thread(target=fetch_images, args=(name, path))
+    th.start()
+    return th
 
 OPENMVS_ARGS = """
 docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
@@ -136,7 +148,6 @@ if opts.name:
     images_pull_thread = fetch_data(opts.name, model_dir)
 else:
     images_pull_thread = None
-exit()
 
 #REBUILD ATLAS
 print("Loading atlas")
@@ -169,8 +180,7 @@ else:
         G, values = atlas.create_graph(include_survey=False)
 if needs_refine:
     result = run_optimisation(G, values, iters=30)
-    for map in atlas.maps.values():
-        map.update_values(result)
+    atlas.update_from_values(result)
     atlas.reload()
     atlas.save_file(output_name)
     if opts.use_survey:
