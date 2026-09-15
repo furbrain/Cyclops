@@ -14,9 +14,10 @@ T = gtsam.symbol_shorthand.T # transforms between maps
 A = gtsam.symbol_shorthand.A # aruco points
 S = gtsam.symbol_shorthand.S # non-aruco survey points
 SMART_NOISE_BASE = gtsam.noiseModel.Isotropic.Sigma(2, 3.0)  # 1px noise
-SMART_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.Create(1.345), SMART_NOISE_BASE)
+SMART_NOISE = SMART_NOISE_BASE
+#SMART_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.Create(1.345), SMART_NOISE_BASE)
 IMU_NOISE = gtsam.noiseModel.Isotropic.Sigma(3, np.deg2rad(10)) #10 degrees
-ANCHOR_NOISE = gtsam.noiseModel.Isotropic.Sigma(3, 10.0)  # anchor noise
+ANCHOR_NOISE = gtsam.noiseModel.Isotropic.Sigma(3, 0.1)  # anchor noise
 RIG_NOISE = gtsam.noiseModel.Isotropic.Sigma(6, 1e-2)
 
 
