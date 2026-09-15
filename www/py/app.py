@@ -4,7 +4,7 @@ import time
 import shutil
 from typing import Sequence
 
-from flask import Flask, render_template, Response, send_file
+from flask import Flask, render_template, Response, send_file, send_from_directory, abort, jsonify, request
 from pathlib import Path
 from glob import glob
 from collections import OrderedDict
@@ -17,11 +17,14 @@ from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
 
 WEB_ROOT = Path(__file__).parent.parent
 from wifi import wifi_bp
+from model import model_bp
 
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
 app.register_blueprint(wifi_bp, url_prefix="/wifi")
+app.register_blueprint(model_bp, url_prefix="/model")
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
+app.config['CYCLOPS_MODELS_DIR'] = '/data/trips'
 
 
 def name_from_fname(fname: Path):
@@ -152,4 +155,15 @@ def slideshow(target: str):
                 time.sleep(0.1)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame',
                     headers={'X-Accel-Buffering': 'no', 'Cache-Control': 'no-cache'})
+
+
+
+if app.config['DEBUG']:
+    @app.route('/js/<path:path>')
+    def send_js(path):
+        return send_from_directory(WEB_ROOT / "js", path)
+
+    @app.route('/css/<path:path>')
+    def send_css(path):
+        return send_from_directory(WEB_ROOT / "css", path)
 

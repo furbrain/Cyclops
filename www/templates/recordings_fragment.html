@@ -2,7 +2,7 @@
     <tr><th>Name</th><th></th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
     {% for model in models %}
         <tr>
-            <td>{{model.name}}</td>
+            <td><a href="/model/{{model.name}}">{{model.name}}</a></td>
             <td><a class="btn btn-outline-primary" href="/download/{{model.name}}/bag">Download</a></td>
             <td><button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button></td>
             <td><button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button></td>

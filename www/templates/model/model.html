@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ info.name }} — Model viewer</title>
+
+  <link href="/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/model.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container py-4">
+
+  <header class="mb-4">
+    <h1 class="mb-1">{{ info.name }}</h1>
+    <div class="text-secondary small">model id: <code>{{ info.model_id }}</code></div>
+  </header>
+
+  <div class="row g-4">
+
+    <!-- Left column: details + survey -->
+    <div class="col-lg-4">
+
+      <div class="card mb-4">
+        <div class="card-header">Details</div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Keyframes</span>
+            <span class="fw-semibold">{{ info.keyframes if info.keyframes is not none else '—' }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Points</span>
+            <span class="fw-semibold">{{ '{:,}'.format(info.points) if info.points is not none else '—' }}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>Submaps</span>
+            <span class="d-flex align-items-center gap-2">
+              <span id="submaps-value" class="fw-semibold">{{ info.submaps if info.submaps is not none else '—' }}</span>
+              <button
+                type="button"
+                id="merge-btn"
+                class="btn btn-sm btn-outline-warning"
+                {{ 'disabled' if not (info.submaps and info.submaps > 1) else '' }}
+              >Merge</button>
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Survey</div>
+        <div class="card-body">
+          <form id="survey-form">
+            <textarea
+              id="survey-text"
+              class="form-control mb-2"
+              rows="8"
+              placeholder="Paste survey text here…"
+              spellcheck="false"
+            ></textarea>
+
+            <div class="input-group mb-3">
+              <input type="file" id="survey-file" class="form-control" accept=".txt">
+              <button type="button" id="survey-clear-file" class="btn btn-outline-secondary" title="Clear file selection">&times;</button>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+              <button type="submit" class="btn btn-primary btn-sm">Save survey</button>
+              <span id="survey-status" class="small text-secondary"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: viewer -->
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex flex-wrap gap-3 align-items-center justify-content-between">
+
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Asset selector">
+              {% for v in model_variants %}
+              <button type="button" class="btn btn-outline-light asset-btn" data-asset="{{ v[0] }}">{{ v[1] }}</button>
+              {% endfor %}
+            </div>
+
+            <div class="btn-group btn-group-sm" role="group" aria-label="Overlay selector">
+              <button type="button" class="btn btn-outline-light overlay-btn" data-overlay="track">Track</button>
+              <button type="button" class="btn btn-outline-light overlay-btn" data-overlay="survey">Survey</button>
+            </div>
+          </div>
+
+          <button type="button" id="generate-btn" class="btn btn-sm btn-warning d-none">Generate</button>
+        </div>
+
+        <div class="card-body p-0">
+          <div id="viewer" class="viewer"></div>
+        </div>
+
+        <div class="card-footer small text-secondary d-flex justify-content-between align-items-center">
+          <span id="viewer-status">Select an asset to view.</span>
+          <button type="button" id="reset-view-btn" class="btn btn-sm btn-outline-secondary">Reset view</button>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Output</span>
+          <span id="job-state-badge" class="badge text-bg-secondary">idle</span>
+        </div>
+        <pre id="job-output" class="job-output mb-0 p-3">Generate an asset or merge submaps to see progress here.</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script src="/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  // Data handed off from Flask/Jinja to the JS module.
+  window.MODEL_ID = {{ info.model_id | tojson }};
+  window.ASSET_STATUS = {{ asset_status | tojson }};
+  window.ASSET_FORMATS = {{ asset_formats | tojson }};
+</script>
+<script type="module" src="/js/model_viewer.js"></script>
+
+</body>
+</html>
