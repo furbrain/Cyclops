@@ -4,7 +4,7 @@ because: image too dark
  - bad gamma selection - not tested
  - bad gain selection  - small improvement
  - bad shutter selection - small improvement
-Get proper headtorch with flood
+Get proper headtorch with flood - works well
 
 DEBUG:
  need to be able to record or monitor gain and shutter speed;
@@ -14,10 +14,20 @@ because: poor thFastThreshold?
  - adjust the threshold
  - issue with relocalisation - struggles to refind - maybe make windows bigger th in code
 
-get wifi setup working
-get map merge working
-improve relocalisation code
+get wifi setup working IN PROGRESS - permissions issue
+get map merge working DONE
+improve relocalisation code DONE
 redo BoW vocab
-get skeleton integration working
+get skeleton integration working DONE
+
+
+get laptop mode working:
+pull atlas
+pull survey data
+pull images/rosbag (may be better to extract images on remote, then pull over; much faster)
+ - merge maps if needed
+   - look for connections
+   - run gtsam
+ - apply survey data if any
 
 polish UI
