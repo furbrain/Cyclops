@@ -1,0 +1,48 @@
+# The Caddyfile is an easy way to configure your Caddy web server.
+#
+# Unless the file starts with a global options block, the first
+# uncommented line is always the address of your site.
+#
+# To use your own domain name (with automatic HTTPS), first make
+# sure your domain's A/AAAA DNS records are properly pointed to
+# this machine's public IP, then replace ":80" below with your
+# domain name.
+
+:80 {
+	#  Match all under ply
+	@ply path_regexp ply ^/ply/(.+)$
+	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*)$
+
+	handle @ply {
+		# Serve PLY files from /data, not from site root
+		root * /data
+		rewrite * /{http.regexp.ply.1}
+		file_server
+	}
+
+
+	# connect up the video server
+        handle_path /vid* {
+		reverse_proxy localhost:8080
+	}
+
+	handle @api {
+                reverse_proxy localhost:5000
+        }
+
+	# Everything else uses /var/www/html
+	handle {
+		root * /home/pi/Cyclops/www/
+		file_server
+	}
+
+	# Or serve a PHP site through php-fpm:
+	# php_fastcgi localhost:9000
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+# Refer to the Caddy docs for more information:
+# https://caddyserver.com/docs/caddyfile
