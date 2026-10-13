@@ -125,3 +125,79 @@ btns_make_model.forEach(function(btn) {
     btn.end_func = function() {
     }
 });
+
+// FrogCore surveys: upload runs in the background on the server, so poll its status
+let surveyPoll = null;
+
+function pollSurveys() {
+    if (surveyPoll) return;
+    surveyPoll = setInterval(function() {
+        reloadRecordings();
+        if (!document.querySelector("#recordings_holder .survey-uploading")) {
+            clearInterval(surveyPoll);
+            surveyPoll = null;
+        }
+    }, 3000);
+}
+
+function uploadSurvey(name) {
+    fetch("/api/survey/" + name + "/upload", {method: "POST"})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success == false) {
+                alert("Upload failed: " + data.message);
+            }
+            reloadRecordings();
+            pollSurveys();
+        });
+}
+
+function buildSurvey(btn, name) {
+    btn.old_text = btn.innerText;
+    btn.old_classes = btn.className;
+    fetch("/api/survey/" + name + "/build", {method: "POST"})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                flash_button(btn, "success", "Building");
+            } else {
+                flash_button(btn, "danger");
+                alert("Build failed: " + data.message);
+            }
+        });
+}
+
+// FrogCore account: credentials are stored on the device; the password is never sent back
+function openFrogcoreModal() {
+    document.getElementById("frogcoreError").innerText = "";
+    document.getElementById("frogcorePassword").value = "";
+    fetch("/api/frogcore/account")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("frogcoreUsername").value = data.username;
+            document.getElementById("frogcorePassword").placeholder =
+                data.has_password ? "(unchanged)" : "";
+        });
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("frogcoreModal")).show();
+}
+
+function handleFrogcoreSave() {
+    const account = {
+        username: document.getElementById("frogcoreUsername").value,
+        password: document.getElementById("frogcorePassword").value,
+    };
+    document.getElementById("frogcoreError").innerText = "Checking login...";
+    fetch("/api/frogcore/account", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(account),
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById("frogcoreModal")).hide();
+            } else {
+                document.getElementById("frogcoreError").innerText = data.message;
+            }
+        });
+}
