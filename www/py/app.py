@@ -1,12 +1,10 @@
 import io
 import json
-import os
 import time
 import shutil
-import threading
 from typing import Sequence
 
-from flask import Flask, render_template, Response, send_file, send_from_directory, abort, jsonify, request, jsonify, request
+from flask import Flask, render_template, Response, send_file, send_from_directory, abort, jsonify, request
 from pathlib import Path
 from glob import glob
 from collections import OrderedDict
@@ -16,7 +14,7 @@ from rosbags.rosbag2 import Reader
 from zipstream import ZipStream
 
 from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
-from frogcore_client import FrogCoreClient
+from frogcore import frogcore_bp, load_survey
 
 WEB_ROOT = Path(__file__).parent.parent
 from wifi import wifi_bp
@@ -25,6 +23,7 @@ from model import model_bp
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
 app.register_blueprint(wifi_bp, url_prefix="/wifi")
 app.register_blueprint(model_bp, url_prefix="/model")
+app.register_blueprint(frogcore_bp)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 app.config['CYCLOPS_MODELS_DIR'] = '/data/trips'
@@ -48,72 +47,6 @@ def sum_dirs(p: Path):
         return sum(sum_dirs(x) for x in p.iterdir())
     else:
         return p.stat().st_size
-
-# FrogCore account details are entered via the web UI and kept here, readable only by us
-FROGCORE_CONFIG = Path.home() / ".config" / "cyclops" / "frogcore.json"
-FROGCORE_URL = "https://frog.shetlandattackpony.co.uk"
-FROGCORE_FILES = ["images.tar", "atlas.osa"]
-SURVEY_FILE = "frogcore.json"
-
-def load_frogcore_config() -> dict:
-    config = {"username": "", "password": ""}
-    try:
-        config.update(json.loads(FROGCORE_CONFIG.read_text()))
-    except (IOError, ValueError):
-        pass
-    return config
-
-
-def save_frogcore_config(config: dict):
-    FROGCORE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    # create with owner-only permissions before writing the password
-    fd = os.open(FROGCORE_CONFIG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        json.dump(config, f)
-
-
-def frogcore_client() -> FrogCoreClient:
-    config = load_frogcore_config()
-    if not (config["username"] and config["password"]):
-        raise ValueError("FrogCore account not configured")
-    return FrogCoreClient(FROGCORE_URL, config["username"], config["password"])
-
-
-@app.route("/api/frogcore/account", methods=["GET"])
-def get_frogcore_account():
-    config = load_frogcore_config()
-    # never send the password back to the browser
-    return jsonify(username=config["username"], has_password=bool(config["password"]))
-
-
-@app.route("/api/frogcore/account", methods=["POST"])
-def set_frogcore_account():
-    data = request.get_json(silent=True) or {}
-    config = load_frogcore_config()
-    config["username"] = data.get("username", config["username"]).strip()
-    if data.get("password"):  # blank means keep the existing password
-        config["password"] = data["password"]
-    try:
-        FrogCoreClient(FROGCORE_URL, config["username"], config["password"])
-    except Exception as e:
-        return jsonify(success=False, message=f"Login failed: {e}"), 400
-    save_frogcore_config(config)
-    return jsonify(success=True)
-
-
-def load_survey(p: Path) -> dict:
-    try:
-        return json.loads((p / SURVEY_FILE).read_text())
-    except (IOError, ValueError):
-        return {}
-
-
-def save_survey(p: Path, **kwargs):
-    survey = load_survey(p)
-    survey.update(kwargs)
-    (p / SURVEY_FILE).write_text(json.dumps(survey))
-    return survey
-
 
 @dataclass
 class Model:
@@ -182,55 +115,6 @@ def zip_response(paths: Sequence[Path], name: str):
         }
     )
 
-
-
-def upload_survey(target_path: Path):
-    try:
-        client = frogcore_client()
-        survey_id = client.create_survey(target_path.name)
-        save_survey(target_path, id=survey_id, status="uploading", message="")
-        for i, fname in enumerate(FROGCORE_FILES):
-            f = target_path / fname
-            save_survey(target_path, message=f"Uploading {fname} ({i + 1}/{len(FROGCORE_FILES)})")
-            client.upload(survey_id, f)
-        save_survey(target_path, status="uploaded", message=f"Uploaded {len(FROGCORE_FILES)} files")
-    except Exception as e:
-        save_survey(target_path, status="error", message=f"Upload failed: {e}")
-
-
-@app.route("/api/survey/<target>/upload", methods=["POST"])
-def survey_upload(target: str):
-    target_path = ROOT_DIR / target
-    if not target_path.is_dir():
-        return jsonify(success=False, message="No such recording"), 404
-    config = load_frogcore_config()
-    if not (config["username"] and config["password"]):
-        return jsonify(success=False, message="Set up your FrogCore account first"), 400
-    if load_survey(target_path).get("status") == "uploading":
-        return jsonify(success=False, message="Upload already in progress"), 409
-    save_survey(target_path, id=None, status="uploading", message="Creating survey")
-    threading.Thread(target=upload_survey, args=(target_path,), daemon=True).start()
-    return jsonify(success=True)
-
-
-@app.route("/api/survey/<target>/status")
-def survey_status(target: str):
-    return jsonify(load_survey(ROOT_DIR / target))
-
-
-@app.route("/api/survey/<target>/build", methods=["POST"])
-def survey_build(target: str):
-    target_path = ROOT_DIR / target
-    survey = load_survey(target_path)
-    if survey.get("status") not in ("uploaded", "building") or not survey.get("id"):
-        return jsonify(success=False, message="Survey has not been uploaded"), 409
-    try:
-        client = frogcore_client()
-        client.build(survey["id"])
-    except Exception as e:
-        return jsonify(success=False, message=f"Build failed: {e}"), 502
-    save_survey(target_path, status="building", message="Build requested")
-    return jsonify(success=True)
 
 
 @app.route("/download/<target>/<payload>")
