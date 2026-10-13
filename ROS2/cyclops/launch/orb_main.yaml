@@ -145,12 +145,9 @@ launch:
       cmd: >
         ros2 bag record
         --topics
-        /orb/ORB/keyframes/compressed
-        /orb/ORB/keyframes_right/compressed
+        /orb/ORB/kf_stamp
         /orb/ORB/atlas
         /imu/imu_madg
-        /left/camera_info
-        /right/camera_info
         /diagnostics
         /battery
         /process_monitor/rss_bytes
