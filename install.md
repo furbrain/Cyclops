@@ -2,7 +2,7 @@ start with CM5 with Raspberry Pi OS (bookworm)
 install ros2 jazzy as described here: https://github.com/Ar-Ray-code/rpi-bullseye-ros2/tree/jazzy
 
 #install other apt packages:
-sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent
+sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent autoconf-archive python3-netowrkx
 
 #set up distcc
 export CMAKE_C_COMPILER=aarch64-linux-gnu-gcc
@@ -110,6 +110,10 @@ sudo systemctl reload caddy
 sod it, use docker
 cd /home/pi
 sudo apt install libceres-dev libcgal-dev libnanoflann-dev libjxl-dev
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg; ./bootstrap-vcpkg.sh
+cd ..
+echo "export VCPKG_ROOT=/home/pi/vcpkg" >> .bashrc
 git clone --branch 2023.12 git@github.com:cnr-isti-vclab/vcglib.git
 export VCG_ROOT=/home/pi/vcglib
 

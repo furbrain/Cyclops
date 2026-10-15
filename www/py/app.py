@@ -14,7 +14,7 @@ from rosbags.rosbag2 import Reader
 from zipstream import ZipStream
 
 from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
-from frogcore import frogcore_bp, load_survey
+from frogcore import frogcore_bp
 
 WEB_ROOT = Path(__file__).parent.parent
 from wifi import wifi_bp
@@ -54,7 +54,6 @@ class Model:
     size: int
     has_rough: bool
     has_refined: bool
-    survey: dict
 
     @classmethod
     def fromPath(cls, p: Path):
@@ -62,7 +61,7 @@ class Model:
         size = sum_dirs(p)
         has_rough = (p / "map_1" / "rough.obj").exists()
         has_refined = (p / "map_1" / "refined.obj").exists()
-        return cls(name, size, has_rough, has_refined, load_survey(p))
+        return cls(name, size, has_rough, has_refined)
 
 
 def get_models():

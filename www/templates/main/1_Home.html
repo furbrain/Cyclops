@@ -1,1 +1,32 @@
 This is where the home page will go...
+
+<div class="row justify-content-center align-items-center mt-3">
+    <div class="col-sm-6">
+    <button class="btn btn-outline-secondary" onclick="openFrogcoreModal()">FrogCore Account</button>
+    </div>
+</div>
+<div class="modal fade" id="frogcoreModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">FrogCore Account</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <label for="frogcoreUsername" class="form-label">Username</label>
+                <input type="text" id="frogcoreUsername" class="form-control" autocomplete="username">
+            </div>
+            <div class="mb-3">
+                <label for="frogcorePassword" class="form-label">Password</label>
+                <input type="password" id="frogcorePassword" class="form-control" autocomplete="current-password">
+            </div>
+            <div class="small text-danger" id="frogcoreError"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn btn-primary" onclick="handleFrogcoreSave()">Save</button>
+        </div>
+    </div>
+  </div>
+</div>

@@ -9,21 +9,23 @@ Register without a url prefix so the routes live at /api/frogcore/... and /api/s
 """
 import json
 import os
-import threading
 from pathlib import Path
+from typing import Callable
 
 import requests
 from flask import Blueprint, jsonify, request
 
+from model import get_job, job_log, job_snapshot, start_job
 from utils import ROOT_DIR
+from model import ensure_sparse, SPARSE_FILES
 
 frogcore_bp = Blueprint("frogcore", __name__)
 
 # FrogCore account details are entered via the web UI and kept here, readable only by us
 FROGCORE_CONFIG = Path.home() / ".config" / "cyclops" / "frogcore.json"
 FROGCORE_URL = "https://frog.shetlandattackpony.co.uk"
-FROGCORE_FILES = ["images.tar", "atlas.osa"]
 SURVEY_FILE = "frogcore.json"
+FROGCORE_FILES = ["images.tar", "atlas.osa"] + ['sparse/' + f for f in SPARSE_FILES]
 
 
 class FrogCoreClient:
@@ -67,20 +69,22 @@ class FrogCoreClient:
         r.raise_for_status()
         return r.json()["id"]
 
-    def upload(self, survey_id: str, path: Path) -> None:
-        with path.open("rb") as fh:  # requests sets Content-Length from the file size
-            r = self.http.put(f"{FROGCORE_URL}/api/surveys/{survey_id}/files/{path.name}",
+    def upload(self, survey_id: str, root_path: Path, fname: str) -> None:
+        with (root_path / fname).open("rb") as fh:  # requests sets Content-Length from the file size
+            r = self.http.put(f"{FROGCORE_URL}/api/surveys/{survey_id}/files/{fname}",
                               data=fh, timeout=600)
         r.raise_for_status()
 
-    def upload_recording(self, target_path: Path) -> None:
+    def upload_recording(self, target_path: Path, log: Callable[[str], None]) -> None:
         """Create a survey for a recording and upload its files, recording progress alongside it"""
         survey_id = self.create_survey(target_path.name)
-        save_survey(target_path, id=survey_id, status="uploading", message="")
+        log(f"Created FrogCore survey {survey_id}")
+        save_survey(target_path, id=survey_id, status="uploading")
         for i, fname in enumerate(FROGCORE_FILES):
-            save_survey(target_path, message=f"Uploading {fname} ({i + 1}/{len(FROGCORE_FILES)})")
-            self.upload(survey_id, target_path / fname)
-        save_survey(target_path, status="uploaded", message=f"Uploaded {len(FROGCORE_FILES)} files")
+            log(f"Uploading {fname} ({i + 1}/{len(FROGCORE_FILES)})")
+            self.upload(survey_id, target_path, fname)
+        save_survey(target_path, status="uploaded")
+        log(f"Uploaded {len(FROGCORE_FILES)} files")
 
     def build(self, survey_id: str) -> None:
         self.http.post(f"{FROGCORE_URL}/api/surveys/{survey_id}/build", timeout=30).raise_for_status()
@@ -122,11 +126,13 @@ def save_survey(p: Path, **kwargs):
     return survey
 
 
-def upload_survey(target_path: Path):
+def upload_survey(target_path: Path, job):
     try:
-        FrogCoreClient.from_config().upload_recording(target_path)
-    except Exception as e:
-        save_survey(target_path, status="error", message=f"Upload failed: {e}")
+        ensure_sparse(target_path, job)
+        FrogCoreClient.from_config().upload_recording(target_path, lambda line: job_log(job, line))
+    except Exception:
+        save_survey(target_path, status="error")
+        raise  # start_job logs the error and marks the job failed
 
 
 @frogcore_bp.route("/api/survey/<target>/upload", methods=["POST"])
@@ -135,17 +141,18 @@ def survey_upload(target: str):
     if not target_path.is_dir():
         return jsonify(success=False, message="No such recording"), 404
     if not FrogCoreClient.is_configured():
-        return jsonify(success=False, message="Set up your FrogCore account first"), 400
-    if load_survey(target_path).get("status") == "uploading":
+        return jsonify(success=False, message="Set up your FrogCore account on the Home page first"), 400
+    job, started = start_job(target, "frogcore_upload", lambda job: upload_survey(target_path, job))
+    if not started:
         return jsonify(success=False, message="Upload already in progress"), 409
-    save_survey(target_path, id=None, status="uploading", message="Creating survey")
-    threading.Thread(target=upload_survey, args=(target_path,), daemon=True).start()
-    return jsonify(success=True)
+    return jsonify(success=True), 202
 
 
 @frogcore_bp.route("/api/survey/<target>/status")
 def survey_status(target: str):
-    return jsonify(load_survey(ROOT_DIR / target))
+    """Upload job state and log (for the model page's output panel) plus the stored survey status"""
+    survey = load_survey(ROOT_DIR / target)
+    return jsonify(job_snapshot(get_job(target, "frogcore_upload")) | {"survey": survey})
 
 
 @frogcore_bp.route("/api/survey/<target>/build", methods=["POST"])
@@ -158,5 +165,5 @@ def survey_build(target: str):
         FrogCoreClient.from_config().build(survey["id"])
     except Exception as e:
         return jsonify(success=False, message=f"Build failed: {e}"), 502
-    save_survey(target_path, status="building", message="Build requested")
+    save_survey(target_path, status="building")
     return jsonify(success=True)

@@ -1,5 +1,5 @@
 <table class="table">
-    <tr><th>Name</th><th></th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th><th>Survey</th></tr>
+    <tr><th>Name</th><th></th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
     {% for model in models %}
         <tr>
             <td><a href="/model/{{model.name}}">{{model.name}}</a></td>
@@ -27,22 +27,6 @@
                             data-name="{{model.name}}" data-model-style="1">
                     Make Model
                     </button>
-                {% endif %}
-            </td>
-            <td>
-                {% set status = model.survey.get("status") %}
-                <button class="btn btn-outline-primary {% if status == 'uploading' %}survey-uploading{% endif %}"
-                        onclick="uploadSurvey('{{model.name}}')"
-                        {% if status == "uploading" %}disabled{% endif %}>
-                {% if status == "uploading" %}Uploading...{% else %}Upload{% endif %}
-                </button>
-                <button class="btn btn-outline-primary"
-                        onclick="buildSurvey(this, '{{model.name}}')"
-                        {% if status not in ("uploaded", "building") %}disabled{% endif %}>
-                Build
-                </button>
-                {% if model.survey.get("message") %}
-                    <div class="small {% if status == 'error' %}text-danger{% else %}text-muted{% endif %}">{{model.survey.message}}</div>
                 {% endif %}
             </td>
         </tr>

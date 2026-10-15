@@ -11,7 +11,7 @@
 :80 {
 	#  Match all under ply
 	@ply path_regexp ply ^/ply/(.+)$
-	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*)$
+	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*|/model/.*)$
 
 	handle @ply {
 		# Serve PLY files from /data, not from site root

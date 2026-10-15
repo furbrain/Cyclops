@@ -23,6 +23,7 @@ const container = document.getElementById("viewer");
 const statusEl = document.getElementById("viewer-status");
 const generateBtn = document.getElementById("generate-btn");
 const resetViewBtn = document.getElementById("reset-view-btn");
+const cullBackfacesToggle = document.getElementById("cull-backfaces-toggle");
 const assetButtons = [...document.querySelectorAll(".asset-btn")];
 const overlayButtons = [...document.querySelectorAll(".overlay-btn")];
 
@@ -221,6 +222,25 @@ function maybeFrameInitialView() {
   }
 }
 
+// Mesh faces are drawn double-sided by default; with the "Cull back faces"
+// toggle on, only faces pointing towards the camera are drawn. Applies to
+// every mesh under the object (a GLB may hold several, each with its own
+// material(s)); points/lines have no faces so are left alone.
+function applyCullMode(object) {
+  if (!object) return;
+  const side = cullBackfacesToggle?.checked ? THREE.FrontSide : THREE.DoubleSide;
+  object.traverse((node) => {
+    if (!node.isMesh) return;
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    for (const material of materials) {
+      if (material && material.side !== side) {
+        material.side = side;
+        material.needsUpdate = true;
+      }
+    }
+  });
+}
+
 function buildMeshFromGeometry(geometry) {
   geometry.computeVertexNormals?.();
   if (!geometry.hasAttribute("color")) {
@@ -318,6 +338,7 @@ function loadAsset(assetKey) {
         clearObject();
         currentObject = buildPointsObjectFromJSON(data, assetKey);
         applySourceAxisConvention(currentObject);
+        applyCullMode(currentObject);
         scene.add(currentObject);
         maybeFrameInitialView();
         statusEl.textContent = labelFor(assetKey);
@@ -338,6 +359,7 @@ function loadAsset(assetKey) {
         // no need to build a material by hand like the plain-PLY path.
         currentObject = gltf.scene;
         applySourceAxisConvention(currentObject);
+        applyCullMode(currentObject);
         scene.add(currentObject);
         maybeFrameInitialView();
         statusEl.textContent = labelFor(assetKey);
@@ -358,6 +380,7 @@ function loadAsset(assetKey) {
       clearObject();
       currentObject = buildMeshFromGeometry(geometry);
       applySourceAxisConvention(currentObject);
+      applyCullMode(currentObject);
       scene.add(currentObject);
       maybeFrameInitialView();
       statusEl.textContent = labelFor(assetKey);
@@ -452,6 +475,9 @@ function setOverlayVisible(key, visible) {
 const jobOutput = document.getElementById("job-output");
 const jobStateBadge = document.getElementById("job-state-badge");
 const mergeBtn = document.getElementById("merge-btn");
+const refreshBtn = document.getElementById("refresh-btn");
+const keyframesValueEl = document.getElementById("keyframes-value");
+const pointsValueEl = document.getElementById("points-value");
 const submapsValueEl = document.getElementById("submaps-value");
 
 // Only one job (generate or merge) at a time — they share the same output
@@ -564,14 +590,48 @@ function runMerge() {
     });
 }
 
-// After a merge completes, re-fetch info.json rather than guessing the new
-// submap count client-side — the backend is the source of truth for it.
-function refreshSubmapsFromServer() {
+function runRefresh() {
+  if (jobRunning) return Promise.reject(new Error("Another job is already running"));
+  jobRunning = true;
+  jobOutput.textContent = "";
+  setJobBadge("running");
+
+  return fetch(`/model/api/${modelId}/refresh`, { method: "POST" })
+    .then((res) => {
+      if (!res.ok) {
+        return res
+          .json()
+          .catch(() => ({}))
+          .then((body) => {
+            throw new Error(body.error || `HTTP ${res.status}`);
+          });
+      }
+      return new Promise((resolve, reject) => {
+        pollJob(`/model/api/${modelId}/refresh/status`, {
+          onDone: resolve,
+          onError: () => reject(new Error("Refresh failed — see output above.")),
+        });
+      });
+    })
+    .finally(() => {
+      jobRunning = false;
+    });
+}
+
+// After a refresh or merge, pull the new details and asset availability from the
+// server, and reload the current asset if make_info.py just rewrote it.
+function refreshDetailsFromServer() {
   return fetch(`/model/api/${modelId}/info`)
     .then((res) => res.json())
     .then((info) => {
+      keyframesValueEl.textContent = info.keyframes ?? "—";
+      pointsValueEl.textContent = info.points != null ? info.points.toLocaleString() : "—";
       submapsValueEl.textContent = info.submaps ?? "—";
       mergeBtn.disabled = !(info.submaps > 1);
+      Object.assign(assetStatus, info.assets);
+      updateButtonStates();
+      overlayButtons.forEach((btn) => updateOverlayButtonState(btn.dataset.overlay));
+      if (currentAsset && assetFormats[currentAsset] === "points") loadAsset(currentAsset);
     })
     .catch((err) => console.error(err));
 }
@@ -625,7 +685,7 @@ mergeBtn.addEventListener("click", () => {
   mergeBtn.disabled = true;
 
   runMerge()
-    .then(refreshSubmapsFromServer)
+    .then(refreshDetailsFromServer)
     .catch((err) => {
       jobOutput.textContent += `\n${err.message}`;
     })
@@ -634,7 +694,121 @@ mergeBtn.addEventListener("click", () => {
     });
 });
 
+refreshBtn.addEventListener("click", () => {
+  if (jobRunning) return;
+  refreshBtn.disabled = true;
+
+  runRefresh()
+    .then(refreshDetailsFromServer)
+    .catch((err) => {
+      jobOutput.textContent += `\n${err.message}`;
+    })
+    .finally(() => {
+      refreshBtn.disabled = false;
+    });
+});
+
+// --- FrogCore upload / build ---------------------------------------------------
+// Upload runs as a background job (mount images, colmap.py, upload) whose log
+// streams into the shared output panel; build is a single quick request.
+
+const frogcoreUploadBtn = document.getElementById("frogcore-upload-btn");
+const frogcoreBuildBtn = document.getElementById("frogcore-build-btn");
+const frogcoreStatus = document.getElementById("frogcore-status");
+const surveyStatusUrl = `/api/survey/${modelId}/status`;
+
+const FROGCORE_STATUS_TEXT = {
+  uploading: "Uploading…",
+  uploaded: "Uploaded",
+  building: "Build requested",
+  error: "Upload failed",
+};
+
+function refreshFrogcoreStatus() {
+  return fetch(surveyStatusUrl)
+    .then((res) => res.json())
+    .then((data) => {
+      const status = data.survey?.status;
+      frogcoreStatus.textContent = FROGCORE_STATUS_TEXT[status] || "Not uploaded";
+      frogcoreBuildBtn.disabled = !(status === "uploaded" || status === "building");
+      return data;
+    });
+}
+
+function uploadToFrogcore() {
+  if (jobRunning) return Promise.reject(new Error("Another job is already running"));
+  jobRunning = true;
+  jobOutput.textContent = "";
+  setJobBadge("running");
+
+  return fetch(`/api/survey/${modelId}/upload`, { method: "POST" })
+    .then((res) => {
+      if (!res.ok) {
+        return res
+          .json()
+          .catch(() => ({}))
+          .then((body) => {
+            throw new Error(body.message || `HTTP ${res.status}`);
+          });
+      }
+      return waitForUpload();
+    })
+    .finally(() => {
+      jobRunning = false;
+    });
+}
+
+function waitForUpload() {
+  frogcoreUploadBtn.disabled = true;
+  frogcoreStatus.textContent = FROGCORE_STATUS_TEXT.uploading;
+  return new Promise((resolve, reject) => {
+    pollJob(surveyStatusUrl, {
+      onDone: resolve,
+      onError: () => reject(new Error("Upload failed — see output above.")),
+    });
+  }).finally(() => {
+    frogcoreUploadBtn.disabled = false;
+    refreshFrogcoreStatus();
+  });
+}
+
+frogcoreUploadBtn.addEventListener("click", () => {
+  if (jobRunning) return;
+  uploadToFrogcore().catch((err) => {
+    setJobBadge("error");
+    jobOutput.textContent += `\n${err.message}`;
+  });
+});
+
+frogcoreBuildBtn.addEventListener("click", () => {
+  frogcoreBuildBtn.disabled = true;
+  fetch(`/api/survey/${modelId}/build`, { method: "POST" })
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.success) {
+        jobOutput.textContent = data.message;
+        setJobBadge("error");
+      }
+    })
+    .finally(refreshFrogcoreStatus);
+});
+
+// Pick up an upload that was already running when the page was (re)loaded
+refreshFrogcoreStatus().then((data) => {
+  if (data.state === "running" && !jobRunning) {
+    jobRunning = true;
+    waitForUpload()
+      .catch((err) => {
+        jobOutput.textContent += `\n${err.message}`;
+      })
+      .finally(() => {
+        jobRunning = false;
+      });
+  }
+});
+
 resetViewBtn.addEventListener("click", () => frameCombinedView());
+cullBackfacesToggle?.addEventListener("change", () => applyCullMode(currentObject));
 
 updateButtonStates();
 overlayButtons.forEach((btn) => updateOverlayButtonState(btn.dataset.overlay));

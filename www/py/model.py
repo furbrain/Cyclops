@@ -31,15 +31,20 @@ Assumptions (change these to match your real pipeline — search for "TODO"):
     still stubbed with demo output; wire up the real thing there.
 """
 
+from contextlib import contextmanager
 import json
 import mimetypes
 import random
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 
 from flask import Blueprint, current_app, render_template, request, jsonify, send_from_directory, abort
+
+from utils import CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME
+
 
 # Not registered by Python's mimetypes module by default — set it explicitly
 # so the GLB response gets the right Content-Type header (GLTFLoader parses
@@ -81,17 +86,26 @@ MODEL_VARIANTS = ["pointcloud", "coarse", "coarse_texture", "hi-res", "hi-res_te
 # anything that needs an actual texture. If your mesher only outputs
 # OBJ+MTL+JPG or split glTF, convert once with `gltf-pipeline -i in.gltf -o
 # out.glb` (or export GLB directly if your tool supports it).
+SCENE_FILE = "scene.mvs"
+SCENE_DENSE_FILE = "scene_dense.mvs"
+COARSE_MESH_FILE = "coarse_mesh.ply"
+COARSE_TEXTURE_FILE = "coarse_full.glb"
+HIRES_MESH_FILE = "hires_mesh.ply"
+HIRES_TEXTURE_FILE = "hires_full.glb"
+
 ASSET_DEFS = {
-    "pointcloud": {"filename": "pointcloud.json", "label": "Point cloud", "generatable": False, "format": "points"},
-    "coarse": {"filename": "coarse_mesh.ply", "label": "Coarse shape", "generatable": True, "format": "ply"},
-    "coarse_texture": {"filename": "coarse_full.glb", "label": "Coarse photo", "generatable": True, "format": "glb"},
-    "hi-res": {"filename": "hires_mesh.ply", "label": "HiRes shape", "generatable": True, "format": "ply"},
-    "hi-res_texture": {"filename": "hires_full.glb", "label": "HiRes photo", "generatable": True, "format": "glb"},
+    "pointcloud": {"filename": "pointcloud.json", "label": "Point cloud", "generatable": True, "format": "points"},
+    "coarse": {"filename": COARSE_MESH_FILE, "label": "Coarse shape", "generatable": True, "format": "ply"},
+    "coarse_texture": {"filename": COARSE_TEXTURE_FILE, "label": "Coarse photo", "generatable": True, "format": "glb"},
+    "hi-res": {"filename": HIRES_MESH_FILE, "label": "HiRes shape", "generatable": True, "format": "ply"},
+    "hi-res_texture": {"filename": HIRES_TEXTURE_FILE, "label": "HiRes photo", "generatable": True, "format": "glb"},
     "track": {"filename": "track.json", "label": "Track", "generatable": False, "format": "points"},
     "survey": {"filename": "survey.json", "label": "Survey", "generatable": True, "format": "points"},
 }
 
-
+RASPBIAN_PATH = Path(__file__).resolve().parents[2] / "raspbian"
+MAKE_INFO_SCRIPT = RASPBIAN_PATH / "make_info.py"
+MERGE_SCRIPT = RASPBIAN_PATH / "merge_maps.py"
 
 def get_models_dir() -> Path:
     """
@@ -198,25 +212,112 @@ def run_subprocess_logged(job, cmd, cwd=None):
     process.stdout.close()
     return process.wait()
 
+def make_mvs_scene(model_path: Path, job):
+    """Create an OpenMVS scene from the sparse COLMAP model, ready for densification and meshing"""
+    if (model_path / SCENE_FILE).exists():
+        job_log(job, "OpenMVS scene already exists")
+        return
+    run_subprocess_logged(
+        job,
+        ["InterfaceCOLMAP", "-i", str(model_path), "--image-folder", str(model_path / "images")],
+        model_path
+    )
 
-def write_demo_points(path):
-    """Placeholder generator for 'points'-format assets — swap for real output."""
-    points = [[round(random.uniform(-1, 1), 4) for _ in range(3)] for _ in range(400)]
-    path.write_text(json.dumps({"points": points}))
+def make_coarse_mesh(model_path: Path, job):
+    """ Create a coarse mesh from the sparse COLMAP model
+    """
+    make_mvs_scene(model_path, job) # first make the scene
+    if (model_path / COARSE_MESH_FILE).exists():
+        job_log(job, "Coarse mesh already exists")
+        return
+    run_subprocess_logged(
+        job,
+        ["ReconstructMesh", "-i", str(model_path / SCENE_FILE), "-o", str(model_path / COARSE_MESH_FILE)],
+        model_path
+    )
+
+def make_coarse_texture(model_path: Path, job):
+    """ Create a coarse textured mesh from the sparse COLMAP model
+    """
+    make_coarse_mesh(model_path, job) # first make the mesh
+    if (model_path / COARSE_TEXTURE_FILE).exists():
+        job_log(job, "Coarse textured mesh already exists")
+        return
+    run_subprocess_logged(
+        job,
+        ["TextureMesh", "-i", str(model_path / SCENE_FILE), 
+         "-m", str(model_path / COARSE_MESH_FILE),
+         "-o", str(model_path / "temp.glb"), 
+         "--export-type", "glb"],
+        model_path
+    )
+    run_subprocess_logged(
+        job,
+        ["gltf-pipeline", "-i", str(model_path / "temp.glb"), 
+         "-o", str(model_path / COARSE_TEXTURE_FILE)],
+        model_path
+    )
+    # remove temporary files
+    (model_path / "temp.glb").unlink()
+    for f in model_path.glob("temp*.png"):
+        f.unlink()
 
 
-def write_demo_ply(path):
-    """Placeholder generator for 'ply'-format assets — a tiny octahedron with real faces."""
-    verts = [(0, 0, 1), (1, 0, 0), (0, 1, 0), (-1, 0, 0), (0, -1, 0), (0, 0, -1)]
-    faces = [(0, 1, 2), (0, 2, 3), (0, 3, 4), (0, 4, 1), (5, 2, 1), (5, 3, 2), (5, 4, 3), (5, 1, 4)]
-    lines = [
-        "ply", "format ascii 1.0", f"element vertex {len(verts)}",
-        "property float x", "property float y", "property float z",
-        f"element face {len(faces)}", "property list uchar int vertex_indices", "end_header",
-    ]
-    lines += [" ".join(str(c) for c in v) for v in verts]
-    lines += [f"3 {' '.join(str(i) for i in f)}" for f in faces]
-    path.write_text("\n".join(lines) + "\n")
+def make_hires_mesh(model_path: Path, job):
+    """ Create a high resolution mesh from the sparse COLMAP model
+    """
+    make_mvs_scene(model_path, job) # first make the scene
+    if (model_path / HIRES_MESH_FILE).exists():
+        job_log(job, "High resolution mesh already exists")
+        return
+    run_subprocess_logged(
+        job,
+        ["DensifyPointCloud", "-i", str(model_path / SCENE_FILE), "-o", str(model_path / SCENE_DENSE_FILE)],
+        model_path
+    )
+    run_subprocess_logged(
+        job,
+        ["ReconstructMesh", "-i", str(model_path / SCENE_DENSE_FILE), "-o", str(model_path / HIRES_MESH_FILE)],
+        model_path
+    )
+
+def make_hires_texture(model_path: Path, job):
+    """ Create a high resolution textured mesh from the sparse COLMAP model
+    """
+    make_hires_mesh(model_path, job) # first make the mesh
+    if (model_path / HIRES_TEXTURE_FILE).exists():
+        job_log(job, "High resolution textured mesh already exists")
+        return
+    run_subprocess_logged(
+        job,
+        ["TextureMesh", "-i", str(model_path / SCENE_DENSE_FILE), 
+         "-m", str(model_path / HIRES_MESH_FILE),
+         "-o", str(model_path / "temp.glb"), 
+         "--export-type", "glb"],
+        model_path
+    )
+    run_subprocess_logged(
+        job,
+        ["gltf-pipeline", "-i", str(model_path / "temp.glb"), 
+         "-o", str(model_path / HIRES_TEXTURE_FILE)],
+        model_path
+    )
+    # remove temporary files
+    (model_path / "temp.glb").unlink()
+    for f in model_path.glob("temp*.png"):
+        f.unlink()
+
+
+def refresh_info(model_path: Path, job):
+    """Re-run make_info.py on the atlas: rewrites info.json, pointcloud.json, track.json and survey.json"""
+    code = run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
+    if code != 0:
+        raise RuntimeError(f"make_info.py exited with code {code}")
+
+
+def run_refresh_job(model_id, job):
+    refresh_info(model_dir(model_id), job)
+    job_log(job, "Done.")
 
 
 def run_generation_job(model_id, asset_key, job):
@@ -232,42 +333,55 @@ def run_generation_job(model_id, asset_key, job):
     fmt = ASSET_DEFS[asset_key]["format"]
     filename = ASSET_DEFS[asset_key]["filename"]
 
-    job_log(job, f"Starting generation of '{asset_key}'…")
-    for step, pct in [("Loading inputs", 20), ("Processing", 60), ("Writing output", 90)]:
-        time.sleep(1)
-        job_log(job, f"[{pct:3d}%] {step}…")
-
     if fmt == "points":
-        write_demo_points(d / filename)
-    elif fmt == "ply":
-        write_demo_ply(d / filename)
+        refresh_info(d, job)
+    elif fmt in ("ply", "glb"):
+        with mounted_images(d, job):
+            ensure_sparse(d, job)
+            if asset_key == "coarse":
+                make_coarse_mesh(d, job)
+            elif asset_key == "coarse_texture":
+                make_coarse_texture(d, job)
+            elif asset_key == "hi-res":
+                make_hires_mesh(d, job)
+            elif asset_key == "hi-res_texture":
+                make_hires_texture(d, job)
+            else:
+                raise NotImplementedError(f"Unknown mesh asset key: {asset_key}")
     else:  # glb
         raise NotImplementedError(
-            "GLB generation has no demo output — wire up your texturing step "
-            "(TextureMesh -> obj2gltf, see README) in run_generation_job()."
+            f"Unknown asset format {fmt} for {asset_key} — add it to run_generation_job()"
         )
 
     job_log(job, "Done.")
 
 
-def run_merge_job(model_id, job):
-    """
-    TODO: replace with your real submap merge — offline atlas map merging,
-    ID remapping across ID spaces, RANSAC+Horn's method alignment, etc.
-    """
-    info = load_info(model_id)
-    submaps = info.get("submaps") or 1
-    job_log(job, f"Merging {submaps} submaps…")
-    for i in range(1, submaps):
-        time.sleep(1)
-        job_log(job, f"Aligned submap {i + 1}/{submaps}")
-    time.sleep(1)
-    job_log(job, "Writing merged atlas…")
+def swap_in_merged_atlas(model_path: Path, job):
+    """Keep the old atlas as atlas_pre_merge.osa and promote atlas_final.osa to atlas.osa"""
+    merged = model_path / "atlas_merged.osa"
+    if not merged.exists():
+        raise RuntimeError("Merge finished but atlas_merged.osa was not created")
+    atlas = model_path / "atlas.osa"
+    pre_merge = model_path / "atlas_pre_merge.osa"
+    if pre_merge.exists():
+        # already merged before - keep the original atlas, discard the previous merge result
+        job_log(job, "Keeping existing atlas_pre_merge.osa")
+    elif atlas.exists():
+        atlas.replace(pre_merge)
+        job_log(job, "Renamed atlas.osa -> atlas_pre_merge.osa")
+    merged.replace(atlas)
+    job_log(job, "Renamed atlas_merged.osa -> atlas.osa")
 
-    info.pop("model_id", None)
-    info["submaps"] = 1
-    (model_dir(model_id) / "info.json").write_text(json.dumps(info, indent=2))
-    job_log(job, "Merge complete — submaps reduced to 1.")
+
+def run_merge_job(model_id, job):
+    model_path = model_dir(model_id)
+    code = run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path)])
+    if code != 0:
+        raise RuntimeError(f"merge_maps.py exited with code {code}")
+
+    swap_in_merged_atlas(model_path, job)
+    refresh_info(model_path, job)
+    job_log(job, "Merge complete.")
 
 
 def start_job(model_id, job_key, target):
@@ -409,3 +523,58 @@ def api_merge(model_id):
 @model_bp.route("/api/<model_id>/merge/status")
 def api_merge_status(model_id):
     return jsonify(job_snapshot(get_job(model_id, "merge")))
+
+
+@model_bp.route("/api/<model_id>/refresh", methods=["POST"])
+def api_refresh(model_id):
+    """Re-run make_info.py as a background job."""
+    job, started = start_job(model_id, "refresh", lambda job: run_refresh_job(model_id, job))
+    if not started:
+        return jsonify({"error": "Refresh is already running"}), 409
+    return jsonify({"ok": True}), 202
+
+
+@model_bp.route("/api/<model_id>/refresh/status")
+def api_refresh_status(model_id):
+    return jsonify(job_snapshot(get_job(model_id, "refresh")))
+
+
+@contextmanager
+def mounted_images(target_path: Path, job):
+    """Mount images.tar at target_path/images with ratarmount for the duration of the block"""
+    mount_point = target_path / "images"
+    if mount_point.is_dir() and any(mount_point.iterdir()):
+        yield mount_point  # already extracted or mounted
+        return
+    if mount_point.is_symlink():  # stale link left by an earlier colmap.py run
+        mount_point.unlink()
+    mount_point.mkdir(exist_ok=True)
+    code = run_subprocess_logged(job, ["ratarmount", str(target_path / "images.tar"), str(mount_point)])
+    if code != 0:
+        mount_point.rmdir()
+        raise RuntimeError(f"ratarmount exited with code {code}")
+    try:
+        yield mount_point
+    finally:
+        run_subprocess_logged(job, ["ratarmount", "-u", str(mount_point)])
+        mount_point.rmdir()
+
+
+COLMAP_SCRIPT = Path(__file__).resolve().parents[2] / "raspbian" / "colmap.py"
+SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
+
+
+def ensure_sparse(target_path: Path, job):
+    """Run colmap.py to create the sparse COLMAP files if any are missing"""
+    sparse_dir = target_path / "sparse"
+    if all((sparse_dir / f).exists() for f in SPARSE_FILES):
+        job_log(job, "Sparse model already exists")
+        return
+    with mounted_images(target_path, job):
+        code = run_subprocess_logged(
+            job,
+            [sys.executable, "-u", str(COLMAP_SCRIPT), "-s",
+             "-d", str(target_path), "-a", str(target_path / "atlas.osa")],
+        )
+    if code != 0:
+        raise RuntimeError(f"colmap.py exited with code {code}")
