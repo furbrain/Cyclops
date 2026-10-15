@@ -6,8 +6,6 @@ from pathlib import Path
 
 import gtsam
 import networkx as nx
-from gtsam import Pose3
-from networkx import Graph
 
 import orb_slam3_py as op
 import cv2
@@ -193,7 +191,7 @@ class InternalConnections(DataClassJsonMixin):
             print(mapp, t)
             self.atlas.maps[mapp].apply_transform(t)
 
-    def get_transform_graph(self) -> tuple[nx.Graph, dict[tuple[int, int], Pose3]]:
+    def get_transform_graph(self) -> tuple[nx.Graph, dict[tuple[int, int], gtsam.Pose3]]:
         map_graph = nx.Graph()
         relations = {(x.from_map, x.to_map): x.transform for x in self.connections}
         map_graph.add_edges_from(relations.keys())
@@ -272,15 +270,21 @@ def merge_maps(atlas: Atlas, dir: Path):
     connections.apply_transform()
     connections.unify_maps()
     atlas.reload()
-    #atlas.align()
+    print("Merge complete")
 
-# if __name__ == "__main__":
-#     atlas = Atlas.from_file("atlas.osa")
-#     for i in range(3):
-#         connection = Connection(i, 3)
-#         connection.compare_maps(atlas.maps[i], atlas.maps[3], link_b=Link.START)
-#         if connection.keypoint_matches:
-#             print(connection)
-#             connection.ransac_horn_analysis(atlas)
-#             print(connection)
-#             print(connection.to_json())
+
+if __name__=="__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="extract keyframes and points from an atlas and save as COLMAP")
+    parser.add_argument('-a', '--atlas', help="provide an atlas message file to use")
+    parser.add_argument('-d', '--dir', help="directory to use", required=True)
+    opts = parser.parse_args()
+
+    model_dir = Path(opts.dir)
+    if opts.atlas:
+        atlas = Atlas.from_file(opts.atlas)
+    else:
+        atlas = Atlas.from_dir(model_dir)
+    merge_maps(atlas)
+    #atlas.optimize(include_survey=False, iters=30)
+    atlas.save_file(model_dir / "atlas_merged.osa")

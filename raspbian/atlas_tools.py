@@ -256,6 +256,10 @@ class Atlas:
     def align(self):
         op.align_atlas(self.atlas)
 
+    def optimize(self, include_survey: bool, iters: int = 100):
+        G, values = self.create_graph(include_survey)
+        result = run_optimisation(G, values, iters)
+        self.update_from_values(result)
 
 def run_optimisation(G: gtsam.NonlinearFactorGraph, values: gtsam.Values, iters: int = 100) -> gtsam.Values:
     lm_params = gtsam.LevenbergMarquardtParams()
