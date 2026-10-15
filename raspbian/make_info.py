@@ -7,10 +7,18 @@ from orb_slam3_py import Leg
 
 
 def create_info(atlas: Atlas, model_dir: Path):
+    map_info = []
+    for mapp in atlas.maps.values():
+        map_info.append({
+            "id": mapp.id,
+            "min": min(kf.id for kf in mapp.kfs),
+            "max": max(kf.id for kf in mapp.kfs)
+        })
     info = {
         'points': len(atlas.atlas.get_all_map_points()),
         'keyframes': len(atlas.atlas.get_all_keyframes()),
-        'submaps': len(atlas.maps)
+        'submaps': len(atlas.maps),
+        'maps': map_info
     }
     mapp = atlas.get_biggest_map()
     pointcloud = [mp.get_world_pos().tolist() for mp in mapp.mps.values()]
@@ -44,5 +52,5 @@ if __name__=="__main__":
     if opts.atlas:
         atlas = Atlas.from_file(opts.atlas)
     else:
-        atlas = Atlas.from_file(model_dir / "atlas.txt.gz")
+        atlas = Atlas.from_dir(model_dir)
     create_info(atlas, model_dir)

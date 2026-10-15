@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
 
 import argparse
@@ -9,9 +9,12 @@ import numpy as np
 
 import orb_slam3_py as op
 
-from atlas_tools import Atlas, KeyFrameData
+from atlas_tools import Atlas, KeyFrameData, make_path
 from utils import IMAGE_FILENAME, CAM_FILENAME, POINTS_FILENAME, SPARSE_POINTS_FILENAME
 import scipy.spatial.transform as sst
+
+from combine import SUB_ATLAS_FILE, SubAtlas
+
 
 def init_map_dir(map_dir: Path) -> Path:
     sparse_dir = map_dir / "sparse"
@@ -25,7 +28,7 @@ def init_map_dir(map_dir: Path) -> Path:
         os.symlink("../../" + CAM_FILENAME, sparse_dir / CAM_FILENAME)
     return sparse_dir
 
-def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path):
+def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path, subatlasses: Optional[SubAtlas] = None):
     maps = list(reversed(sorted(atlas.maps.values(), key=lambda x:len(x.kfs))))
     ##FIXME## Just assume all cameras the same at this point...
     kf0: KeyFrameData = maps[0].kfs[0]
@@ -41,10 +44,18 @@ def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path):
         with open(sparse_dir / IMAGE_FILENAME, "w") as f:
             for kf in m.kfs:
                 pose: sst.RigidTransform = kf.kf.get_pose()
-                if (image_dir / f"{kf.id}.jpg").exists():
+                if subatlasses:
+                    img_stem = subatlasses.get_kf_stem(kf.id)
+                else:
+                    img_stem = str(kf.id)
+                if (image_dir / f"{img_stem}.jpg").exists():
                     o = pose.rotation.as_quat(scalar_first=True)
                     t: np.ndarray = pose.translation
-                    f.write(f"{kf.id} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {kf.id}.jpg\n")
+                    if subatlasses:
+                        img_stem = subatlasses.get_kf_stem(kf.id)
+                    else:
+                        img_stem = str(kf.id)
+                    f.write(f"{kf.id} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {img_stem}.jpg\n")
                     line = []
                     idx = 0
                     for mp, (x, y) in kf.mp_kps.items():
@@ -53,12 +64,13 @@ def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path):
                             found_mps[mp].append(f"{kf.id} {idx}")
                             idx += 1
                     f.write(" ".join(line) + "\n")
-                if (image_dir / f"{kf.id}r.jpg").exists():
+                if (image_dir / f"{img_stem}r.jpg").exists():
                     T_left_right = sst.RigidTransform.from_translation([kf.kf.baseline, 0, 0])
                     pose = pose * T_left_right
                     o = pose.rotation.as_quat(scalar_first=True)
                     t: np.ndarray = pose.translation
-                    f.write(f"{kf.id + right_id_offset} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 {kf.id}r.jpg\n")
+                    f.write(f"{kf.id + right_id_offset} {o[0]} {o[1]} {o[2]} {o[3]} {t[0]} {t[1]} {t[2]} 1 "
+                            f"{img_stem}r.jpg\n")
                     line = []
                     idx = 0
                     for mp, (x, y) in kf.mp_rkps.items():
@@ -73,15 +85,22 @@ def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path):
                 points_f.write(f"{mp.id} {pt[0]} {pt[1]} {pt[2]} 255 255 255 0 {' '.join(track)}\n")
 
 if __name__=="__main__":
+
     parser = argparse.ArgumentParser(description="extract keyframes and points from an atlas and save as COLMAP")
     parser.add_argument('-a', '--atlas', help="provide an atlas message file to use")
+    parser.add_argument('-c', '--combined', help="Atlas has subatlasses", action="store_true")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
     opts = parser.parse_args()
 
     model_dir = Path(opts.dir)
     if opts.atlas:
-        atlas = Atlas.from_file(opts.atlas)
+        atlas = Atlas.from_file(make_path(model_dir, opts.atlas))
     else:
-        atlas = Atlas.from_file(model_dir / "atlas.txt.gz")
+        atlas = Atlas.from_dir(model_dir)
     image_dir = model_dir / "images"
-    create_colmap(atlas, model_dir, image_dir)
+    if opts.combined:
+        with open(model_dir / SUB_ATLAS_FILE) as f:
+            subatlasses = SubAtlas.from_json(f.read())
+    else:
+        subatlasses = None
+    create_colmap(atlas, model_dir, image_dir, subatlasses)

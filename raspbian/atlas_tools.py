@@ -128,6 +128,7 @@ class Map:
 
     def update_contents(self):
         self.kfs: List[KeyFrameData] = [KeyFrameData(kf) for kf in self.map.get_all_keyframes()]
+        self.kfs.sort(key=lambda kf: kf.id)
         self.mps: Dict[int,op.MapPoint] = {x.id: x for x in self.map.get_all_map_points()}
 
     def update_values(self, values: gtsam.Values, transform: gtsam.Pose3 = None):
@@ -168,8 +169,7 @@ class Map:
 class Atlas:
     def __init__(self, atlas:op.Atlas):
         self.atlas = atlas
-        self.kfs = {kf.id: KeyFrameData(kf) for kf in self.atlas.get_all_keyframes()}
-        self.maps = {mapp.get_id(): Map(mapp) for mapp in self.atlas.get_all_maps()}
+        self.reload()
 
     def get_biggest_map(self) -> Map:
         sorted_maps = sorted(self.maps.values(), key=lambda x: len(x.kfs), reverse=True)
@@ -178,9 +178,22 @@ class Atlas:
     def reload(self):
         self.kfs = {kf.id: KeyFrameData(kf) for kf in self.atlas.get_all_keyframes()}
         self.maps = {mapp.get_id(): Map(mapp) for mapp in self.atlas.get_all_maps()}
+        self.mps = {mp.id: mp for mp in self.atlas.get_all_map_points()}
 
     @classmethod
-    def from_file(cls, path: Path, pre_align: bool =True) -> "Atlas":
+    def from_dir(cls, dir: Path, final: bool = True, pre_align: bool = False) -> op.Atlas:
+        print(f"Loading atlas from {dir}")
+        if final:
+            name = "atlas_final"
+        else:
+            name = "atlas"
+        try:
+            return cls.from_file(dir / (name + ".osa"))
+        except RuntimeError:
+            return cls.from_file(dir / (name + ".txt.gz"))
+
+    @classmethod
+    def from_file(cls, path: Path, pre_align: bool = False) -> "Atlas":
         binary = str(path).endswith(".osa")
         atlas = op.load_atlas(str(path), binary=binary)
         if pre_align:
@@ -188,14 +201,19 @@ class Atlas:
         return Atlas(atlas)
 
     def save_file(self, path: Path) -> None:
+        print(f"Saving atlas to {path}")
         binary = str(path).endswith(".osa")
         op.save_atlas(self.atlas, str(path), binary=binary)
 
-    def create_graph(self, include_survey=False) -> Tuple[gtsam.NonlinearFactorGraph, gtsam.Values]:
+    def create_graph(self, include_survey=False, biggest_only=False) -> Tuple[gtsam.NonlinearFactorGraph, gtsam.Values]:
         G = gtsam.NonlinearFactorGraph()
         values = gtsam.Values()
         print("adding factors")
-        for m in self.maps.values():
+        if biggest_only:
+            map_list = [self.get_biggest_map()]
+        else:
+            map_list = self.maps.values()
+        for m in map_list:
             kf_nearest_distance = 1e12
             kf_nearest_id = -1
             kf_nearest_pose: gtsam.Pose3 = None
@@ -230,6 +248,14 @@ class Atlas:
                 ### FIXME maybe do the dataset index better???
                 self.atlas.add_station(0,st)
 
+    def import_atlas(self, other: "Atlas", share_survey=False) -> int:
+        offset = self.atlas.import_atlas(other.atlas, share_survey)
+        self.reload()
+        return offset
+
+    def align(self):
+        op.align_atlas(self.atlas)
+
 
 def run_optimisation(G: gtsam.NonlinearFactorGraph, values: gtsam.Values, iters: int = 100) -> gtsam.Values:
     lm_params = gtsam.LevenbergMarquardtParams()
@@ -261,3 +287,10 @@ def get_station_string(symbol: gtsam.Symbol) -> str:
         return str(symbol.index())
     elif symbol.string().startswith("a"):
         return chr(ord("A") + symbol.index())
+
+
+def make_path(root: Path, name: str ) -> Path:
+    if name.startswith("/"):
+        return Path(name)
+    else:
+        return root / name

@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import subprocess
 import threading
 from pathlib import Path
-import orb_slam3_py as op
 from aruco import add_arucos
-from atlas_tools import Atlas, run_optimisation
+from atlas_tools import Atlas, run_optimisation, make_path
 from merge_maps import merge_maps
 from colmap import create_colmap
 from ply_maker import PlyMaker
@@ -41,12 +39,6 @@ def get_connection():
         print("Frog not found on local network, is it turned on?")
         exit()
     return conn
-
-def make_path(root: Path, name: str ) -> Path:
-    if name.startswith("/"):
-        return Path(name)
-    else:
-        return root / name
 
 def fetch_images(name: str, path: Path):
     remote_dir = Path("/data/trips/") / name
@@ -121,7 +113,7 @@ parser.add_argument('-r', '--refined', help="Create a refined model, rather than
 parser.add_argument('--merge-maps', action=argparse.BooleanOptionalAction,
                     help="If more than one map in the atlas, try to merge them together", default=True)
 parser.add_argument('--fresh', help="Do all steps from the beginning (no skipping)", default=True)
-parser.add_argument('-a', '--atlas', help="Name of atlas file", default="atlas.txt.gz")
+parser.add_argument('-a', '--atlas', help="Name of atlas file", default="atlas.osa")
 parser.add_argument('-s', '--survey-file', help="Name of survey file", default="survey.svx")
 parser.add_argument("-i", '--images-dir', help="Directory to store images", default="images")
 parser.add_argument('--use-survey', action=argparse.BooleanOptionalAction,
@@ -137,8 +129,8 @@ opts = parser.parse_args()
 #create various paths
 model_dir = Path(opts.dir)
 atlas_file = make_path(model_dir, opts.atlas)
-survey_file = make_path(model_dir,opts.survey_file)
-images_dir = make_path(model_dir,opts.images_dir)
+survey_file = make_path(model_dir, opts.survey_file)
+images_dir = make_path(model_dir, opts.images_dir)
 name_parts = atlas_file.name.split(".")
 name_parts[0] += '_final'
 output_name = atlas_file.with_name('.'.join(name_parts))
@@ -151,11 +143,11 @@ else:
 
 #REBUILD ATLAS
 print("Loading atlas")
-atlas = Atlas.from_file(atlas_file)
+atlas = Atlas.from_file(atlas_file, pre_align=True)
 needs_refine = False
 if opts.merge_maps:
     needs_refine =  len(atlas.maps) > 1
-    merge_maps(atlas)
+    merge_maps(atlas, model_dir)
 else:
     print("Skipping map merge stage")
 
@@ -176,15 +168,15 @@ if opts.use_survey:
     needs_refine = True
 else:
     print("No survey file or instructed to skip it")
-    if needs_refine:
-        G, values = atlas.create_graph(include_survey=False)
-if needs_refine:
-    result = run_optimisation(G, values, iters=30)
-    atlas.update_from_values(result)
-    atlas.reload()
-    atlas.save_file(output_name)
-    if opts.use_survey:
-        make_survey_ply(model_dir / "survey.ply", atlas, result)
+    G, values = atlas.create_graph(include_survey=False)
+result = run_optimisation(G, values, iters=30)
+atlas.update_from_values(result)
+atlas.reload()
+atlas.align()
+atlas.reload()
+atlas.save_file(output_name)
+if opts.use_survey:
+    make_survey_ply(model_dir / "survey.ply", atlas, result)
 make_track_ply(atlas, model_dir / "track.ply")
 
 if not opts.build_model:
@@ -193,7 +185,6 @@ else:
     if images_pull_thread:
         images_pull_thread.join() # wait for all images to load
     create_colmap(atlas, model_dir, images_dir)
-    run_openMVS_cmd("ls", model_dir)
     run_openMVS_cmd("InterfaceCOLMAP -i . -o scene.mvs", model_dir)
     if opts.coarse:
         run_openMVS_cmd("ReconstructMesh -i scene.mvs", model_dir)
