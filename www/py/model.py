@@ -106,6 +106,8 @@ ASSET_DEFS = {
 RASPBIAN_PATH = Path(__file__).resolve().parents[2] / "raspbian"
 MAKE_INFO_SCRIPT = RASPBIAN_PATH / "make_info.py"
 MERGE_SCRIPT = RASPBIAN_PATH / "merge_maps.py"
+COLMAP_SCRIPT = Path(__file__).resolve().parents[2] / "raspbian" / "colmap.py"
+SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
 
 def get_models_dir() -> Path:
     """
@@ -187,7 +189,7 @@ def job_snapshot(job):
         return {"state": job["state"], "log": "\n".join(job["log"])}
 
 
-def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
+def run_subprocess_logged(job, cmd, cwd=None):
     """
     Real-pipeline helper: run `cmd`, streaming its combined stdout/stderr
     into the job log as each line is produced (not buffered until the
@@ -231,9 +233,9 @@ def is_up_to_date(output: Path, *inputs: Path) -> bool:
     return all(x.stat().st_mtime <= mtime for x in inputs if x.exists())
 
 def sparse_files(model_path: Path) -> list[Path]:
-    return list((model_path / "sparse").glob("*.txt"))
+    return list((model_path / "sparse" / f) for f in SPARSE_FILES)
 
-def make_mvs_scene(model_path: Path, job) -> Path:
+def make_mvs_scene(model_path: Path, job):
     """Create an OpenMVS scene from the sparse COLMAP model, ready for densification and meshing"""
     scene = model_path / SCENE_FILE
     if is_up_to_date(scene, *sparse_files(model_path)):
@@ -568,8 +570,6 @@ def mounted_images(target_path: Path, job):
         mount_point.rmdir()
 
 
-COLMAP_SCRIPT = Path(__file__).resolve().parents[2] / "raspbian" / "colmap.py"
-SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
 
 
 def ensure_sparse(target_path: Path, job):
