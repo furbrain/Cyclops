@@ -22,23 +22,24 @@ def init_map_dir(map_dir: Path) -> Path:
     # create symlink to images (like original)
     if not (map_dir / "images").exists():
         os.symlink("../images", map_dir / "images")
-
-    # camera file symlink in sparse
-    if not (sparse_dir / CAM_FILENAME).exists():
-        os.symlink("../../" + CAM_FILENAME, sparse_dir / CAM_FILENAME)
     return sparse_dir
 
-def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path, subatlasses: Optional[SubAtlas] = None):
+def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path, subatlasses: Optional[SubAtlas] = None, single: bool = False):
     maps = list(reversed(sorted(atlas.maps.values(), key=lambda x:len(x.kfs))))
     ##FIXME## Just assume all cameras the same at this point...
     kf0: KeyFrameData = maps[0].kfs[0]
+    if single:
+        maps = maps[:1]
     K = kf0.K
-    with open(model_dir / CAM_FILENAME, "w") as f:
-        f.write(f"1 PINHOLE 640 480 {K[0,0]} {K[1,1]} {K[0,2]} {K[1,2]}")
     for map_idx, m in enumerate(maps, start=1):
-        map_dir = model_dir / f"map_{map_idx}"
+        if single:
+            map_dir = model_dir
+        else:
+            map_dir = model_dir / f"map_{map_idx}"
         map_dir.mkdir(parents=True, exist_ok=True)
         sparse_dir = init_map_dir(map_dir)
+        with open(sparse_dir / CAM_FILENAME, "w") as f:
+            f.write(f"1 PINHOLE 640 480 {K[0,0]} {K[1,1]} {K[0,2]} {K[1,2]}")
         found_mps: Dict[op.MapPoint, List[str]] = defaultdict(list)
         right_id_offset = max(x.id for x in m.kfs)+1
         with open(sparse_dir / IMAGE_FILENAME, "w") as f:
@@ -48,6 +49,8 @@ def create_colmap(atlas:Atlas, model_dir: Path, image_dir: Path, subatlasses: Op
                     img_stem = subatlasses.get_kf_stem(kf.id)
                 else:
                     img_stem = str(kf.id)
+                if not (image_dir / f"{img_stem}.jpg").exists(): # try short form first, then try longer
+                    img_stem = str(Path(img_stem).with_name(f"{kf.id:06d}"))
                 if (image_dir / f"{img_stem}.jpg").exists():
                     o = pose.rotation.as_quat(scalar_first=True)
                     t: np.ndarray = pose.translation
@@ -90,6 +93,7 @@ if __name__=="__main__":
     parser.add_argument('-a', '--atlas', help="provide an atlas message file to use")
     parser.add_argument('-c', '--combined', help="Atlas has subatlasses", action="store_true")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
+    parser.add_argument('-s', '--single', help="just create largest map", action="store_true")
     opts = parser.parse_args()
 
     model_dir = Path(opts.dir)
@@ -103,4 +107,4 @@ if __name__=="__main__":
             subatlasses = SubAtlas.from_json(f.read())
     else:
         subatlasses = None
-    create_colmap(atlas, model_dir, image_dir, subatlasses)
+    create_colmap(atlas, model_dir, image_dir, subatlasses, single=opts.single)

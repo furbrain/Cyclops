@@ -215,6 +215,7 @@ class InternalConnections(DataClassJsonMixin):
             for map_id in subnet:
                 if map_id != min_map_id:
                     mapp = self.atlas.maps[map_id]
+                    print("merging map", mapp.id, "into", min_map_id)
                     self.atlas.maps[min_map_id].merge_in(mapp, connections)
                     self.atlas.atlas.erase_map(mapp.map)
 
@@ -285,6 +286,6 @@ if __name__=="__main__":
         atlas = Atlas.from_file(opts.atlas)
     else:
         atlas = Atlas.from_dir(model_dir)
-    merge_maps(atlas)
+    merge_maps(atlas, model_dir)
     #atlas.optimize(include_survey=False, iters=30)
     atlas.save_file(model_dir / "atlas_merged.osa")
