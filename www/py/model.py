@@ -212,14 +212,25 @@ def run_subprocess_logged(job, cmd, cwd=None):
     process.stdout.close()
     return process.wait()
 
+def is_up_to_date(output: Path, *inputs: Path) -> bool:
+    """True if output exists and is newer than all the inputs that exist"""
+    if not output.exists():
+        return False
+    mtime = output.stat().st_mtime
+    return all(x.stat().st_mtime <= mtime for x in inputs if x.exists())
+
+def sparse_files(model_path: Path) -> list[Path]:
+    return list((model_path / "sparse").glob("*.txt"))
+
 def make_mvs_scene(model_path: Path, job):
     """Create an OpenMVS scene from the sparse COLMAP model, ready for densification and meshing"""
-    if (model_path / SCENE_FILE).exists():
+    if is_up_to_date(model_path / SCENE_FILE, *sparse_files(model_path)):
         job_log(job, "OpenMVS scene already exists")
         return
     run_subprocess_logged(
         job,
-        ["InterfaceCOLMAP", "-i", str(model_path), "--image-folder", str(model_path / "images")],
+        ["InterfaceCOLMAP", "-i", str(model_path), "--image-folder", str(model_path / "images"),
+         "-o", str(model_path / SCENE_FILE)],
         model_path
     )
 
@@ -227,7 +238,7 @@ def make_coarse_mesh(model_path: Path, job):
     """ Create a coarse mesh from the sparse COLMAP model
     """
     make_mvs_scene(model_path, job) # first make the scene
-    if (model_path / COARSE_MESH_FILE).exists():
+    if is_up_to_date(model_path / COARSE_MESH_FILE, model_path / SCENE_FILE):
         job_log(job, "Coarse mesh already exists")
         return
     run_subprocess_logged(
@@ -240,7 +251,7 @@ def make_coarse_texture(model_path: Path, job):
     """ Create a coarse textured mesh from the sparse COLMAP model
     """
     make_coarse_mesh(model_path, job) # first make the mesh
-    if (model_path / COARSE_TEXTURE_FILE).exists():
+    if is_up_to_date(model_path / COARSE_TEXTURE_FILE, model_path / COARSE_MESH_FILE):
         job_log(job, "Coarse textured mesh already exists")
         return
     run_subprocess_logged(
@@ -267,7 +278,7 @@ def make_hires_mesh(model_path: Path, job):
     """ Create a high resolution mesh from the sparse COLMAP model
     """
     make_mvs_scene(model_path, job) # first make the scene
-    if (model_path / HIRES_MESH_FILE).exists():
+    if is_up_to_date(model_path / HIRES_MESH_FILE, model_path / SCENE_FILE):
         job_log(job, "High resolution mesh already exists")
         return
     run_subprocess_logged(
@@ -285,7 +296,7 @@ def make_hires_texture(model_path: Path, job):
     """ Create a high resolution textured mesh from the sparse COLMAP model
     """
     make_hires_mesh(model_path, job) # first make the mesh
-    if (model_path / HIRES_TEXTURE_FILE).exists():
+    if is_up_to_date(model_path / HIRES_TEXTURE_FILE, model_path / HIRES_MESH_FILE):
         job_log(job, "High resolution textured mesh already exists")
         return
     run_subprocess_logged(
