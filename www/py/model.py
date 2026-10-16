@@ -187,30 +187,41 @@ def job_snapshot(job):
         return {"state": job["state"], "log": "\n".join(job["log"])}
 
 
-def run_subprocess_logged(job, cmd, cwd=None):
+def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
     """
     Real-pipeline helper: run `cmd`, streaming its combined stdout/stderr
     into the job log as each line is produced (not buffered until the
-    process exits). Returns the exit code — raise if it's non-zero.
+    process exits). Returns the exit code; if `check` is set, raises
+    RuntimeError on a non-zero exit instead.
 
-    Example, once you're ready to wire up a real step:
-
-        code = run_subprocess_logged(
-            job,
-            ["TextureMesh", "-i", str(mvs_path), "--export-type", "obj"],
-            cwd=str(model_dir(model_id)),
-        )
-        if code != 0:
-            raise RuntimeError(f"TextureMesh exited with code {code}")
+    `outputs` are files the command writes: they're deleted if it fails or is
+    interrupted, so a partial file never looks up to date to is_up_to_date().
     """
     job_log(job, f"$ {' '.join(str(c) for c in cmd)}")
-    process = subprocess.Popen(
-        cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
-    )
-    for line in iter(process.stdout.readline, ""):
-        job_log(job, line.rstrip())
-    process.stdout.close()
-    return process.wait()
+    try:
+        process = subprocess.Popen(
+            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
+        for line in iter(process.stdout.readline, ""):
+            job_log(job, line.rstrip())
+        process.stdout.close()
+        code = process.wait()
+    except BaseException:
+        remove_files(job, outputs)
+        raise
+    if code != 0:
+        remove_files(job, outputs)
+    if check and code != 0:
+        # name the script rather than the interpreter for `python3 foo.py ...`
+        name = next((Path(c).name for c in cmd if str(c).endswith(".py")), Path(cmd[0]).name)
+        raise RuntimeError(f"{name} exited with code {code}")
+    return code
+
+def remove_files(job, paths):
+    for path in paths:
+        if path.exists():
+            job_log(job, f"Removing partial output {path.name}")
+            path.unlink()
 
 def is_up_to_date(output: Path, *inputs: Path) -> bool:
     """True if output exists and is newer than all the inputs that exist"""
@@ -222,108 +233,100 @@ def is_up_to_date(output: Path, *inputs: Path) -> bool:
 def sparse_files(model_path: Path) -> list[Path]:
     return list((model_path / "sparse").glob("*.txt"))
 
-def make_mvs_scene(model_path: Path, job):
+def make_mvs_scene(model_path: Path, job) -> Path:
     """Create an OpenMVS scene from the sparse COLMAP model, ready for densification and meshing"""
-    if is_up_to_date(model_path / SCENE_FILE, *sparse_files(model_path)):
+    scene = model_path / SCENE_FILE
+    if is_up_to_date(scene, *sparse_files(model_path)):
         job_log(job, "OpenMVS scene already exists")
-        return
+        return scene
     run_subprocess_logged(
         job,
         ["InterfaceCOLMAP", "-i", str(model_path), "--image-folder", str(model_path / "images"),
-         "-o", str(model_path / SCENE_FILE)],
-        model_path
+         "-o", str(scene)],
+        model_path,
+        outputs=[scene]
     )
+    return scene
 
-def make_coarse_mesh(model_path: Path, job):
-    """ Create a coarse mesh from the sparse COLMAP model
+def make_dense_scene(model_path: Path, job) -> Path:
+    """Densify the OpenMVS scene"""
+    scene = make_mvs_scene(model_path, job)
+    dense = model_path / SCENE_DENSE_FILE
+    if is_up_to_date(dense, scene):
+        job_log(job, "Dense OpenMVS scene already exists")
+        return dense
+    run_subprocess_logged(
+        job,
+        ["DensifyPointCloud", "-i", str(scene), "-o", str(dense)],
+        model_path,
+        outputs=[dense]
+    )
+    return dense
+
+def make_scene(model_path: Path, job, hires: bool) -> Path:
+    """Make the scene a mesh is built from: dense for hires, sparse for coarse"""
+    return make_dense_scene(model_path, job) if hires else make_mvs_scene(model_path, job)
+
+def make_mesh(model_path: Path, job, hires: bool) -> Path:
+    """ Create a coarse or high resolution mesh from the sparse COLMAP model
     """
-    make_mvs_scene(model_path, job) # first make the scene
-    if is_up_to_date(model_path / COARSE_MESH_FILE, model_path / SCENE_FILE):
-        job_log(job, "Coarse mesh already exists")
-        return
+    scene = make_scene(model_path, job, hires)
+    mesh = model_path / (HIRES_MESH_FILE if hires else COARSE_MESH_FILE)
+    if is_up_to_date(mesh, scene):
+        job_log(job, f"{'High resolution' if hires else 'Coarse'} mesh already exists")
+        return mesh
     run_subprocess_logged(
         job,
-        ["ReconstructMesh", "-i", str(model_path / SCENE_FILE), "-o", str(model_path / COARSE_MESH_FILE)],
-        model_path
+        ["ReconstructMesh", "-i", str(scene), "-o", str(mesh)],
+        model_path,
+        outputs=[mesh]
     )
+    return mesh
 
-def make_coarse_texture(model_path: Path, job):
-    """ Create a coarse textured mesh from the sparse COLMAP model
+def make_texture(model_path: Path, job, hires: bool) -> Path:
+    """ Create a coarse or high resolution textured mesh from the sparse COLMAP model
     """
-    make_coarse_mesh(model_path, job) # first make the mesh
-    if is_up_to_date(model_path / COARSE_TEXTURE_FILE, model_path / COARSE_MESH_FILE):
-        job_log(job, "Coarse textured mesh already exists")
-        return
-    run_subprocess_logged(
-        job,
-        ["TextureMesh", "-i", str(model_path / SCENE_FILE), 
-         "-m", str(model_path / COARSE_MESH_FILE),
-         "-o", str(model_path / "temp.glb"), 
-         "--export-type", "glb"],
-        model_path
-    )
-    run_subprocess_logged(
-        job,
-        ["gltf-pipeline", "-i", str(model_path / "temp.glb"), 
-         "-o", str(model_path / COARSE_TEXTURE_FILE)],
-        model_path
-    )
-    # remove temporary files
-    (model_path / "temp.glb").unlink()
-    for f in model_path.glob("temp*.png"):
-        f.unlink()
+    mesh = make_mesh(model_path, job, hires) # first make the mesh (and its scene)
+    scene = model_path / (SCENE_DENSE_FILE if hires else SCENE_FILE)
+    textured = model_path / (HIRES_TEXTURE_FILE if hires else COARSE_TEXTURE_FILE)
+    if is_up_to_date(textured, mesh):
+        job_log(job, f"{'High resolution' if hires else 'Coarse'} textured mesh already exists")
+        return textured
+    temp = model_path / "temp.glb"
+    try:
+        run_subprocess_logged(
+            job,
+            ["TextureMesh", "-i", str(scene),
+             "-m", str(mesh),
+             "-o", str(temp),
+             "--export-type", "glb"],
+            model_path
+        )
+        run_subprocess_logged(
+            job,
+            ["gltf-pipeline", "-i", str(temp), "-o", str(textured)],
+            model_path,
+            outputs=[textured]
+        )
+    finally:
+        # remove temporary files, whether or not texturing succeeded
+        temp.unlink(missing_ok=True)
+        for f in model_path.glob("temp*.png"):
+            f.unlink()
+    return textured
 
-
-def make_hires_mesh(model_path: Path, job):
-    """ Create a high resolution mesh from the sparse COLMAP model
-    """
-    make_mvs_scene(model_path, job) # first make the scene
-    if is_up_to_date(model_path / HIRES_MESH_FILE, model_path / SCENE_FILE):
-        job_log(job, "High resolution mesh already exists")
-        return
-    run_subprocess_logged(
-        job,
-        ["DensifyPointCloud", "-i", str(model_path / SCENE_FILE), "-o", str(model_path / SCENE_DENSE_FILE)],
-        model_path
-    )
-    run_subprocess_logged(
-        job,
-        ["ReconstructMesh", "-i", str(model_path / SCENE_DENSE_FILE), "-o", str(model_path / HIRES_MESH_FILE)],
-        model_path
-    )
-
-def make_hires_texture(model_path: Path, job):
-    """ Create a high resolution textured mesh from the sparse COLMAP model
-    """
-    make_hires_mesh(model_path, job) # first make the mesh
-    if is_up_to_date(model_path / HIRES_TEXTURE_FILE, model_path / HIRES_MESH_FILE):
-        job_log(job, "High resolution textured mesh already exists")
-        return
-    run_subprocess_logged(
-        job,
-        ["TextureMesh", "-i", str(model_path / SCENE_DENSE_FILE), 
-         "-m", str(model_path / HIRES_MESH_FILE),
-         "-o", str(model_path / "temp.glb"), 
-         "--export-type", "glb"],
-        model_path
-    )
-    run_subprocess_logged(
-        job,
-        ["gltf-pipeline", "-i", str(model_path / "temp.glb"), 
-         "-o", str(model_path / HIRES_TEXTURE_FILE)],
-        model_path
-    )
-    # remove temporary files
-    (model_path / "temp.glb").unlink()
-    for f in model_path.glob("temp*.png"):
-        f.unlink()
+# asset key -> (builder, hires)
+MESH_BUILDERS = {
+    "coarse": (make_mesh, False),
+    "coarse_texture": (make_texture, False),
+    "hi-res": (make_mesh, True),
+    "hi-res_texture": (make_texture, True),
+}
 
 
 def refresh_info(model_path: Path, job):
     """Re-run make_info.py on the atlas: rewrites info.json, pointcloud.json, track.json and survey.json"""
-    code = run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
-    if code != 0:
-        raise RuntimeError(f"make_info.py exited with code {code}")
+    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
 
 
 def run_refresh_job(model_id, job):
@@ -349,16 +352,10 @@ def run_generation_job(model_id, asset_key, job):
     elif fmt in ("ply", "glb"):
         with mounted_images(d, job):
             ensure_sparse(d, job)
-            if asset_key == "coarse":
-                make_coarse_mesh(d, job)
-            elif asset_key == "coarse_texture":
-                make_coarse_texture(d, job)
-            elif asset_key == "hi-res":
-                make_hires_mesh(d, job)
-            elif asset_key == "hi-res_texture":
-                make_hires_texture(d, job)
-            else:
+            if asset_key not in MESH_BUILDERS:
                 raise NotImplementedError(f"Unknown mesh asset key: {asset_key}")
+            builder, hires = MESH_BUILDERS[asset_key]
+            builder(d, job, hires)
     else:  # glb
         raise NotImplementedError(
             f"Unknown asset format {fmt} for {asset_key} — add it to run_generation_job()"
@@ -386,9 +383,7 @@ def swap_in_merged_atlas(model_path: Path, job):
 
 def run_merge_job(model_id, job):
     model_path = model_dir(model_id)
-    code = run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path)])
-    if code != 0:
-        raise RuntimeError(f"merge_maps.py exited with code {code}")
+    run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path)])
 
     swap_in_merged_atlas(model_path, job)
     refresh_info(model_path, job)
@@ -560,14 +555,16 @@ def mounted_images(target_path: Path, job):
     if mount_point.is_symlink():  # stale link left by an earlier colmap.py run
         mount_point.unlink()
     mount_point.mkdir(exist_ok=True)
-    code = run_subprocess_logged(job, ["ratarmount", str(target_path / "images.tar"), str(mount_point)])
-    if code != 0:
+    try:
+        run_subprocess_logged(job, ["ratarmount", str(target_path / "images.tar"), str(mount_point)])
+    except RuntimeError:
         mount_point.rmdir()
-        raise RuntimeError(f"ratarmount exited with code {code}")
+        raise
     try:
         yield mount_point
     finally:
-        run_subprocess_logged(job, ["ratarmount", "-u", str(mount_point)])
+        # don't let an unmount failure mask an exception from the body
+        run_subprocess_logged(job, ["ratarmount", "-u", str(mount_point)], check=False)
         mount_point.rmdir()
 
 
@@ -582,10 +579,9 @@ def ensure_sparse(target_path: Path, job):
         job_log(job, "Sparse model already exists")
         return
     with mounted_images(target_path, job):
-        code = run_subprocess_logged(
+        run_subprocess_logged(
             job,
             [sys.executable, "-u", str(COLMAP_SCRIPT), "-s",
              "-d", str(target_path), "-a", str(target_path / "atlas.osa")],
+            outputs=[sparse_dir / f for f in SPARSE_FILES],
         )
-    if code != 0:
-        raise RuntimeError(f"colmap.py exited with code {code}")
