@@ -189,7 +189,7 @@ def job_snapshot(job):
         return {"state": job["state"], "log": "\n".join(job["log"])}
 
 
-def run_subprocess_logged(job, cmd, cwd=None):
+def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
     """
     Real-pipeline helper: run `cmd`, streaming its combined stdout/stderr
     into the job log as each line is produced (not buffered until the
