@@ -7,26 +7,23 @@ from pathlib import Path
 import gtsam
 import networkx as nx
 
-import orb_slam3_py as op
 import cv2
 import numpy as np
+from scipy.spatial import transform as sst
 from itertools import combinations, count
-from typing import List, Tuple, Any, Sequence, Dict, Union, Optional
+from typing import List, Tuple, Any, Sequence, Dict, Union, Optional, Set
 from dataclasses import dataclass, field
 from dataclasses_json import DataClassJsonMixin
 from dataclasses_json.cfg import config as dj_conf, Exclude
 import dataclasses_json.cfg
 
-from atlas_tools import Map, KeyFrameData, M, T, Atlas, run_optimisation
+from atlas import Atlas, Map, Keyframe
+from atlas_tools import M, T
 
 CONNECTIONS_FILE = "connections.json"
 
 MERGE_NOISE_BASE = gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
 MERGE_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.Create(1.345), MERGE_NOISE_BASE)
-
-#This is dict that stores a list of similar mappoints between pairs of maps
-ConnectionType = Dict[Tuple[Map, Map], List[Tuple[int,int]]]
-RelationType = Dict[Tuple[Map, Map], gtsam.Pose3]
 
 _matcher = cv2.BFMatcher.create(normType=cv2.NORM_HAMMING)
 
@@ -41,6 +38,16 @@ def pose3_decode(data: List[List[float]]):
 dataclasses_json.cfg.global_config.encoders[gtsam.Pose3] = pose3_encode
 dataclasses_json.cfg.global_config.encoders[Atlas] = lambda x: None
 dataclasses_json.cfg.global_config.decoders[gtsam.Pose3] = pose3_decode
+
+
+class KeyframeMatchData:
+    """Local copy of the descriptors of a keyframe that have an associated map point,
+    following the mp_descs/just_mps fields of atlas_tools.KeyFrameData"""
+    def __init__(self, kf: Keyframe):
+        self.id = kf.id
+        has_mp = np.array([mp is not None for mp in kf.map_points], dtype=bool)
+        self.mp_descs = np.array(kf.descriptors[has_mp]) # copy out of the atlas memmap
+        self.just_mps = [mp.id for mp in kf.map_points if mp is not None]
 
 
 class Link(Enum):
@@ -81,7 +88,7 @@ class Connection(DataClassJsonMixin):
                                  init=False,
                                  metadata=dj_conf(exclude=lambda x: True))
 
-    def compare_kfs(self, kfs_a, kfs_b):
+    def compare_kfs(self, kfs_a: List[KeyframeMatchData], kfs_b: List[KeyframeMatchData]):
         links: Dict[int, List[int]] = defaultdict(list)
         for kf_a in kfs_a:
             for kf_b in kfs_b:
@@ -89,8 +96,8 @@ class Connection(DataClassJsonMixin):
                 good: List[cv2.DMatch] = [m for m, n in matches if m.distance < 0.7 * n.distance]
                 if len(good) > 6:
                     for x in good:
-                        mp_a = kf_a.just_mps[x.queryIdx].id
-                        mp_b = kf_b.just_mps[x.trainIdx].id
+                        mp_a = kf_a.just_mps[x.queryIdx]
+                        mp_b = kf_b.just_mps[x.trainIdx]
                         links[mp_a].append(mp_b)
                     print(f"{kf_a.id} -> {kf_b.id}: {len(good)} matches")
         for orig, dests in links.items():
@@ -107,22 +114,24 @@ class Connection(DataClassJsonMixin):
 
     def compare_maps(self, map_a: Map, map_b: Map, link_a: Link = Link.ALL, link_b: Link = Link.ALL):
         print(f"Looking for connection between Maps {map_a.id} and {map_b.id}")
-        self.compare_kfs(link_a.slice(map_a.kfs), link_b.slice(map_b.kfs))
+        kfs_a = [KeyframeMatchData(map_a.keyframes[i]) for i in link_a.slice(sorted(map_a.keyframes))]
+        kfs_b = [KeyframeMatchData(map_b.keyframes[i]) for i in link_b.slice(sorted(map_b.keyframes))]
+        self.compare_kfs(kfs_a, kfs_b)
 
     def ransac_horn_analysis(self, atlas_a: Atlas, atlas_b: Optional[Atlas] = None,
                              translation_only = False,
                              threshold =0.5, iters = 100):
         if atlas_b is None:
             atlas_b = atlas_a
-        pts_a = np.array([atlas_a.mps[x[0]].get_world_pos() for x in self.keypoint_matches])
-        pts_b = np.array([atlas_b.mps[x[1]].get_world_pos() for x in self.keypoint_matches])
+        pts_a = np.array([atlas_a.map_points[x[0]].pos for x in self.keypoint_matches])
+        pts_b = np.array([atlas_b.map_points[x[1]].pos for x in self.keypoint_matches])
         R, t, inliers = ransac_horn(pts_a, pts_b, threshold, iters)
         print(self.from_map, self.to_map, R, t, inliers)
         good_matches = [x for x, inlier in zip(self.keypoint_matches, inliers) if inlier]
         self.keypoint_matches = good_matches
         if translation_only:
-            pts_a = np.array([atlas_a.mps[x[0]].get_world_pos() for x in self.keypoint_matches])
-            pts_b = np.array([atlas_b.mps[x[1]].get_world_pos() for x in self.keypoint_matches])
+            pts_a = np.array([atlas_a.map_points[x[0]].pos for x in self.keypoint_matches])
+            pts_b = np.array([atlas_b.map_points[x[1]].pos for x in self.keypoint_matches])
             self.transform = gtsam.Pose3(gtsam.Rot3(), np.mean(pts_b-pts_a, axis=0))
             print(self.transform)
         else:
@@ -154,16 +163,6 @@ class InternalConnections(DataClassJsonMixin):
             if connection.is_valid():
                 self.connections.append(connection)
 
-    def get_optimized_transforms(self):
-        if self.atlas is None:
-            raise ValueError("No atlas provided")
-        G, values = self.atlas.create_graph()
-        for conn in self.connections:
-            conn.add_graph_connections(G, values)
-        results = run_optimisation(G, values)
-        for m in self.atlas.maps.values():
-            m.update_values(results)
-
     def get_ransac_transforms(self, translation_only=True):
         if self.atlas is None:
             raise ValueError("No atlas provided")
@@ -175,7 +174,7 @@ class InternalConnections(DataClassJsonMixin):
         if self.atlas is None:
             raise ValueError("No atlas provided")
         map_graph, relations = self.get_transform_graph()
-        transforms: Dict[Map, gtsam.Pose3] = {}
+        transforms: Dict[int, gtsam.Pose3] = {}
         for i, subnet in enumerate(nx.connected_components(map_graph)):
             m0 = min(subnet)
             offset = np.array([i*20,0,0]) # offset subgraphs by 20m
@@ -189,7 +188,7 @@ class InternalConnections(DataClassJsonMixin):
                 transforms[dest] = tr.transformPoseFrom(transforms[source])
         for mapp, t in transforms.items():
             print(mapp, t)
-            self.atlas.maps[mapp].apply_transform(t)
+            apply_map_transform(self.atlas, self.atlas.maps[mapp], t)
 
     def get_transform_graph(self) -> tuple[nx.Graph, dict[tuple[int, int], gtsam.Pose3]]:
         map_graph = nx.Graph()
@@ -214,16 +213,32 @@ class InternalConnections(DataClassJsonMixin):
             min_map_id = min(subnet)
             for map_id in subnet:
                 if map_id != min_map_id:
-                    mapp = self.atlas.maps[map_id]
-                    print("merging map", mapp.id, "into", min_map_id)
-                    self.atlas.maps[min_map_id].merge_in(mapp, connections)
-                    self.atlas.atlas.erase_map(mapp.map)
+                    print("merging map", map_id, "into", min_map_id)
+                    self.atlas.maps[min_map_id].keyframes.update(self.atlas.maps.pop(map_id).keyframes)
+        for kf in self.atlas.keyframes.values():
+            kf._map_points = [connections.get(mp_id, mp_id) for mp_id in kf._map_points]
+        for old in connections:
+            self.atlas.map_points.pop(old, None)
+        for mapp in self.atlas.maps.values():
+            mapp.set_atlas(self.atlas)
 
     def get_connected_points(self):
         result = []
         for conn in self.connections:
             result.extend(conn.keypoint_matches)
         return result
+
+def map_point_ids(mapp: Map) -> Set[int]:
+    return {mp.id for kf in mapp.keyframes.values() for mp in kf.map_points if mp is not None}
+
+def apply_map_transform(atlas: Atlas, mapp: Map, transform: gtsam.Pose3) -> None:
+    # moves everything in the map by the inverse of transform, as atlas_tools.Map.apply_transform did
+    inv = sst.RigidTransform.from_matrix(transform.inverse().matrix())
+    for kf in mapp.keyframes.values():
+        kf.pose = inv * kf.pose
+    for mp_id in map_point_ids(mapp):
+        mp = atlas.map_points[mp_id]
+        mp.pos = tuple(inv.apply(np.array(mp.pos)).tolist())
 
 def ransac_horn(pts_a, pts_b, thresh=0.05, iters=1000):
     # pts_a, pts_b: Nx3 correspondences, pts_b = R @ pts_a + t
@@ -260,32 +275,31 @@ def merge_maps(atlas: Atlas, dir: Path):
         with open(dir / CONNECTIONS_FILE) as f:
             connections = InternalConnections.from_json(f.read())
             connections.atlas = atlas
-            connections.get_ransac_transforms()
+            connections.get_ransac_transforms(translation_only=True)
     else:
         connections = InternalConnections(atlas=atlas)
         connections.find_connections()
-        connections.get_ransac_transforms()
+        connections.get_ransac_transforms(translation_only=True)
         with open(dir / CONNECTIONS_FILE, "w") as f:
             f.write(connections.to_json())
 
     connections.apply_transform()
     connections.unify_maps()
-    atlas.reload()
     print("Merge complete")
 
 
 if __name__=="__main__":
     import argparse
     parser = argparse.ArgumentParser(description="extract keyframes and points from an atlas and save as COLMAP")
-    parser.add_argument('-a', '--atlas', help="provide an atlas message file to use")
+    parser.add_argument('-a', '--atlas', help="atlas file to use (.osa or .json.gz), default is atlas.json.gz in dir")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
     opts = parser.parse_args()
 
     model_dir = Path(opts.dir)
-    if opts.atlas:
-        atlas = Atlas.from_file(opts.atlas)
+    atlas_file = Path(opts.atlas) if opts.atlas else model_dir / "atlas.json.gz"
+    if atlas_file.suffix == ".osa":
+        atlas = Atlas.from_osa(atlas_file)
     else:
-        atlas = Atlas.from_dir(model_dir)
+        atlas = Atlas.from_json_file(atlas_file)
     merge_maps(atlas, model_dir)
-    #atlas.optimize(include_survey=False, iters=30)
-    atlas.save_file(model_dir / "atlas_merged.osa")
+    atlas.save(model_dir / "atlas_merged.json.gz")
