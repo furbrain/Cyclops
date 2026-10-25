@@ -11,22 +11,12 @@
                 {% if model.has_rough %}
                     <a href="/download/{{model.name}}/rough">Download</a>
                     <a href="/viewer/{{model.name}}/rough">View</a>
-                {% else %}
-                    <button class="btn btn-outline-primary ros-make-model"
-                            data-name="{{model.name}}" data-model-style="0">
-                    Make Model
-                    </button>
                 {% endif %}
             </td>
             <td>
                 {% if model.has_refined %}
                     <a href="/download/{{model.name}}/refined">Download</a>
                     <a href="/viewer/{{model.name}}/refined">View</a>
-                {% else %}
-                    <button class="btn btn-outline-primary ros-make-model"
-                            data-name="{{model.name}}" data-model-style="1">
-                    Make Model
-                    </button>
                 {% endif %}
             </td>
         </tr>

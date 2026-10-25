@@ -43,6 +43,8 @@ def get_files(p: Path):
     return entries
 
 def sum_dirs(p: Path):
+    if p.is_symlink():  # e.g. a combined model's links to its sub-surveys - counted under their own names
+        return 0
     if p.is_dir():
         return sum(sum_dirs(x) for x in p.iterdir())
     else:

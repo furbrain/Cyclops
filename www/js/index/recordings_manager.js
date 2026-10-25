@@ -57,71 +57,28 @@ function handleDelete() {
     reloadRecordings();
 }
 
-const logger = document.getElementById("recording_log");
+// --- Combined models ---------------------------------------------------------
 
-function clearLog() {
-    logger.innerHTML = "";
+function openCombineModal() {
+    document.getElementById("combineName").value = "";
+    document.getElementById("combineError").textContent = "";
+    new bootstrap.Modal(document.getElementById("combineModal")).show();
 }
 
-// Helper: check whether the user is "near" the bottom
-function isNearBottom(el, threshold = 50) {
-    return (el.scrollHeight - el.scrollTop - el.clientHeight) <= threshold;
-}
-
-
-// Append a message and optionally auto-scroll
-function addMessage(text) {
-    const wasAtBottom = isNearBottom(logger);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'log-item';
-    const textSpan = document.createElement('span');
-    textSpan.textContent = text;
-    wrapper.appendChild(textSpan);
-    logger.appendChild(wrapper);
-
-    // If Auto-scroll is enabled and user was at bottom, scroll to bottom smoothly
-    if (wasAtBottom) {
-        // smooth scroll whooshes to bottom; change to behavior: 'auto' to disable animation
-        logger.scrollTo({ top: logger.scrollHeight, behavior: 'smooth' });
-    }
-}
-
-const btns_make_model = document.querySelectorAll('button.ros-make-model');
-btns_make_model.forEach(function(btn) {
-    btn.old_text = btn.innerText;
-    btn.old_classes = btn.className;
-    btn.action = new ROSLIB.Action({
-        ros: ros,
-        name: '/make_model',
-        actionType: "cyclops_interfaces/MakeModel",
+// Creates an empty combined model: sub-surveys, links and combining are all done from its model page
+function handleCombine() {
+    const errorEl = document.getElementById("combineError");
+    errorEl.textContent = "";
+    fetch("/model/api/combine", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: document.getElementById("combineName").value.trim()}),
+    })
+        .then(response => response.json().then(data => {
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            window.location.href = "/model/" + encodeURIComponent(data.model_id);
+        }))
+        .catch(err => {
+            errorEl.textContent = err.message;
         });
-    btn.onclick = function() {
-        goal = {name: btn.dataset.name, style: parseInt(btn.dataset.modelStyle)};
-        console.log(goal);
-        btn.action.sendGoal(goal,
-            function(response) {
-                console.debug("action result received");
-                if (response.success) {
-                    reset_button(btn);
-                    flash_button(btn,"success", response.message);
-                    reloadRecordings();
-                } else {
-                    flash_button(btn,"danger");
-                    alert("Call to " + btn.dataset.rosAction + " failed with message: " + response.message);
-                    reloadRecordings();
-                }
-            },
-            function(feedback) {
-                console.debug("action feedback received");
-                addMessage(feedback.output);
-            },
-            function(err) {
-                console.log("action error received");
-                reset_button(btn);
-                flash_button(btn,"danger");
-                alert("Error during call to " + btn.dataset.rosAction + ": " + err);
-        });
-    };
-    btn.end_func = function() {
-    }
-});
+}

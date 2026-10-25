@@ -54,6 +54,40 @@
         </ul>
       </div>
 
+      {% if is_combinable %}
+      <div class="card mb-4" id="combine-card">
+        <div class="card-header">Sub-surveys</div>
+        <div class="card-body">
+          <div class="form-text mb-2">Link each pair of sub-surveys where they overlap — loops and branches are fine. Every sub-survey you link is included.</div>
+          <div id="combine-links" class="d-flex flex-column gap-2"></div>
+          <div id="combine-links-empty" class="form-text">No sub-surveys yet: add a link to start.</div>
+          <button type="button" id="combine-add-link" class="btn btn-sm btn-outline-secondary mt-2">Add link</button>
+
+          <label class="form-label d-block mt-3">Survey data</label>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="combine-share" id="combine-share-no" checked>
+            <label class="form-check-label" for="combine-share-no">Each sub-survey has its own survey</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="combine-share" id="combine-share-yes">
+            <label class="form-check-label" for="combine-share-yes">All share a single survey</label>
+          </div>
+
+          <div id="combine-message" class="small mt-2"></div>
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" id="combine-save-btn" class="btn btn-primary btn-sm" disabled>Save</button>
+            <button
+              type="button"
+              id="combine-btn"
+              class="btn btn-sm {{ 'btn-outline-secondary' if has_atlas else 'btn-warning' }}"
+              title="Combine the sub-surveys into one atlas — slow, and uses a lot of memory"
+              disabled
+            >{{ 'Recombine' if has_atlas else 'Combine' }}</button>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="card">
         <div class="card-header">Survey</div>
         <div class="card-body">

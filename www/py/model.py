@@ -31,10 +31,11 @@ Assumptions (change these to match your real pipeline — search for "TODO"):
     still stubbed with demo output; wire up the real thing there.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import json
 import mimetypes
 import random
+import re
 import subprocess
 import sys
 import threading
@@ -107,7 +108,18 @@ RASPBIAN_PATH = Path(__file__).resolve().parents[2] / "raspbian"
 MAKE_INFO_SCRIPT = RASPBIAN_PATH / "make_info.py"
 MERGE_SCRIPT = RASPBIAN_PATH / "merge_maps.py"
 COLMAP_SCRIPT = Path(__file__).resolve().parents[2] / "raspbian" / "colmap.py"
+COMBINE_SCRIPT = RASPBIAN_PATH / "combine.py"
 SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
+
+# Must match raspbian/combine.py and merge_maps.py (not imported here: they pull in gtsam/orb_slam3_py)
+SUB_ATLAS_FILE = "subatlas.json"
+ATLAS_CONNECTIONS_FILE = "atlas_connections.csv"
+PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.osa"
+CONNECTIONS_FILE = "connections.json"
+# Which part of each sub-survey to look for matches in, see merge_maps.Link
+LINK_SCOPES = ["START", "END", "BOTH", "ALL"]
+COMBINE_SETTINGS_FILE = "combine.json"
+MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][\w.-]*$")
 
 def get_models_dir() -> Path:
     """
@@ -328,7 +340,8 @@ MESH_BUILDERS = {
 
 def refresh_info(model_path: Path, job):
     """Re-run make_info.py on the atlas: rewrites info.json, pointcloud.json, track.json and survey.json"""
-    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
+    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path),
+                                "-a", str(model_path / "atlas.osa")])
 
 
 def run_refresh_job(model_id, job):
@@ -352,7 +365,7 @@ def run_generation_job(model_id, asset_key, job):
     if fmt == "points":
         refresh_info(d, job)
     elif fmt in ("ply", "glb"):
-        with mounted_images(d, job):
+        with mounted_all_images(d, job):
             ensure_sparse(d, job)
             if asset_key not in MESH_BUILDERS:
                 raise NotImplementedError(f"Unknown mesh asset key: {asset_key}")
@@ -390,6 +403,114 @@ def run_merge_job(model_id, job):
     swap_in_merged_atlas(model_path, job)
     refresh_info(model_path, job)
     job_log(job, "Merge complete.")
+
+
+def is_combined(model_path: Path) -> bool:
+    return (model_path / SUB_ATLAS_FILE).exists()
+
+
+def create_combined_model(model_path: Path):
+    """An empty combined model: its sub-surveys and links are set up from its model page"""
+    model_path.mkdir()
+    (model_path / "images").mkdir()
+    write_combine_settings(model_path, [], False)
+
+
+def load_combine_settings(model_path: Path) -> dict:
+    return json.loads((model_path / COMBINE_SETTINGS_FILE).read_text())
+
+
+def write_combine_settings(model_path: Path, links: list[dict], share_survey: bool):
+    lines = [f"{x['from']}, {x['from_scope']}, {x['to']}, {x['to_scope']}\n" for x in links]
+    (model_path / ATLAS_CONNECTIONS_FILE).write_text("".join(lines))
+    settings = {"links": links, "share_survey": share_survey}
+    (model_path / COMBINE_SETTINGS_FILE).write_text(json.dumps(settings, indent=2))
+
+
+def update_combined_model(model_path: Path, links: list[dict], share_survey: bool) -> list[str]:
+    """
+    Change a combined model's sub-surveys and links, keeping its layout the way combine.py and
+    colmap.py expect:
+      <model>/<survey>          -> ../<survey>     (combine.py loads each sub-survey's atlas from here)
+      <model>/images/<survey>   -> ../../<survey>  (colmap.py looks for <survey>/images/<kf>.jpg here)
+      <model>/atlas_connections.csv  one line per link: from, from_scope, to, to_scope
+    combine.py reuses its intermediate files on a recombine, so any that no longer match are
+    deleted. Returns the names of the deleted files.
+    """
+    old = load_combine_settings(model_path)
+    links = [{k: x[k] for k in ("from", "from_scope", "to", "to_scope")} for x in links]
+    old_surveys, new_surveys = link_surveys(old["links"]), link_surveys(links)
+    for survey in set(old_surveys) - set(new_surveys):
+        for link in (model_path / survey, model_path / "images" / survey):
+            if link.is_symlink():
+                link.unlink()
+    for survey in new_surveys:
+        for link, target in ((model_path / survey, Path("..") / survey),
+                             (model_path / "images" / survey, Path("..") / ".." / survey)):
+            if not link.is_symlink():
+                link.symlink_to(target)
+
+    if set(old_surveys) != set(new_surveys) or old["share_survey"] != share_survey:
+        # the pre-merge atlas is built from the sub-surveys; the combined atlas is no use either,
+        # as without subatlas.json there's no telling which sub-survey its images come from
+        stale = [PRE_MERGE_ATLAS_FILE, SUB_ATLAS_FILE, CONNECTIONS_FILE, "atlas.osa"]
+    elif sorted(map(str, old["links"])) != sorted(map(str, links)):
+        stale = [CONNECTIONS_FILE]
+    else:
+        stale = []
+    stale = [name for name in stale if (model_path / name).exists()]
+    for name in stale:
+        (model_path / name).unlink()
+    write_combine_settings(model_path, links, share_survey)
+    return stale
+
+
+def link_surveys(links: list[dict]) -> list[str]:
+    """Every sub-survey mentioned in links, in order of first appearance"""
+    return list(dict.fromkeys(s for x in links for s in (x["from"], x["to"])))
+
+
+def check_links(links, model_id: str) -> str | None:
+    """Why `links` can't be combined into model_id, or None if they're fine"""
+    if not isinstance(links, list) or not links:
+        return "Add at least one link"
+    if not all(isinstance(x, dict) and {"from", "from_scope", "to", "to_scope"} <= x.keys() for x in links):
+        return "Each link needs from, from_scope, to and to_scope"
+    for x in links:
+        if x["from"] == x["to"]:
+            return f"{x['from']} is linked to itself"
+        if model_id in (x["from"], x["to"]):
+            return f"{model_id} can't be one of its own sub-surveys"
+        if x["from_scope"] not in LINK_SCOPES or x["to_scope"] not in LINK_SCOPES:
+            return f"Link scopes must be one of {', '.join(LINK_SCOPES)}"
+    pairs = [frozenset((x["from"], x["to"])) for x in links]
+    if len(set(pairs)) != len(pairs):
+        return "The same two sub-surveys are linked more than once"
+    surveys = link_surveys(links)
+    unknown = set(surveys) - set(combinable_models())
+    if unknown:
+        return f"Not combinable (no atlas): {', '.join(sorted(unknown))}"
+    # every sub-survey must be reachable from the first, or they'd end up as separate pieces
+    reached, todo = set(), [surveys[0]]
+    while todo:
+        survey = todo.pop()
+        if survey not in reached:
+            reached.add(survey)
+            todo += [b for pair in pairs if survey in pair for b in pair]
+    if len(reached) != len(surveys):
+        return f"Not linked to {surveys[0]}: {', '.join(x for x in surveys if x not in reached)}"
+    return None
+
+
+def run_combine_job(model_id, job):
+    model_path = model_dir(model_id)
+    settings = load_combine_settings(model_path)
+    cmd = ["python3", "-u", str(COMBINE_SCRIPT), "-d", str(model_path)]
+    if settings["share_survey"]:
+        cmd.append("--share-survey")
+    run_subprocess_logged(job, cmd, outputs=[model_path / "atlas.osa"])
+    refresh_info(model_path, job)
+    job_log(job, "Combine complete.")
 
 
 def start_job(model_id, job_key, target):
@@ -432,6 +553,86 @@ def start_job(model_id, job_key, target):
 # --- Routes ------------------------------------------------------------------
 # All relative to the blueprint's url_prefix (default "/models", see above).
 
+def combinable_models() -> list[str]:
+    """Models with an atlas that can be used as a sub-survey"""
+    return [d.name for d in sorted(get_models_dir().iterdir())
+            if d.is_dir() and ((d / "atlas.osa").exists() or (d / "atlas.txt.gz").exists())]
+
+
+@model_bp.route("/api/combinable")
+def api_combinable():
+    return jsonify({"models": combinable_models(), "scopes": LINK_SCOPES})
+
+
+@model_bp.route("/api/combine", methods=["POST"])
+def api_combine():
+    """
+    Create a new, empty combined model. Its sub-surveys and links are set from its model page
+    (api_combine_settings), and combining them is started from there too (api_combine_run):
+    it's slow and can run the device out of memory.
+    Body: {"name"}
+    """
+    body = request.get_json(silent=True) or {}
+    name = str(body.get("name", "")).strip()
+
+    if not MODEL_NAME_RE.match(name):
+        return jsonify({"error": "Name must be letters, digits, '_', '-' or '.'"}), 400
+    if (get_models_dir() / name).exists():
+        return jsonify({"error": f"'{name}' already exists"}), 409
+
+    create_combined_model(get_models_dir() / name)
+    return jsonify({"ok": True, "model_id": name}), 201
+
+
+@model_bp.route("/api/<model_id>/combine/settings", methods=["GET", "POST"])
+def api_combine_settings(model_id):
+    """
+    GET: {"links", "share_survey", "models" (that could be sub-surveys), "scopes"}
+    POST body: {"share_survey",
+                "links": [{"from", "from_scope", "to", "to_scope"}, ...]}  (any graph: chain, tree, loops)
+    """
+    model_path = model_dir(model_id)
+    if not (model_path / COMBINE_SETTINGS_FILE).exists():
+        return jsonify({"error": "Not a combined model"}), 400
+
+    if request.method == "GET":
+        models = [x for x in combinable_models() if x != model_id]
+        return jsonify(load_combine_settings(model_path) | {"models": models, "scopes": LINK_SCOPES})
+
+    body = request.get_json(silent=True) or {}
+    links = body.get("links")
+    # saving no links at all is fine: it's just not ready to combine yet
+    error = None if links == [] else check_links(links, model_id)
+    if error:
+        return jsonify({"error": error}), 400
+    job = get_job(model_id, "combine")
+    with job["lock"]:  # so a combine can't start halfway through
+        if job["state"] == "running":
+            return jsonify({"error": "Can't change sub-surveys while combining"}), 409
+        deleted = update_combined_model(model_path, links, bool(body.get("share_survey")))
+    return jsonify({"ok": True, "deleted": deleted})
+
+
+@model_bp.route("/api/<model_id>/combine", methods=["POST"])
+def api_combine_run(model_id):
+    """Combine a model's sub-surveys (see api_combine_settings) as a background job."""
+    model_path = model_dir(model_id)
+    if not (model_path / COMBINE_SETTINGS_FILE).exists():
+        return jsonify({"error": "Not a combined model"}), 400
+    error = check_links(load_combine_settings(model_path)["links"], model_id)
+    if error:
+        return jsonify({"error": error}), 400
+    job, started = start_job(model_id, "combine", lambda job: run_combine_job(model_id, job))
+    if not started:
+        return jsonify({"error": "Combine is already running"}), 409
+    return jsonify({"ok": True}), 202
+
+
+@model_bp.route("/api/<model_id>/combine/status")
+def api_combine_status(model_id):
+    return jsonify(job_snapshot(get_job(model_id, "combine")))
+
+
 @model_bp.route("/<model_id>")
 def model_page(model_id):
     info = load_info(model_id)
@@ -442,6 +643,8 @@ def model_page(model_id):
         asset_status=asset_status(model_id),
         asset_formats={key: meta["format"] for key, meta in ASSET_DEFS.items()},
         has_survey_text=(model_dir(model_id) / "survey.svx").exists(),
+        is_combinable=(model_dir(model_id) / COMBINE_SETTINGS_FILE).exists(),
+        has_atlas=(model_dir(model_id) / "atlas.osa").exists(),
     )
 
 
@@ -547,6 +750,23 @@ def api_refresh_status(model_id):
     return jsonify(job_snapshot(get_job(model_id, "refresh")))
 
 
+def image_sources(target_path: Path) -> list[Path]:
+    """The model dirs holding this model's images: itself, or for a combined model its sub-surveys"""
+    if not is_combined(target_path):
+        return [target_path]
+    sub_atlases = json.loads((target_path / SUB_ATLAS_FILE).read_text())["sub_atlases"]
+    return [src for name in sub_atlases for src in image_sources(target_path / name)]
+
+
+@contextmanager
+def mounted_all_images(target_path: Path, job):
+    """mounted_images() for every model dir this model takes images from"""
+    with ExitStack() as stack:
+        for src in image_sources(target_path):
+            stack.enter_context(mounted_images(src, job))
+        yield
+
+
 @contextmanager
 def mounted_images(target_path: Path, job):
     """Mount images.tar at target_path/images with ratarmount for the duration of the block"""
@@ -578,10 +798,11 @@ def ensure_sparse(target_path: Path, job):
     if all((sparse_dir / f).exists() for f in SPARSE_FILES):
         job_log(job, "Sparse model already exists")
         return
-    with mounted_images(target_path, job):
+    with mounted_all_images(target_path, job):
         run_subprocess_logged(
             job,
             [sys.executable, "-u", str(COLMAP_SCRIPT), "-s",
-             "-d", str(target_path), "-a", str(target_path / "atlas.osa")],
+             "-d", str(target_path), "-a", str(target_path / "atlas.osa")]
+            + (["-c"] if is_combined(target_path) else []),
             outputs=[sparse_dir / f for f in SPARSE_FILES],
         )

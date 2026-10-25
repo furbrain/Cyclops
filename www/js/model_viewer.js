@@ -807,6 +807,249 @@ refreshFrogcoreStatus().then((data) => {
   }
 });
 
+// --- Combine sub-surveys -----------------------------------------------------
+// Only on a combined model. Link up its sub-surveys, save, then combine.
+// Combining is never started automatically: combine.py is slow and can run
+// the device out of memory.
+
+const combineBtn = document.getElementById("combine-btn");
+const combineSaveBtn = document.getElementById("combine-save-btn");
+const combineLinksEl = document.getElementById("combine-links");
+const combineLinksEmpty = document.getElementById("combine-links-empty");
+const combineAddLink = document.getElementById("combine-add-link");
+const combineShareYes = document.getElementById("combine-share-yes");
+const combineShareNo = document.getElementById("combine-share-no");
+const combineMessage = document.getElementById("combine-message");
+const combineSettingsUrl = `/model/api/${modelId}/combine/settings`;
+const combineStatusUrl = `/model/api/${modelId}/combine/status`;
+
+const SCOPE_LABELS = { START: "start", END: "end", BOTH: "both ends", ALL: "anywhere" };
+let combineScopes = [];
+let combineModels = []; // everything that could be a sub-survey
+let savedCombine = null; // {links, share_survey} as last saved
+let combineLinks = []; // [{from, from_scope, to, to_scope}]
+
+// The sub-surveys a set of links combines
+function linkSurveys(links) {
+  return [...new Set(links.flatMap((link) => [link.from, link.to]))];
+}
+
+function surveysChanged() {
+  const sorted = (links) => JSON.stringify(linkSurveys(links).sort());
+  return sorted(combineLinks) !== sorted(savedCombine.links) || combineShareYes.checked !== savedCombine.share_survey;
+}
+
+function combineEdited() {
+  return surveysChanged() || JSON.stringify(combineLinks) !== JSON.stringify(savedCombine.links);
+}
+
+function setCombineMessage(text, isError = false) {
+  combineMessage.textContent = text;
+  combineMessage.className = "small mt-2 " + (isError ? "text-danger" : "text-secondary");
+}
+
+function updateCombineButtons() {
+  const edited = combineEdited();
+  combineSaveBtn.disabled = !edited || jobRunning;
+  combineBtn.disabled = edited || savedCombine.links.length === 0 || jobRunning;
+  combineBtn.title = edited
+    ? "Save your changes first"
+    : savedCombine.links.length === 0
+    ? "Link some sub-surveys first"
+    : "Combine the sub-surveys into one atlas — slow, and uses a lot of memory";
+}
+
+// A sensible next link: carry on the chain from the end of the last one to a sub-survey
+// not used yet, or failing that join two used ones that aren't linked to each other
+function nextLink() {
+  const used = linkSurveys(combineLinks);
+  const unused = combineModels.filter((name) => !used.includes(name));
+  if (!combineLinks.length) return unused.length >= 2 ? [unused[0], unused[1]] : null;
+  const from = combineLinks.at(-1).to;
+  if (unused.length) return [from, unused[0]];
+  const linked = (a, b) => combineLinks.some((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a));
+  for (const [i, a] of used.entries()) {
+    const b = used.slice(i + 1).find((b) => !linked(a, b));
+    if (b) return [a, b];
+  }
+  return null;
+}
+
+function makeSelect(options, value, onchange) {
+  const select = document.createElement("select");
+  select.className = "form-select form-select-sm w-auto";
+  select.replaceChildren(...options.map(([label, val]) => new Option(label, val)));
+  select.value = value;
+  select.onchange = () => onchange(select.value);
+  return select;
+}
+
+function renderCombineLinks() {
+  const surveyOptions = combineModels.map((name) => [name, name]);
+  const scopeOptions = combineScopes.map((scope) => [SCOPE_LABELS[scope] ?? scope, scope]);
+  const text = (words) => Object.assign(document.createElement("span"), { textContent: words });
+  combineLinksEl.replaceChildren(
+    ...combineLinks.map((link, i) => {
+      const row = document.createElement("div");
+      row.className = "d-flex flex-wrap align-items-center gap-1";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn btn-sm btn-outline-danger ms-auto";
+      remove.textContent = "✕";
+      remove.title = "Remove link";
+      remove.onclick = () => {
+        combineLinks.splice(i, 1);
+        renderCombineLinks();
+      };
+      const edit = (key) => (value) => {
+        link[key] = value;
+        renderCombineLinks(); // which sub-surveys are used may have changed
+      };
+      row.append(
+        makeSelect(scopeOptions, link.from_scope, edit("from_scope")), text("of"),
+        makeSelect(surveyOptions, link.from, edit("from")), text("to"),
+        makeSelect(scopeOptions, link.to_scope, edit("to_scope")), text("of"),
+        makeSelect(surveyOptions, link.to, edit("to")),
+        remove
+      );
+      return row;
+    })
+  );
+  combineLinksEmpty.hidden = combineLinks.length > 0;
+  combineAddLink.disabled = !nextLink();
+  combineAddLink.title = combineAddLink.disabled ? "Every pair of models is already linked" : "";
+  updateCombineButtons();
+}
+
+combineAddLink?.addEventListener("click", () => {
+  const [from, to] = nextLink();
+  combineLinks.push({ from, from_scope: "END", to, to_scope: "START" });
+  renderCombineLinks();
+});
+
+combineShareYes?.addEventListener("change", updateCombineButtons);
+combineShareNo?.addEventListener("change", updateCombineButtons);
+
+function showCombineSettings(data) {
+  savedCombine = { links: data.links, share_survey: data.share_survey };
+  combineLinks = structuredClone(data.links);
+  // keep sub-surveys that are linked but have since lost their atlas, so they can be swapped out
+  combineModels = [...new Set([...data.models, ...linkSurveys(data.links)])].sort();
+  combineShareYes.checked = data.share_survey;
+  combineShareNo.checked = !data.share_survey;
+  renderCombineLinks();
+}
+
+function setCombineBtnHasAtlas(hasAtlas) {
+  combineBtn.textContent = hasAtlas ? "Recombine" : "Combine";
+  combineBtn.className = "btn btn-sm " + (hasAtlas ? "btn-outline-secondary" : "btn-warning");
+}
+
+combineSaveBtn?.addEventListener("click", () => {
+  if (
+    surveysChanged() &&
+    combineBtn.textContent === "Recombine" &&
+    !confirm("Changing the sub-surveys or survey data deletes the current combined atlas. Carry on?")
+  ) {
+    return;
+  }
+  const body = { links: combineLinks, share_survey: combineShareYes.checked };
+  combineSaveBtn.disabled = true;
+  setCombineMessage("Saving…");
+  fetch(combineSettingsUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((res) =>
+      res.json().then((data) => {
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        savedCombine = structuredClone(body);
+        if (data.deleted.includes("atlas.osa")) {
+          setCombineBtnHasAtlas(false);
+          refreshDetailsFromServer();
+        }
+        setCombineMessage(
+          "Saved." +
+            (data.deleted.length ? ` Deleted out-of-date ${data.deleted.join(", ")}.` : "") +
+            (body.links.length ? " Combine to apply the changes." : "")
+        );
+      })
+    )
+    .catch((err) => setCombineMessage(err.message, true))
+    .finally(updateCombineButtons);
+});
+
+function waitForCombine() {
+  jobRunning = true;
+  updateCombineButtons();
+  statusEl.textContent = "Combining sub-surveys…";
+  return new Promise((resolve, reject) => {
+    pollJob(combineStatusUrl, {
+      onDone: resolve,
+      onError: () => reject(new Error("Combine failed — see output above.")),
+    });
+  })
+    .then(() => {
+      statusEl.textContent = "Combine complete.";
+      setCombineBtnHasAtlas(true);
+      return refreshDetailsFromServer();
+    })
+    .then(() => {
+      if (assetStatus.pointcloud) loadAsset("pointcloud");
+    })
+    .catch((err) => {
+      jobOutput.textContent += `\n${err.message}`;
+    })
+    .finally(() => {
+      jobRunning = false;
+      updateCombineButtons();
+    });
+}
+
+combineBtn?.addEventListener("click", () => {
+  if (jobRunning) return;
+  jobOutput.textContent = "";
+  setJobBadge("running");
+  fetch(`/model/api/${modelId}/combine`, { method: "POST" })
+    .then((res) =>
+      res
+        .json()
+        .catch(() => ({}))
+        .then((body) => {
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          return waitForCombine();
+        })
+    )
+    .catch((err) => {
+      setJobBadge("error");
+      jobOutput.textContent += `\n${err.message}`;
+    });
+});
+
+if (combineBtn) {
+  fetch(combineSettingsUrl)
+    .then((res) => res.json())
+    .then((data) => {
+      combineScopes = data.scopes;
+      showCombineSettings(data);
+      // Pick up a combine that was already running when the page was (re)loaded
+      return fetch(combineStatusUrl);
+    })
+    .then((res) => res.json())
+    .then((data) => {
+      if (jobRunning) return;
+      if (data.state === "running") {
+        waitForCombine();
+      } else if (data.state === "error") {
+        // failed while nobody was watching: show why
+        jobOutput.textContent = data.log || "(no output)";
+        setJobBadge(data.state);
+      }
+    })
+    .catch((err) => setCombineMessage(`Couldn't load sub-surveys: ${err.message}`, true));
+}
+
 resetViewBtn.addEventListener("click", () => frameCombinedView());
 cullBackfacesToggle?.addEventListener("change", () => applyCullMode(currentObject));
 
