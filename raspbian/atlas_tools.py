@@ -181,16 +181,12 @@ class Atlas:
         self.mps = {mp.id: mp for mp in self.atlas.get_all_map_points()}
 
     @classmethod
-    def from_dir(cls, dir: Path, final: bool = True, pre_align: bool = False) -> op.Atlas:
+    def from_dir(cls, dir: Path, pre_align: bool = False) -> op.Atlas:
         print(f"Loading atlas from {dir}")
-        if final:
-            name = "atlas_final"
-        else:
-            name = "atlas"
         try:
-            return cls.from_file(dir / (name + ".osa"))
+            return cls.from_file(dir / "atlas.osa")
         except RuntimeError:
-            return cls.from_file(dir / (name + ".txt.gz"))
+            return cls.from_file(dir / "atlas.txt.gz")
 
     @classmethod
     def from_file(cls, path: Path, pre_align: bool = False) -> "Atlas":
