@@ -246,8 +246,3 @@ class Atlas:
         result = run_optimisation(G, values, iters)
         self.update_from_values(result)
 
-def make_path(root: Path, name: str ) -> Path:
-    if name.startswith("/"):
-        return Path(name)
-    else:
-        return root / name

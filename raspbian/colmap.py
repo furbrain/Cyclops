@@ -7,8 +7,7 @@ import os
 import argparse
 import numpy as np
 
-from atlas import Atlas, Keyframe, SubSurvey
-from atlas_tools import make_path
+from atlas import Atlas, Keyframe, SubSurvey, make_path
 from utils import IMAGE_FILENAME, CAM_FILENAME, POINTS_FILENAME, SPARSE_POINTS_FILENAME
 import scipy.spatial.transform as sst
 

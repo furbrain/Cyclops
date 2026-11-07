@@ -17,8 +17,7 @@ from dataclasses_json import DataClassJsonMixin
 from dataclasses_json.cfg import config as dj_conf, Exclude
 import dataclasses_json.cfg
 
-from atlas import Atlas, Map, Keyframe
-from atlas_tools import M, T
+from atlas import Atlas, Map, Keyframe, M, T
 
 CONNECTIONS_FILE = "connections.json"
 

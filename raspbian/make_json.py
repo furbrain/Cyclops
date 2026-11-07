@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-from atlas import Atlas
-from atlas_tools import make_path
+from atlas import Atlas, make_path
 
 
 def make_json(atlas_file: Path, output: Path):

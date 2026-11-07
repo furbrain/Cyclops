@@ -490,3 +490,10 @@ if __name__ == "__main__":
     atlas = Atlas.from_dir(Path("."))
     print(atlas.get_aruco_positions())
 
+
+def make_path(root: Path, name: str ) -> Path:
+    if name.startswith("/"):
+        return Path(name)
+    else:
+        return root / name
+
