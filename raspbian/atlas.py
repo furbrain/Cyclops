@@ -325,6 +325,36 @@ class Atlas(DataClassJsonMixin):
                 add_arucos(self, images, keyframes, sub_survey.kf_id_offset)
 
 
+    def get_aruco_positions(self) -> Dict[str, Tuple[float, float, float]]:
+        """Triangulate the world position of each aruco marker from all its sightings in all keyframes.
+        Both the left and right camera observations are used. Markers that can't be triangulated
+        (e.g. too few sightings or too little parallax) are omitted."""
+        cams: Dict[str, gtsam.CameraSetCal3_S2] = defaultdict(gtsam.CameraSetCal3_S2)
+        observations: Dict[str, gtsam.Point2Vector] = defaultdict(gtsam.Point2Vector)
+        for kf in self.keyframes.values():
+            cal = kf.get_cal()
+            left_pose = kf.get_gtsam_pose()
+            right_pose = left_pose.compose(kf.get_stereo_offset())
+            for name, (x_left, y, x_right) in kf.arucos.items():
+                if x_left >= 0:
+                    cams[name].append(gtsam.PinholeCameraCal3_S2(left_pose, cal))
+                    observations[name].append(np.array([x_left, y], dtype=float))
+                if x_right >= 0:
+                    cams[name].append(gtsam.PinholeCameraCal3_S2(right_pose, cal))
+                    observations[name].append(np.array([x_right, y], dtype=float))
+
+        params = gtsam.TriangulationParameters()
+        positions: Dict[str, Tuple[float, float, float]] = {}
+        for name, cam_set in cams.items():
+            if len(cam_set) < 2:
+                continue
+            result = gtsam.triangulateSafe(cam_set, observations[name], params)
+            if result.valid():
+                positions[name] = tuple(np.asarray(result.get()).tolist())
+            else:
+                print(f"could not triangulate aruco {name}")
+        return positions
+
     def import_atlas(self, other: "Atlas", share_survey: bool = False, survex_prefix: str = "") -> int:
         """Move all of other's maps into this atlas, offsetting ids to avoid clashes (as op.Atlas.import_atlas).
         Other's sub-survey folders are referenced relative to this atlas's dir, with survex_prefix prepended
