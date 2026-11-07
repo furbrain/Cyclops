@@ -7,19 +7,8 @@ from scipy.spatial import transform as sst
 
 import orb_slam3_py as op
 
-M = gtsam.symbol_shorthand.M # map points
-K = gtsam.symbol_shorthand.K # keyframes
-R = gtsam.symbol_shorthand.R # right keyframes
-T = gtsam.symbol_shorthand.T # transforms between maps
-A = gtsam.symbol_shorthand.A # aruco points
-S = gtsam.symbol_shorthand.S # non-aruco survey points
-SMART_NOISE_BASE = gtsam.noiseModel.Isotropic.Sigma(2, 3.0)  # 1px noise
-SMART_NOISE = SMART_NOISE_BASE
-#SMART_NOISE = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber.Create(1.345), SMART_NOISE_BASE)
-IMU_NOISE = gtsam.noiseModel.Isotropic.Sigma(3, np.deg2rad(10)) #10 degrees
-ANCHOR_NOISE = gtsam.noiseModel.Isotropic.Sigma(3, 0.1)  # anchor noise
-RIG_NOISE = gtsam.noiseModel.Isotropic.Sigma(6, 1e-2)
-
+from atlas import (M, K, R, T, A, S, SMART_NOISE_BASE, SMART_NOISE, IMU_NOISE, ANCHOR_NOISE, RIG_NOISE,
+                   run_optimisation, get_station_symbol, get_station_string)
 
 class KeyFrameData:
     def __init__(self, kf: op.KeyFrame):
@@ -256,38 +245,6 @@ class Atlas:
         G, values = self.create_graph(include_survey)
         result = run_optimisation(G, values, iters)
         self.update_from_values(result)
-
-def run_optimisation(G: gtsam.NonlinearFactorGraph, values: gtsam.Values, iters: int = 100) -> gtsam.Values:
-    lm_params = gtsam.LevenbergMarquardtParams()
-    lm_params.setMaxIterations(iters)
-    #lm_params.setlambdaFactor(np.sqrt(10))
-    lm_params.setVerbosityLM("SUMMARY")
-    lm_params.setLinearSolverType("MULTIFRONTAL_CHOLESKY")
-    lm_params.setlambdaUpperBound(1e7)
-    # lm_params.iterationHook =python_logging_hook
-    print("creating optimisation")
-    optimizer = gtsam.LevenbergMarquardtOptimizer(G, values, lm_params)
-    print("running optimisation")
-    final = optimizer.optimize()
-    print("optimisation complete")
-    return final
-
-
-def get_station_symbol(text:str):
-    if len(text)==1 and text.isalpha():
-        return A(ord(text.upper()) - ord("A"))
-    else:
-        try:
-            return S(int(text))
-        except ValueError:
-            raise ValueError(f"Invalid station symbol '{text}': should be either a number or a single letter")
-
-def get_station_string(symbol: gtsam.Symbol) -> str:
-    if symbol.string().startswith("s"):
-        return str(symbol.index())
-    elif symbol.string().startswith("a"):
-        return chr(ord("A") + symbol.index())
-
 
 def make_path(root: Path, name: str ) -> Path:
     if name.startswith("/"):

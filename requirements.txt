@@ -1,0 +1,29 @@
+# cv2: ambiguous - could be opencv-python, opencv-python-headless
+# Could not map: camera_info_manager
+# Could not map: orb_slam3
+# Could not map: orb_slam3_py
+# Could not map: find_cameras2
+ArducamDepthCamera
+autonode
+dataclasses-json
+fabric
+flask
+gpiozero
+gtsam
+matplotlib
+networkx
+numpy
+paramiko
+picamera2
+posix_ipc
+psutil
+pytest
+pyyaml
+requests
+rosbags
+scipy
+setuptools
+smbus2
+sympy
+systemd
+zipstream
