@@ -19,11 +19,10 @@ posix_ipc
 psutil
 pytest
 pyyaml
+ratarmount
 requests
-rosbags
 scipy
 setuptools
 smbus2
 sympy
 systemd
-zipstream

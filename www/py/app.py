@@ -3,7 +3,6 @@ import json
 import tarfile
 import time
 import shutil
-from typing import Sequence
 
 from flask import Flask, render_template, Response, send_file, send_from_directory, abort, jsonify, request
 from pathlib import Path
@@ -11,9 +10,7 @@ from glob import glob
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from zipstream import ZipStream
-
-from utils import ROOT_DIR as DEFAULT_ROOT_DIR, BAG_NAME
+from utils import ROOT_DIR as DEFAULT_ROOT_DIR
 from frogcore import frogcore_bp
 
 WEB_ROOT = Path(__file__).parent.parent
@@ -26,7 +23,7 @@ app.register_blueprint(model_bp, url_prefix="/model")
 app.register_blueprint(frogcore_bp)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
-app.config['CYCLOPS_MODELS_DIR'] = '/data/trips'
+app.config['CYCLOPS_MODELS_DIR'] = DEFAULT_ROOT_DIR
 app.config['ROOT_DIR'] = DEFAULT_ROOT_DIR
 # FLASK_ROOT_DIR=/some/dir overrides the default; app.config['ROOT_DIR'] can also be set directly
 app.config.from_prefixed_env()
@@ -105,31 +102,6 @@ def delete(target: str):
     except IOError:
         return {"success": False}
     return {"success": True}
-
-def zip_response(paths: Sequence[Path], name: str):
-    zs = ZipStream(sized=True)
-    for p in paths:
-        zs.add_path(p)
-    return Response(
-        zs,
-        mimetype="application/zip",
-        headers={
-            "Content-Disposition": f"attachment; filename={name}.zip",
-            "Content-Length": len(zs),
-            "Last-Modified": zs.last_modified,
-        }
-    )
-
-
-
-@app.route("/download/<target>/<payload>")
-def downloads(target: str, payload: str):
-    if payload == "bag":
-        target_path = app.config['ROOT_DIR'] / target / BAG_NAME
-        return zip_response([target_path], f"{target}_bag")
-    target_path = app.config['ROOT_DIR'] / target / "map_1"
-    files = target_path.glob(f"{payload}*.*")
-    return zip_response(files, f"{target}_{payload}")
 
 @app.route("/viewer/<target>/<style>")
 def ply_viewer(target: str, style: str):

@@ -3,19 +3,17 @@
     {% for model in models %}
         <tr>
             <td><a href="/model/{{model.name}}">{{model.name}}</a></td>
-            <td><a class="btn btn-outline-primary" href="/download/{{model.name}}/bag">Download</a></td>
+            <td><a class="btn btn-outline-primary" href="/viewer/{{model.name}}/slideshow" target="_blank">Slideshow</a></td>
             <td><button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button></td>
             <td><button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button></td>
             <td>{{model.size | filesizeformat}}</td>
             <td>
                 {% if model.has_rough %}
-                    <a href="/download/{{model.name}}/rough">Download</a>
                     <a href="/viewer/{{model.name}}/rough">View</a>
                 {% endif %}
             </td>
             <td>
                 {% if model.has_refined %}
-                    <a href="/download/{{model.name}}/refined">Download</a>
                     <a href="/viewer/{{model.name}}/refined">View</a>
                 {% endif %}
             </td>

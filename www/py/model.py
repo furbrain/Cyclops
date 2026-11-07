@@ -135,14 +135,14 @@ def get_models_dir() -> Path:
     Flask app could even register this blueprint twice against different
     directories if that's ever useful.
     """
-    configured = current_app.config.get("CYCLOPS_MODELS_DIR")
+    configured = current_app.config.get("ROOT_DIR")
     return Path(configured) if configured else DEFAULT_MODELS_DIR
 
 
 def model_dir(model_id: str) -> Path:
     d = get_models_dir() / model_id
     if not d.is_dir():
-        abort(404, f"No such model: {model_id}")
+        abort(404, f"No such model: {model_id} at {d}")
     return d
 
 
@@ -721,8 +721,6 @@ def api_generate_status(model_id, asset_key):
 def api_merge(model_id):
     """Kick off a submap merge as a background job."""
     info = load_info(model_id)
-    if (info.get("submaps") or 1) <= 1:
-        return jsonify({"error": "Nothing to merge"}), 400
 
     job, started = start_job(model_id, "merge", lambda job: run_merge_job(model_id, job))
     if not started:
