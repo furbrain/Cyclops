@@ -4,7 +4,7 @@ import gzip
 import os
 from dataclasses_json import config, DataClassJsonMixin
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Set
+from typing import List, Dict, Optional, Tuple, Set, Iterable
 import scipy.spatial.transform as sst
 import numpy as np
 from numpy.lib.format import open_memmap
@@ -192,16 +192,38 @@ class Map(DataClassJsonMixin):
             mp = self._atlas.map_points[mp_id]
             mp.pos = tuple(rotation.apply(mp.pos).tolist())
 
-    def align_to_imu(self) -> sst.Rotation:
-        """Rotate the map so the keyframe orientations best match their IMU orientations, in the
-        least squares (chordal) sense. Returns the rotation applied"""
+    def align_to_imu(self, threshold_deg: float = 10.0, iters: int = 200) -> sst.Rotation:
+        """Rotate the map so the keyframe orientations best match their IMU orientations.
+        Uses RANSAC so keyframes with a bad IMU reading (or bad SLAM pose) are ignored: each
+        keyframe proposes a rotation, the one agreeing with the most keyframes (within
+        threshold_deg) wins, and it is refined by averaging over its inliers (chordal mean).
+        Returns the rotation applied"""
         if not self.keyframes:
             return sst.Rotation.identity()
         kfs = list(self.keyframes.values())
         slam_rots = sst.Rotation.concatenate([kf.pose.rotation for kf in kfs])
         imu_rots = sst.Rotation.concatenate([kf.imu_pose.rotation for kf in kfs])
-        # we want the single rotation Q such that Q * slam_rot ~= imu_rot for every keyframe
-        rotation = (imu_rots * slam_rots.inv()).mean()
+        # we want the single rotation Q such that Q * slam_rot ~= imu_rot for every keyframe,
+        # so each keyframe on its own proposes Q_i = imu_i * slam_i^-1
+        proposals = imu_rots * slam_rots.inv()
+        threshold = np.deg2rad(threshold_deg)
+
+        def inlier_mask(q: sst.Rotation) -> np.ndarray:
+            return (imu_rots.inv() * q * slam_rots).magnitude() < threshold
+
+        n = len(kfs)
+        candidates = range(n) if n <= iters else np.random.choice(n, iters, replace=False)
+        best_inliers = None
+        for i in candidates:
+            inliers = inlier_mask(proposals[int(i)])
+            if best_inliers is None or inliers.sum() > best_inliers.sum():
+                best_inliers = inliers
+        rotation = proposals[best_inliers].mean()
+        # refine: the averaged rotation may admit a slightly different inlier set
+        refined = inlier_mask(rotation)
+        if refined.any():
+            rotation = proposals[refined].mean()
+        print(f"Map {self.id}: aligned to IMU using {best_inliers.sum()}/{n} keyframes")
         self.apply_rotation(rotation)
         return rotation
 
@@ -348,13 +370,14 @@ class Atlas(DataClassJsonMixin):
                 add_arucos(self, images, keyframes, sub_survey.kf_id_offset)
 
 
-    def get_aruco_positions(self) -> Dict[str, Tuple[float, float, float]]:
-        """Triangulate the world position of each aruco marker from all its sightings in all keyframes.
+    def get_aruco_positions(self, keyframes: Optional[Iterable["Keyframe"]] = None) -> Dict[str, Tuple[float, float, float]]:
+        """Triangulate the world position of each aruco marker from all its sightings in all keyframes
+        (or just the given keyframes).
         Both the left and right camera observations are used. Markers that can't be triangulated
         (e.g. too few sightings or too little parallax) are omitted."""
         cams: Dict[str, gtsam.CameraSetCal3_S2] = defaultdict(gtsam.CameraSetCal3_S2)
         observations: Dict[str, gtsam.Point2Vector] = defaultdict(gtsam.Point2Vector)
-        for kf in self.keyframes.values():
+        for kf in (self.keyframes.values() if keyframes is None else keyframes):
             cal = kf.get_cal()
             left_pose = kf.get_gtsam_pose()
             right_pose = left_pose.compose(kf.get_stereo_offset())

@@ -100,7 +100,8 @@ class SurveyLinks:
                         connections.append(connection)
         return InternalConnections(connections, atlas)
 
-def combine_atlases(model_dir: Path, share_survey: bool = False):
+def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Optional[Path] = None,
+                    survey_prefixes: Optional[List[str]] = None, bundle_adjust: bool = True):
     links = SurveyLinks.from__file(model_dir / ATLAS_CONNECTIONS_FILE)
     if (model_dir / PRE_MERGE_ATLAS_FILE).exists() and (model_dir / SUB_ATLAS_FILE).exists():
         atlas = Atlas.from_json_file(model_dir / PRE_MERGE_ATLAS_FILE)
@@ -119,9 +120,21 @@ def combine_atlases(model_dir: Path, share_survey: bool = False):
         connections = links.combine(atlas, subatlasses)
     with open(model_dir / CONNECTIONS_FILE, "w") as f:
         f.write(connections.to_json(indent=2))
+    connections.split_connections(distance=2.0)
+    for conn in connections.connections:
+        print(f"Connection: {conn.from_map} <-> {conn.to_map}, "
+              f"matches: {len(conn.keypoint_matches)}, "
+              f"ransac_transform: {conn.transform}") 
+    connections.clean_connections()
     connections.get_ransac_transforms(translation_only=True)
     connections.apply_transform()
+    if survey_3d is not None:
+        from survey_morph import morph_to_survey, parse_prefixes, bundle_adjust as bundle_adjust_atlas # imported here as survey_morph imports this module
+        prefixes = parse_prefixes(survey_prefixes or [], list(subatlasses.sub_atlases))
+        survey_fit = morph_to_survey(atlas, subatlasses.sub_atlases, connections.connections, survey_3d, prefixes)
     connections.unify_maps()
+    if survey_3d is not None and bundle_adjust:
+        bundle_adjust_atlas(atlas, survey_fit)
     # no atlas.optimize() here: it currently distorts the sub-surveys by up to several metres
     atlas.save(model_dir / "atlas.json.gz")
 
@@ -133,5 +146,15 @@ if __name__ == "__main__":
                         f"{ATLAS_CONNECTIONS_FILE} and a sub-directory per sub-survey", default=".")
     parser.add_argument('-s', '--share-survey', help="all sub-surveys share a single survey",
                         action="store_true")
+    parser.add_argument('--survey', help="survex .3d file: aruco markers are fixed to its stations and the "
+                        "sub-surveys are morphed to fit (needs survex's dump3d on the path)")
+    parser.add_argument('--survey-prefix', action='append', default=[], metavar='[NAME=]PREFIX',
+                        help="survex prefix the aruco markers are under, e.g. 'garden' for station garden.a. "
+                        "Applies to every sub-survey, or just sub-survey NAME if given as NAME=PREFIX. "
+                        "May be repeated. Default is each sub-survey's own name")
+    parser.add_argument('--no-bundle', action='store_true',
+                        help="with --survey, skip the final bundle adjustment of the combined atlas")
     opts = parser.parse_args()
-    combine_atlases(Path(opts.dir), share_survey=opts.share_survey)
+    combine_atlases(Path(opts.dir), share_survey=opts.share_survey,
+                    survey_3d=Path(opts.survey) if opts.survey else None,
+                    survey_prefixes=opts.survey_prefix, bundle_adjust=not opts.no_bundle)

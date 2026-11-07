@@ -10,6 +10,7 @@ import networkx as nx
 import cv2
 import numpy as np
 from scipy.spatial import transform as sst
+from scipy.cluster.hierarchy import linkage, fcluster
 from itertools import combinations, count
 from typing import List, Tuple, Any, Sequence, Dict, Union, Optional, Set
 from dataclasses import dataclass, field
@@ -136,6 +137,31 @@ class Connection(DataClassJsonMixin):
         else:
             self.transform = gtsam.Pose3(gtsam.Rot3(R),t)
 
+    def split(self, atlas_a: Atlas, atlas_b: Optional[Atlas] = None,
+              distance: float = 5.0) -> List["Connection"]:
+        """Split this connection into spatially separate clusters of matched points.
+
+        Matches are single-linkage clustered, so two matches share a group if they are chained
+        together by gaps of less than `distance` (in map units) - in both map A and map B.
+        Returns one new Connection per group (largest first), each with its own transform
+        index and a copy of the current transform. If the points form a single group,
+        returns [self] unchanged."""
+        if atlas_b is None:
+            atlas_b = atlas_a
+        if len(self.keypoint_matches) < 2:
+            return [self]
+        pts_a = np.array([atlas_a.map_points[x[0]].pos for x in self.keypoint_matches])
+        pts_b = np.array([atlas_b.map_points[x[1]].pos for x in self.keypoint_matches])
+        labels_a = fcluster(linkage(pts_a, method="single"), distance, criterion="distance")
+        labels_b = fcluster(linkage(pts_b, method="single"), distance, criterion="distance")
+        groups: Dict[Tuple[int, int], List[Tuple[int, int]]] = defaultdict(list)
+        for match, la, lb in zip(self.keypoint_matches, labels_a, labels_b):
+            groups[(la, lb)].append(match)
+        if len(groups) < 2:
+            return [self]
+        return [Connection(self.from_map, self.to_map, matches, self.transform)
+                for matches in sorted(groups.values(), key=len, reverse=True)]
+
     def add_graph_connections(self, G: gtsam.NonlinearFactorGraph, values: gtsam.Values):
         offset = np.zeros(3)
         for src_idx, dest_idx in self.keypoint_matches:
@@ -161,6 +187,12 @@ class InternalConnections(DataClassJsonMixin):
             connection.compare_maps(m0, m1)
             if connection.is_valid():
                 self.connections.append(connection)
+
+    def split_connections(self, distance: float = 5.0):
+        new_connections: List[Connection] = []
+        for conn in self.connections:
+            new_connections.extend(conn.split(self.atlas, distance=distance))
+        self.connections = new_connections
 
     def get_ransac_transforms(self, translation_only=True):
         if self.atlas is None:
