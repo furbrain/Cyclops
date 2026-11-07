@@ -4,10 +4,11 @@ import subprocess
 import threading
 from pathlib import Path
 from aruco import add_arucos
-from atlas_tools import Atlas, run_optimisation, make_path
+from atlas_tools import Atlas, run_optimisation
 from merge_maps import merge_maps
 from colmap import create_colmap
 from ply_maker import PlyMaker
+from atlas import make_path
 from survey import add_survey, initialise_stations, add_legs_to_graph, make_survey_ply
 import fabric
 import paramiko
