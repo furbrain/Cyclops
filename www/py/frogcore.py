@@ -13,10 +13,9 @@ from pathlib import Path
 from typing import Callable
 
 import requests
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from model import get_job, job_log, job_snapshot, start_job
-from utils import ROOT_DIR
 from model import ensure_sparse, SPARSE_FILES
 
 frogcore_bp = Blueprint("frogcore", __name__)
@@ -137,7 +136,7 @@ def upload_survey(target_path: Path, job):
 
 @frogcore_bp.route("/api/survey/<target>/upload", methods=["POST"])
 def survey_upload(target: str):
-    target_path = ROOT_DIR / target
+    target_path = Path(current_app.config['ROOT_DIR']) / target
     if not target_path.is_dir():
         return jsonify(success=False, message="No such recording"), 404
     if not FrogCoreClient.is_configured():
@@ -151,13 +150,13 @@ def survey_upload(target: str):
 @frogcore_bp.route("/api/survey/<target>/status")
 def survey_status(target: str):
     """Upload job state and log (for the model page's output panel) plus the stored survey status"""
-    survey = load_survey(ROOT_DIR / target)
+    survey = load_survey(Path(current_app.config['ROOT_DIR']) / target)
     return jsonify(job_snapshot(get_job(target, "frogcore_upload")) | {"survey": survey})
 
 
 @frogcore_bp.route("/api/survey/<target>/build", methods=["POST"])
 def survey_build(target: str):
-    target_path = ROOT_DIR / target
+    target_path = Path(current_app.config['ROOT_DIR']) / target
     survey = load_survey(target_path)
     if survey.get("status") not in ("uploaded", "building") or not survey.get("id"):
         return jsonify(success=False, message="Survey has not been uploaded"), 409

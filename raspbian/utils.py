@@ -143,9 +143,9 @@ def get_raw_image_from_timestamp(reader: Reader, ts_map: Dict[int, int], timesta
             raise ValueError(f"Mismatch between timestamp {timestamp} and {data_ts}")
     raise ValueError(f"No images found")
 
-def load_ts_map(model: str) -> Dict[int, int]:
+def load_ts_map(model: str, root_dir: Path = ROOT_DIR) -> Dict[int, int]:
 
-    ts_map_path = ROOT_DIR / model / TS_MAP_FILENAME
+    ts_map_path = root_dir / model / TS_MAP_FILENAME
     if not ts_map_path.exists():
         os.system(f"/home/pi/Cyclops/raspbian/make_model.py -p -n {model}")
     with open(ts_map_path) as f:

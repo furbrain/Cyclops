@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from rosbags.rosbag2 import Reader
 from zipstream import ZipStream
 
-from utils import ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
+from utils import ROOT_DIR as DEFAULT_ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
 from frogcore import frogcore_bp
 
 WEB_ROOT = Path(__file__).parent.parent
@@ -27,6 +27,10 @@ app.register_blueprint(frogcore_bp)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 app.config['CYCLOPS_MODELS_DIR'] = '/data/trips'
+app.config['ROOT_DIR'] = DEFAULT_ROOT_DIR
+# FLASK_ROOT_DIR=/some/dir overrides the default; app.config['ROOT_DIR'] can also be set directly
+app.config.from_prefixed_env()
+app.config['ROOT_DIR'] = Path(app.config['ROOT_DIR'])
 
 
 def name_from_fname(fname: Path):
@@ -67,7 +71,7 @@ class Model:
 
 
 def get_models():
-   return [Model.fromPath(x) for x in sorted(ROOT_DIR.iterdir())]
+   return [Model.fromPath(x) for x in sorted(app.config['ROOT_DIR'].iterdir())]
 
 
 @app.route("/")
@@ -85,8 +89,8 @@ def api_link():
 
 @app.route("/api/rename/<src>/<dest>")
 def rename(src: str, dest: str):
-    src = ROOT_DIR / src
-    dest = ROOT_DIR / dest
+    src = app.config['ROOT_DIR'] / src
+    dest = app.config['ROOT_DIR'] / dest
     try:
         src.rename(dest)
     except IOError:
@@ -95,7 +99,7 @@ def rename(src: str, dest: str):
 
 @app.route("/api/delete/<target>")
 def delete(target: str):
-    target = ROOT_DIR / target
+    target = app.config['ROOT_DIR'] / target
     try:
         shutil.rmtree(target)
     except IOError:
@@ -121,9 +125,9 @@ def zip_response(paths: Sequence[Path], name: str):
 @app.route("/download/<target>/<payload>")
 def downloads(target: str, payload: str):
     if payload == "bag":
-        target_path = ROOT_DIR / target / BAG_NAME
+        target_path = app.config['ROOT_DIR'] / target / BAG_NAME
         return zip_response([target_path], f"{target}_bag")
-    target_path = ROOT_DIR / target / "map_1"
+    target_path = app.config['ROOT_DIR'] / target / "map_1"
     files = target_path.glob(f"{payload}*.*")
     return zip_response(files, f"{target}_{payload}")
 
@@ -133,8 +137,8 @@ def ply_viewer(target: str, style: str):
 
 @app.route("/viewer/<target>/image/<int:index>")
 def image(target: str, index: int):
-    bag = ROOT_DIR / target / BAG_NAME
-    frame_dict = load_ts_map(target)
+    bag = app.config['ROOT_DIR'] / target / BAG_NAME
+    frame_dict = load_ts_map(target, app.config['ROOT_DIR'])
     frame_ts = sorted(frame_dict.keys())[index]
     with Reader(bag) as r:
         msg = get_raw_image_from_timestamp(r, frame_dict, frame_ts)
@@ -143,8 +147,8 @@ def image(target: str, index: int):
 
 @app.route("/viewer/<target>/slideshow")
 def slideshow(target: str):
-    bag = ROOT_DIR / target / BAG_NAME
-    frame_dict = load_ts_map(target)
+    bag = app.config['ROOT_DIR'] / target / BAG_NAME
+    frame_dict = load_ts_map(target, app.config['ROOT_DIR'])
     frame_ts = sorted(frame_dict.keys())
     def gen():
         with Reader(bag) as r:
