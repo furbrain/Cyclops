@@ -122,7 +122,7 @@ def combine_atlases(model_dir: Path, share_survey: bool = False):
     connections.get_ransac_transforms(translation_only=True)
     connections.apply_transform()
     connections.unify_maps()
-    atlas.optimize(include_survey=False)
+    # no atlas.optimize() here: it currently distorts the sub-surveys by up to several metres
     atlas.save(model_dir / "atlas.json.gz")
 
 

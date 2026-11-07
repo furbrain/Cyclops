@@ -2,8 +2,7 @@
 import json
 from typing import List
 from pathlib import Path
-from atlas_tools import Atlas, KeyFrameData
-from orb_slam3_py import Leg
+from atlas import Atlas, Keyframe
 
 
 def create_info(atlas: Atlas, model_dir: Path):
@@ -11,26 +10,25 @@ def create_info(atlas: Atlas, model_dir: Path):
     for mapp in atlas.maps.values():
         map_info.append({
             "id": mapp.id,
-            "min": min(kf.id for kf in mapp.kfs),
-            "max": max(kf.id for kf in mapp.kfs)
+            "min": min(mapp.keyframes),
+            "max": max(mapp.keyframes)
         })
     info = {
-        'points': len(atlas.atlas.get_all_map_points()),
-        'keyframes': len(atlas.atlas.get_all_keyframes()),
+        'points': len(atlas.map_points),
+        'keyframes': len(atlas.keyframes),
         'submaps': len(atlas.maps),
         'maps': map_info
     }
     mapp = atlas.get_biggest_map()
-    pointcloud = [mp.get_world_pos().tolist() for mp in mapp.mps.values()]
-    kfs: List[KeyFrameData] = sorted(mapp.kfs, key=lambda x: x.id)
-    track = [kf.orig_pose.translation().tolist() for kf in kfs]
+    pointcloud = [list(atlas.map_points[mp_id].pos) for mp_id in mapp.map_point_ids()]
+    kfs: List[Keyframe] = sorted(mapp.keyframes.values(), key=lambda x: x.id)
+    track = [kf.pose.translation.tolist() for kf in kfs]
     survey = []
-    for legs in atlas.atlas.surveys.values():
-        for leg in legs:
-            if leg.from_station:
-                survey.append(leg.from_station.position.tolist())
-            if leg.to_station:
-                survey.append(leg.to_station.position.tolist())
+    for srv in atlas.surveys.values():
+        for leg in srv.legs:
+            for name in (leg.from_station, leg.to_station):
+                if name in srv.stations:
+                    survey.append(list(srv.stations[name].pos))
     with open(model_dir / "info.json", "w") as f:
         json.dump(info, f, indent=4)
     with open(model_dir/ "pointcloud.json", "w") as f:
@@ -50,7 +48,8 @@ if __name__=="__main__":
 
     model_dir = Path(opts.dir)
     if opts.atlas:
-        atlas = Atlas.from_file(opts.atlas)
+        atlas_file = Path(opts.atlas)
+        atlas = Atlas.from_osa(atlas_file) if atlas_file.suffix == ".osa" else Atlas.from_json_file(atlas_file)
     else:
         atlas = Atlas.from_dir(model_dir)
     create_info(atlas, model_dir)

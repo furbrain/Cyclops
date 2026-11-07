@@ -174,12 +174,14 @@ class InternalConnections(DataClassJsonMixin):
         if self.atlas is None:
             raise ValueError("No atlas provided")
         map_graph, relations = self.get_transform_graph()
+        # place each map via the strongest chain of connections, not just the fewest hops
+        tree = nx.maximum_spanning_tree(map_graph, weight="matches")
         transforms: Dict[int, gtsam.Pose3] = {}
-        for i, subnet in enumerate(nx.connected_components(map_graph)):
+        for i, subnet in enumerate(nx.connected_components(tree)):
             m0 = min(subnet)
             offset = np.array([i*20,0,0]) # offset subgraphs by 20m
             transforms[m0] = gtsam.Pose3(gtsam.Rot3(),offset)
-            for source, dest in nx.bfs_edges(map_graph, source=m0):
+            for source, dest in nx.bfs_edges(tree, source=m0):
                 if (source, dest) in relations:
                     tr = relations[(source, dest)]
                 else:
@@ -193,7 +195,7 @@ class InternalConnections(DataClassJsonMixin):
     def get_transform_graph(self) -> tuple[nx.Graph, dict[tuple[int, int], gtsam.Pose3]]:
         map_graph = nx.Graph()
         relations = {(x.from_map, x.to_map): x.transform for x in self.connections}
-        map_graph.add_edges_from(relations.keys())
+        map_graph.add_edges_from((x.from_map, x.to_map, {"matches": len(x.keypoint_matches)}) for x in self.connections)
         return map_graph, relations
 
     def clean_connections(self):
@@ -290,7 +292,7 @@ def merge_maps(atlas: Atlas, dir: Path):
 
 if __name__=="__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="extract keyframes and points from an atlas and save as COLMAP")
+    parser = argparse.ArgumentParser(description="merge the maps in an atlas, saving the result as atlas.json.gz in dir")
     parser.add_argument('-a', '--atlas', help="atlas file to use (.osa or .json.gz), default is atlas.json.gz in dir")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
     opts = parser.parse_args()
@@ -302,4 +304,4 @@ if __name__=="__main__":
     else:
         atlas = Atlas.from_json_file(atlas_file)
     merge_maps(atlas, model_dir)
-    atlas.save(model_dir / "atlas_merged.json.gz")
+    atlas.save(model_dir / "atlas.json.gz")

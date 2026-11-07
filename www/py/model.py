@@ -34,6 +34,7 @@ Assumptions (change these to match your real pipeline — search for "TODO"):
 from contextlib import contextmanager, ExitStack
 import json
 import mimetypes
+import shutil
 import random
 import re
 import subprocess
@@ -114,7 +115,8 @@ SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
 # Must match raspbian/combine.py and merge_maps.py (not imported here: they pull in gtsam/orb_slam3_py)
 SUB_ATLAS_FILE = "subatlas.json"
 ATLAS_CONNECTIONS_FILE = "atlas_connections.csv"
-PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.osa"
+PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.json.gz"
+ATLAS_FILE = "atlas.json.gz"
 CONNECTIONS_FILE = "connections.json"
 # Which part of each sub-survey to look for matches in, see merge_maps.Link
 LINK_SCOPES = ["START", "END", "BOTH", "ALL"]
@@ -340,8 +342,7 @@ MESH_BUILDERS = {
 
 def refresh_info(model_path: Path, job):
     """Re-run make_info.py on the atlas: rewrites info.json, pointcloud.json, track.json and survey.json"""
-    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path),
-                                "-a", str(model_path / "atlas.osa")])
+    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
 
 
 def run_refresh_job(model_id, job):
@@ -379,28 +380,26 @@ def run_generation_job(model_id, asset_key, job):
     job_log(job, "Done.")
 
 
-def swap_in_merged_atlas(model_path: Path, job):
-    """Keep the old atlas as atlas_pre_merge.osa and promote atlas_final.osa to atlas.osa"""
-    merged = model_path / "atlas_merged.osa"
-    if not merged.exists():
-        raise RuntimeError("Merge finished but atlas_merged.osa was not created")
-    atlas = model_path / "atlas.osa"
-    pre_merge = model_path / "atlas_pre_merge.osa"
+def keep_pre_merge_atlas(model_path: Path, job) -> Path:
+    """Copy atlas.json.gz to atlas_pre_merge.json.gz, unless already merged before, and return the copy.
+    Merging always starts from this, so a re-merge discards the previous merge result"""
+    pre_merge = model_path / PRE_MERGE_ATLAS_FILE
     if pre_merge.exists():
-        # already merged before - keep the original atlas, discard the previous merge result
-        job_log(job, "Keeping existing atlas_pre_merge.osa")
-    elif atlas.exists():
-        atlas.replace(pre_merge)
-        job_log(job, "Renamed atlas.osa -> atlas_pre_merge.osa")
-    merged.replace(atlas)
-    job_log(job, "Renamed atlas_merged.osa -> atlas.osa")
+        job_log(job, f"Merging from existing {PRE_MERGE_ATLAS_FILE}")
+    else:
+        atlas = model_path / ATLAS_FILE
+        if not atlas.exists():
+            raise RuntimeError(f"No {ATLAS_FILE} to merge")
+        shutil.copy2(atlas, pre_merge)
+        job_log(job, f"Copied {ATLAS_FILE} -> {PRE_MERGE_ATLAS_FILE}")
+    return pre_merge
 
 
 def run_merge_job(model_id, job):
     model_path = model_dir(model_id)
-    run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path)])
-
-    swap_in_merged_atlas(model_path, job)
+    pre_merge = keep_pre_merge_atlas(model_path, job)
+    # merge_maps.py writes the result over atlas.json.gz
+    run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path), "-a", str(pre_merge)])
     refresh_info(model_path, job)
     job_log(job, "Merge complete.")
 
@@ -453,7 +452,7 @@ def update_combined_model(model_path: Path, links: list[dict], share_survey: boo
     if set(old_surveys) != set(new_surveys) or old["share_survey"] != share_survey:
         # the pre-merge atlas is built from the sub-surveys; the combined atlas is no use either,
         # as without subatlas.json there's no telling which sub-survey its images come from
-        stale = [PRE_MERGE_ATLAS_FILE, SUB_ATLAS_FILE, CONNECTIONS_FILE, "atlas.osa"]
+        stale = [PRE_MERGE_ATLAS_FILE, SUB_ATLAS_FILE, CONNECTIONS_FILE, ATLAS_FILE]
     elif sorted(map(str, old["links"])) != sorted(map(str, links)):
         stale = [CONNECTIONS_FILE]
     else:
@@ -508,7 +507,7 @@ def run_combine_job(model_id, job):
     cmd = ["python3", "-u", str(COMBINE_SCRIPT), "-d", str(model_path)]
     if settings["share_survey"]:
         cmd.append("--share-survey")
-    run_subprocess_logged(job, cmd, outputs=[model_path / "atlas.osa"])
+    run_subprocess_logged(job, cmd, outputs=[model_path / ATLAS_FILE])
     refresh_info(model_path, job)
     job_log(job, "Combine complete.")
 
@@ -556,7 +555,7 @@ def start_job(model_id, job_key, target):
 def combinable_models() -> list[str]:
     """Models with an atlas that can be used as a sub-survey"""
     return [d.name for d in sorted(get_models_dir().iterdir())
-            if d.is_dir() and ((d / "atlas.osa").exists() or (d / "atlas.txt.gz").exists())]
+            if d.is_dir() and ((d / ATLAS_FILE).exists() or (d / "atlas.osa").exists())]
 
 
 @model_bp.route("/api/combinable")
@@ -644,7 +643,7 @@ def model_page(model_id):
         asset_formats={key: meta["format"] for key, meta in ASSET_DEFS.items()},
         has_survey_text=(model_dir(model_id) / "survey.svx").exists(),
         is_combinable=(model_dir(model_id) / COMBINE_SETTINGS_FILE).exists(),
-        has_atlas=(model_dir(model_id) / "atlas.osa").exists(),
+        has_atlas=(model_dir(model_id) / ATLAS_FILE).exists(),
     )
 
 
@@ -802,7 +801,7 @@ def ensure_sparse(target_path: Path, job):
         run_subprocess_logged(
             job,
             [sys.executable, "-u", str(COLMAP_SCRIPT), "-s",
-             "-d", str(target_path), "-a", str(target_path / "atlas.osa")]
+             "-d", str(target_path)]
             + (["-c"] if is_combined(target_path) else []),
             outputs=[sparse_dir / f for f in SPARSE_FILES],
         )

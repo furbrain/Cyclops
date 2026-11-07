@@ -154,7 +154,6 @@ class Map(DataClassJsonMixin):
         nearest_distance = 1e12
         for kf in self.keyframes.values():
             factors = kf.get_all_factors(include_survey)
-            G.resize(G.size() + len(factors))
             for f in factors:
                 G.add(f)
             kf.initialise_pose(values, include_survey)
@@ -291,8 +290,11 @@ class Atlas(DataClassJsonMixin):
             fname = self.dir / "atlas.json.gz"
         if self.descriptors is not None:
             self.descriptors.flush()
-        with gzip.open(fname, "wt") as f:
+        # write then rename, so a failure part way through doesn't destroy an existing atlas
+        tmp = fname.with_name(fname.name + ".tmp")
+        with gzip.open(tmp, "wt") as f:
             f.write(self.to_json())
+        os.replace(tmp, fname)
 
     def get_sub_surveys(self) -> List[SubSurvey]:
         if self.sub_surveys:
