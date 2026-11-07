@@ -303,5 +303,7 @@ if __name__=="__main__":
         atlas = Atlas.from_osa(atlas_file)
     else:
         atlas = Atlas.from_json_file(atlas_file)
+    atlas.align_to_imu()
     merge_maps(atlas, model_dir)
+    atlas.merged = True
     atlas.save(model_dir / "atlas.json.gz")

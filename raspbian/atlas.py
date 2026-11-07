@@ -183,6 +183,28 @@ class Map(DataClassJsonMixin):
         for mp_id in self.map_point_ids():
             self._atlas.map_points[mp_id].pos = tuple(values.atPoint3(M(mp_id)).tolist())
 
+    def apply_rotation(self, rotation: sst.Rotation):
+        """Rotate the whole map (keyframe poses and map points) about the world origin"""
+        transform = sst.RigidTransform.from_rotation(rotation)
+        for kf in self.keyframes.values():
+            kf.pose = transform * kf.pose
+        for mp_id in self.map_point_ids():
+            mp = self._atlas.map_points[mp_id]
+            mp.pos = tuple(rotation.apply(mp.pos).tolist())
+
+    def align_to_imu(self) -> sst.Rotation:
+        """Rotate the map so the keyframe orientations best match their IMU orientations, in the
+        least squares (chordal) sense. Returns the rotation applied"""
+        if not self.keyframes:
+            return sst.Rotation.identity()
+        kfs = list(self.keyframes.values())
+        slam_rots = sst.Rotation.concatenate([kf.pose.rotation for kf in kfs])
+        imu_rots = sst.Rotation.concatenate([kf.imu_pose.rotation for kf in kfs])
+        # we want the single rotation Q such that Q * slam_rot ~= imu_rot for every keyframe
+        rotation = (imu_rots * slam_rots.inv()).mean()
+        self.apply_rotation(rotation)
+        return rotation
+
     @classmethod
     def from_osa(cls, mapp: "op.Map") -> "Map":
         return cls(
@@ -230,6 +252,7 @@ class Atlas(DataClassJsonMixin):
     surveys: Dict[int, Survey] = field(default_factory=dict)
     # if empty, descriptors.npy and images.tar are alongside the atlas
     sub_surveys: List[SubSurvey] = field(default_factory=list)
+    merged: bool = False
     dir: Path = field(init=False, default=None,  metadata=EXCLUDE)
     keyframes: Dict[int, Keyframe] = field(init=False, default_factory=dict, metadata=EXCLUDE)
     kf_offsets: Dict[int, int] = field(init=False, default_factory=dict, metadata=EXCLUDE)
@@ -416,6 +439,11 @@ class Atlas(DataClassJsonMixin):
                 survey = self.surveys.setdefault(0, Survey(stations={}, legs=[]))
                 survey.stations[ident] = SurveyStation(ident, tuple(values.atPoint3(key).tolist()))
 
+    def align_to_imu(self) -> Dict[int, sst.Rotation]:
+        """Rotate each map as a whole so its keyframe orientations match the IMU data as closely as
+        possible. Returns the rotation applied to each map, by map id"""
+        return {map_id: mapp.align_to_imu() for map_id, mapp in self.maps.items()}
+
     def optimize(self, include_survey: bool, iters: int = 100):
         G, values = self.create_graph(include_survey)
         result = run_optimisation(G, values, iters)
@@ -456,3 +484,9 @@ def get_station_string(symbol: gtsam.Symbol) -> str:
         return str(symbol.index())
     elif symbol.string().startswith("a"):
         return chr(ord("A") + symbol.index())
+
+
+if __name__ == "__main__":
+    atlas = Atlas.from_dir(Path("."))
+    print(atlas.get_aruco_positions())
+
