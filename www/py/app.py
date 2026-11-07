@@ -1,5 +1,6 @@
 import io
 import json
+import tarfile
 import time
 import shutil
 from typing import Sequence
@@ -10,15 +11,14 @@ from glob import glob
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from rosbags.rosbag2 import Reader
 from zipstream import ZipStream
 
-from utils import ROOT_DIR as DEFAULT_ROOT_DIR, BAG_NAME, load_ts_map, get_raw_image_from_timestamp
+from utils import ROOT_DIR as DEFAULT_ROOT_DIR, BAG_NAME
 from frogcore import frogcore_bp
 
 WEB_ROOT = Path(__file__).parent.parent
 from wifi import wifi_bp
-from model import model_bp
+from model import model_bp, image_sources
 
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
 app.register_blueprint(wifi_bp, url_prefix="/wifi")
@@ -135,32 +135,49 @@ def downloads(target: str, payload: str):
 def ply_viewer(target: str, style: str):
     return render_template("ply_viewer.html", target=target, style=style)
 
+def keyframe_images(target: str) -> list[tuple[Path, tarfile.TarInfo]]:
+    """(images.tar, member) for each keyframe image of a model, in keyframe order. A combined model's
+    images come from its sub-surveys, in order. Images in each tar are named {keyframe}.jpg"""
+    images = []
+    for src in image_sources(app.config['ROOT_DIR'] / target):
+        tar_path = src / "images.tar"
+        with tarfile.open(tar_path) as tar:
+            members = [m for m in tar.getmembers() if m.isfile() and Path(m.name).stem.isdigit()]
+        members.sort(key=lambda m: int(Path(m.name).stem))
+        images.extend((tar_path, m) for m in members)
+    return images
+
+def read_member(tars: dict[Path, tarfile.TarFile], tar_path: Path, member: tarfile.TarInfo) -> bytes:
+    if tar_path not in tars:
+        tars[tar_path] = tarfile.open(tar_path)
+    return tars[tar_path].extractfile(member).read()
+
 @app.route("/viewer/<target>/image/<int:index>")
 def image(target: str, index: int):
-    bag = app.config['ROOT_DIR'] / target / BAG_NAME
-    frame_dict = load_ts_map(target, app.config['ROOT_DIR'])
-    frame_ts = sorted(frame_dict.keys())[index]
-    with Reader(bag) as r:
-        msg = get_raw_image_from_timestamp(r, frame_dict, frame_ts)
-    buffer = io.BytesIO(msg.data)
-    return send_file(buffer,"image/jpeg")
+    images = keyframe_images(target)
+    if not 0 <= index < len(images):
+        abort(404)
+    tar_path, member = images[index]
+    with tarfile.open(tar_path) as tar:
+        data = tar.extractfile(member).read()
+    return send_file(io.BytesIO(data), "image/jpeg")
 
 @app.route("/viewer/<target>/slideshow")
 def slideshow(target: str):
-    bag = app.config['ROOT_DIR'] / target / BAG_NAME
-    frame_dict = load_ts_map(target, app.config['ROOT_DIR'])
-    frame_ts = sorted(frame_dict.keys())
+    images = keyframe_images(target)
     def gen():
-        with Reader(bag) as r:
-            msgs = [get_raw_image_from_timestamp(r, frame_dict, ts) for ts in frame_ts]
-
+        tars = {}
+        try:
+            frames = [read_member(tars, tar_path, member) for tar_path, member in images]
+        finally:
+            for tar in tars.values():
+                tar.close()
         while True:
-            for msg in msgs:
-                data = msg.data.tobytes()
+            for data in frames:
                 yield(b'--frame\r\n' +
                       b'Content-Type: image/jpeg\r\n' +
                       f'Content-Length: {len(data)}\r\n\r\n'.encode() +
-                      msg.data.tobytes() +
+                      data +
                       b'\r\n')
                 time.sleep(0.1)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame',
