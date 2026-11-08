@@ -32,6 +32,7 @@ CONNECTION_SIGMA = 0.2 # metres: how well the two sides of a connection meet, pe
 REGISTRATION_ROTATION_PRIOR = 1.0 # radians
 REGISTRATION_SHIFT_PRIOR = 10.0 # metres
 REGISTRATION_LOG_SCALE_PRIOR = 0.5 # a scale of 0.6 to 1.65 is within one sigma
+MEAN_SCALE_SIGMA = 0.005 # with no surveyed markers to fix the scale, how far the average log scale of the sub-atlases can stray from 0
 ARUCO_PRIOR_NOISE = 0.01 # metres: how firmly bundle adjustment holds aruco markers on their stations
 SEAM_NOISE = 0.01 # metres: how closely the two sides of a connection must meet
 WEAK_PRIOR_NOISE = 5.0 # metres: stops free-floating parts of the graph being under-constrained
@@ -129,6 +130,7 @@ def register_sub_atlases(atlas: Atlas, sub_atlases: Dict[str, SubAtlas], connect
     First each sub-atlas with 2+ markers is fitted to them alone, and the rest are fitted to their already
     placed neighbours through their connections. Then everything is refined together by robust least
     squares, so sub-atlases with few markers are held by their connections and bad matches are down-weighted.
+    If there are no markers at all the average scale is held at 1, though individual sub-atlases may differ.
     Returns the transform applied to each sub-atlas, which is also applied to the atlas"""
     map_sub = {map_id: name for name, sub in sub_atlases.items() for map_id in sub.maps}
     names = list(sub_atlases)
@@ -204,6 +206,10 @@ def register_sub_atlases(atlas: Atlas, sub_atlases: Dict[str, SubAtlas], connect
         out.append(params[:, 0] / REGISTRATION_ROTATION_PRIOR)
         out.append(params[:, 1:4].ravel() / REGISTRATION_SHIFT_PRIOR)
         out.append(params[:, 4] / REGISTRATION_LOG_SCALE_PRIOR)
+        if not markers:
+            # nothing fixes the absolute scale, so keep the average at 1: one sub-atlas may stretch to make
+            # the others fit, but they can't all shrink together to close a gap
+            out.append(np.array([params[:, 4].mean() / MEAN_SCALE_SIGMA]))
         return np.concatenate([np.ravel(o) for o in out])
 
     def report(label: str, x: Optional[np.ndarray]) -> None: # x=None: the atlas as it was before any registration

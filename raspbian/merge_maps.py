@@ -18,7 +18,7 @@ from dataclasses_json import DataClassJsonMixin
 from dataclasses_json.cfg import config as dj_conf, Exclude
 import dataclasses_json.cfg
 
-from atlas import Atlas, Map, Keyframe, M, T
+from atlas import Atlas, Map, Keyframe, SubAtlas, M, T
 
 CONNECTIONS_FILE = "connections.json"
 
@@ -296,28 +296,46 @@ def horn(A, B):
     t = cb - R @ ca
     return R, t
 
-def merge_maps(atlas: Atlas, dir: Path):
+def merge_maps(atlas: Atlas, dir: Path, survey_3d: Optional[Path] = None,
+               survey_prefixes: Optional[List[str]] = None, bundle_adjust: bool = True):
+    """Merge the maps of the atlas into one. If survey_3d is given the atlas is also morphed to fit
+    the survey, as combine.py does (each map counts as a sub-atlas). The morph runs even with no survey,
+    to close up any gap where maps that form a loop join"""
     if len(atlas.maps) == 0:
         raise ValueError("No maps found")
     if len(atlas.maps) == 1:
         print("Only one map found, skipping merge step")
-        return # only one map so no merge needed
-    print("Multiple maps: trying to merge")
-    print("finding connections")
-    if (dir / CONNECTIONS_FILE).exists():
-        with open(dir / CONNECTIONS_FILE) as f:
-            connections = InternalConnections.from_json(f.read())
-            connections.atlas = atlas
-            connections.get_ransac_transforms(translation_only=True)
-    else:
         connections = InternalConnections(atlas=atlas)
-        connections.find_connections()
-        connections.get_ransac_transforms(translation_only=True)
-        with open(dir / CONNECTIONS_FILE, "w") as f:
-            f.write(connections.to_json())
+    else:
+        print("Multiple maps: trying to merge")
+        print("finding connections")
+        if (dir / CONNECTIONS_FILE).exists():
+            with open(dir / CONNECTIONS_FILE) as f:
+                connections = InternalConnections.from_json(f.read())
+                connections.atlas = atlas
+                connections.get_ransac_transforms(translation_only=True)
+        else:
+            connections = InternalConnections(atlas=atlas)
+            connections.find_connections()
+            connections.get_ransac_transforms(translation_only=True)
+            with open(dir / CONNECTIONS_FILE, "w") as f:
+                f.write(connections.to_json())
 
-    connections.apply_transform()
+        connections.apply_transform()
+    from survey_morph import morph_to_survey, parse_prefixes, read_survey_stations, bundle_adjust as bundle_adjust_atlas # imported here as survey_morph imports this module
+    # each map is a sub-atlas, so a connection between two maps is a seam that the morph closes up (which matters
+    # when the maps form a loop and don't quite meet). This is done with or without a survey
+    sub_atlases = {f"map{map_id}": SubAtlas(maps={map_id}) for map_id in sorted(atlas.maps)}
+    prefixes = parse_prefixes(survey_prefixes or [], list(sub_atlases))
+    if survey_3d is not None:
+        # unless told otherwise, markers are stations under the survey's one top level prefix (e.g. garden.a)
+        tops = {label.split(".")[0] for label in read_survey_stations(survey_3d) if "." in label}
+        if len(tops) == 1:
+            prefixes = {name: prefixes.get(name, next(iter(tops))) for name in sub_atlases}
+    survey_fit = morph_to_survey(atlas, sub_atlases, connections.connections, survey_3d, prefixes)
     connections.unify_maps()
+    if bundle_adjust:
+        bundle_adjust_atlas(atlas, survey_fit)
     print("Merge complete")
 
 
@@ -326,6 +344,14 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="merge the maps in an atlas, saving the result as atlas.json.gz in dir")
     parser.add_argument('-a', '--atlas', help="atlas file to use (.osa or .json.gz), default is atlas.json.gz in dir")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
+    parser.add_argument('-s', '--survey', help="survey .3d file to fit the atlas to, default is survey.3d in dir "
+                        "(made from survey.svx with cavern if there is one)")
+    parser.add_argument('--no-survey', action='store_true', help="ignore any survey")
+    parser.add_argument('--survey-prefix', action='append', default=[],
+                        help="survex prefix the aruco markers are under, e.g. 'garden' for station garden.a. "
+                        "Default is the survey's top level prefix")
+    parser.add_argument('--no-bundle', action='store_true',
+                        help="with a survey, skip the final bundle adjustment")
     opts = parser.parse_args()
 
     model_dir = Path(opts.dir)
@@ -335,6 +361,13 @@ if __name__=="__main__":
     else:
         atlas = Atlas.from_json_file(atlas_file)
     atlas.align_to_imu()
-    merge_maps(atlas, model_dir)
+    if opts.no_survey:
+        survey_3d = None
+    elif opts.survey:
+        survey_3d = Path(opts.survey)
+    else:
+        from survey_data import ensure_survey_3d
+        survey_3d = ensure_survey_3d(model_dir)
+    merge_maps(atlas, model_dir, survey_3d, opts.survey_prefix, not opts.no_bundle)
     atlas.merged = True
     atlas.save(model_dir / "atlas.json.gz")
