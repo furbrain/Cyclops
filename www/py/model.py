@@ -790,9 +790,11 @@ def mounted_images(target_path: Path, job):
 
 
 def ensure_sparse(target_path: Path, job):
-    """Run colmap.py to create the sparse COLMAP files if any are missing"""
+    """Run colmap.py to create the sparse COLMAP files if any are missing or older than the atlas they came
+    from (for example after a combined model is recombined with different sub-surveys, when the old files
+    still refer to images the model no longer has)"""
     sparse_dir = target_path / "sparse"
-    if all((sparse_dir / f).exists() for f in SPARSE_FILES):
+    if all(is_up_to_date(sparse_dir / f, target_path / ATLAS_FILE) for f in SPARSE_FILES):
         job_log(job, "Sparse model already exists")
         return
     with mounted_all_images(target_path, job):

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Set
+from itertools import combinations
+from typing import List, Optional, Tuple
 
-from dataclasses_json import DataClassJsonMixin
 
 from atlas import Atlas, SubAtlas, SUB_ATLAS_FILE
 from merge_maps import InternalConnections, Connection, Link, CONNECTIONS_FILE
+from survey_morph import morph_to_survey, parse_prefixes, bundle_adjust as bundle_adjust_atlas
+
 
 ATLAS_CONNECTIONS_FILE = "atlas_connections.csv"
 PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.json.gz"
@@ -62,8 +64,31 @@ class SurveyLinks:
                         connections.append(connection)
         return InternalConnections(connections, atlas)
 
+def find_unlinked_connections(links: SurveyLinks, atlas: Atlas, sub_atlas: SubAtlas,
+                              existing: List[Connection]) -> List[Connection]:
+    """Look for connections between every pair of sub-atlases that isn't named in the links file, as
+    sub-atlases can overlap in space without having been recorded one after the other"""
+    linked = {frozenset((x.from_survey, x.to_survey)) for x in links.links}
+    have = {frozenset((x.from_map, x.to_map)) for x in existing}
+    found = []
+    for (name_a, sub_a), (name_b, sub_b) in combinations(sorted(sub_atlas.sub_atlases.items()), 2):
+        if frozenset((name_a, name_b)) in linked:
+            continue
+        for map_a in (atlas.maps[x] for x in sorted(sub_a.maps)):
+            for map_b in (atlas.maps[x] for x in sorted(sub_b.maps)):
+                if frozenset((map_a.id, map_b.id)) in have:
+                    continue
+                connection = Connection(map_a.id, map_b.id)
+                connection.compare_maps(map_a, map_b)
+                if connection.is_valid():
+                    print(f"Found extra connection {name_a} <-> {name_b}: {len(connection.keypoint_matches)} matches")
+                    found.append(connection)
+    return found
+
+
 def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Optional[Path] = None,
-                    survey_prefixes: Optional[List[str]] = None, bundle_adjust: bool = True):
+                    survey_prefixes: Optional[List[str]] = None, bundle_adjust: bool = True,
+                    all_links: bool = False):
     links = SurveyLinks.from__file(model_dir / ATLAS_CONNECTIONS_FILE)
     if (model_dir / PRE_MERGE_ATLAS_FILE).exists() and (model_dir / SUB_ATLAS_FILE).exists():
         atlas = Atlas.from_json_file(model_dir / PRE_MERGE_ATLAS_FILE)
@@ -80,6 +105,8 @@ def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Opti
         connections.atlas = atlas
     else:
         connections = links.combine(atlas, subatlasses)
+    if all_links:
+        connections.connections.extend(find_unlinked_connections(links, atlas, subatlasses, connections.connections))
     with open(model_dir / CONNECTIONS_FILE, "w") as f:
         f.write(connections.to_json(indent=2))
     connections.split_connections(distance=2.0)
@@ -91,11 +118,12 @@ def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Opti
     connections.get_ransac_transforms(translation_only=True)
     connections.apply_transform()
     if survey_3d is not None:
-        from survey_morph import morph_to_survey, parse_prefixes, bundle_adjust as bundle_adjust_atlas # imported here as survey_morph imports this module
         prefixes = parse_prefixes(survey_prefixes or [], list(subatlasses.sub_atlases))
-        survey_fit = morph_to_survey(atlas, subatlasses.sub_atlases, connections.connections, survey_3d, prefixes)
+    else:
+        prefixes = None
+    survey_fit = morph_to_survey(atlas, subatlasses.sub_atlases, connections.connections, survey_3d, prefixes)
     connections.unify_maps()
-    if survey_3d is not None and bundle_adjust:
+    if bundle_adjust:
         bundle_adjust_atlas(atlas, survey_fit)
     # no atlas.optimize() here: it currently distorts the sub-surveys by up to several metres
     atlas.save(model_dir / "atlas.json.gz")
@@ -114,9 +142,12 @@ if __name__ == "__main__":
                         help="survex prefix the aruco markers are under, e.g. 'garden' for station garden.a. "
                         "Applies to every sub-survey, or just sub-survey NAME if given as NAME=PREFIX. "
                         "May be repeated. Default is each sub-survey's own name")
+    parser.add_argument('--all-links', action='store_true',
+                        help="also look for connections between sub-surveys that are not linked in "
+                        f"{ATLAS_CONNECTIONS_FILE}, in case they overlap")
     parser.add_argument('--no-bundle', action='store_true',
                         help="with --survey, skip the final bundle adjustment of the combined atlas")
     opts = parser.parse_args()
     combine_atlases(Path(opts.dir), share_survey=opts.share_survey,
                     survey_3d=Path(opts.survey) if opts.survey else None,
-                    survey_prefixes=opts.survey_prefix, bundle_adjust=not opts.no_bundle)
+                    survey_prefixes=opts.survey_prefix, bundle_adjust=not opts.no_bundle, all_links=opts.all_links)

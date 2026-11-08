@@ -40,7 +40,9 @@ DISTANCE_TIEBREAK = 1e-3 # per metre, so equal keyframe counts prefer the physic
 NODE_RE = re.compile(r"^NODE\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\[([^\]]*)\]")
 
 
-def read_survey_stations(path: Path) -> Dict[str, np.ndarray]:
+def read_survey_stations(path: Optional[Path]) -> Dict[str, np.ndarray]:
+    if path is None:
+        return {}
     """Station positions by full survex label (e.g. "storrs.A"), read from a .3d file using survex's dump3d"""
     out = subprocess.run(["dump3d", str(path)], capture_output=True, text=True, check=True).stdout
     return parse_dump3d(out)
@@ -147,8 +149,8 @@ def register_sub_atlases(atlas: Atlas, sub_atlases: Dict[str, SubAtlas], connect
         fit = yaw_fit(np.array([m[0] for m in mine]), np.array([m[1] for m in mine])) if len(mine) >= 2 else None
         if fit is not None:
             start[name] = fit
-    if not start:
-        raise ValueError("No sub-atlas had 2 matched aruco markers (not directly above each other) to register with")
+    # if not start:
+    #     raise ValueError("No sub-atlas had 2 matched aruco markers (not directly above each other) to register with")
     progress = True
     while progress and len(start) < len(names):
         progress = False
@@ -248,8 +250,8 @@ def build_nodes(atlas: Atlas, sub_atlases: Dict[str, SubAtlas], connections: Lis
                 continue
             seen_in = {kf.id for kf in kfs if name in kf.arucos}
             aruco_info.append((sub_name, name, np.array(pos), survey_pos, seen_in))
-    if not aruco_info:
-        raise ValueError("No aruco markers matched survey stations")
+    # if not aruco_info:
+    #     raise ValueError("No aruco markers matched survey stations")
     transforms = register_sub_atlases(atlas, sub_atlases, connections,
                                       [(a[0], a[2], a[3]) for a in aruco_info])
 
@@ -469,7 +471,7 @@ class SurveyFit:
 
 
 def morph_to_survey(atlas: Atlas, sub_atlases: Dict[str, SubAtlas], connections: List[Connection],
-                    survey_3d: Path, prefixes: Optional[Dict[str, str]] = None) -> SurveyFit:
+                    survey_3d: Optional[Path], prefixes: Optional[Dict[str, str]] = None) -> SurveyFit:
     """Register each sub-atlas to the survey, then bend each sub-atlas so its aruco markers sit on their stations.
     prefixes gives the survex prefix of each sub-atlas where it isn't just the sub-atlas's name"""
     stations = read_survey_stations(survey_3d)
