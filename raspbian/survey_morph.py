@@ -20,8 +20,7 @@ import networkx as nx
 import numpy as np
 import scipy.spatial.transform as sst
 
-from atlas import Atlas, run_optimisation, K, M, R as RIGHT, SMART_NOISE, ANCHOR_NOISE
-from combine import SubAtlas
+from atlas import Atlas, SubAtlas, run_optimisation, K, M, R as RIGHT, SMART_NOISE, ANCHOR_NOISE
 from scipy.optimize import least_squares
 
 from merge_maps import Connection

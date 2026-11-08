@@ -520,3 +520,43 @@ def make_path(root: Path, name: str ) -> Path:
     else:
         return root / name
 
+
+SUB_ATLAS_FILE = "subatlas.json"
+
+
+@dataclass
+class SubAtlas(DataClassJsonMixin):
+    kf_offset: int = 0
+    maps: Set[int] = field(default_factory=set)
+    sub_atlases: Dict[str, "SubAtlas"] = field(default_factory=dict)
+
+    def get_kf_stem(self, kf_id: int) -> Path:
+        offset_id = kf_id - self.kf_offset
+        sorted_atlases = sorted(self.sub_atlases.items(),
+                                key=lambda x: x[1].kf_offset,
+                                reverse=True)
+        if not self.sub_atlases:
+            return Path("images") / f"{offset_id}"
+        else:
+            for name, atlas in sorted_atlases:
+                if offset_id >= atlas.kf_offset:
+                    return Path(name) / atlas.get_kf_stem(offset_id)
+            raise ValueError(f"No matching subatlas found keyframe id: {offset_id}")
+
+    @classmethod
+    def from_path(cls, path: Path, key_offset: int = 0, maps: Optional[Set[int]] = None) -> "SubAtlas":
+        if maps is None:
+            maps = set()
+        if (path / SUB_ATLAS_FILE).exists():
+            with open(path / SUB_ATLAS_FILE) as f:
+                sub_atlas = cls.from_json(f.read())
+                sub_atlas.kf_offset = key_offset
+                sub_atlas.maps = maps
+                return sub_atlas
+        else:
+            return cls(key_offset, maps)
+
+    def save(self, dir: Path):
+        with open(dir / SUB_ATLAS_FILE, "w") as f:
+            f.write(self.to_json(indent=2))
+
