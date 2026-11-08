@@ -41,9 +41,9 @@ NODE_RE = re.compile(r"^NODE\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+\[([^\]]*)
 
 
 def read_survey_stations(path: Optional[Path]) -> Dict[str, np.ndarray]:
+    """Station positions by full survex label (e.g. "storrs.A"), read from a .3d file using survex's dump3d"""
     if path is None:
         return {}
-    """Station positions by full survex label (e.g. "storrs.A"), read from a .3d file using survex's dump3d"""
     out = subprocess.run(["dump3d", str(path)], capture_output=True, text=True, check=True).stdout
     return parse_dump3d(out)
 
