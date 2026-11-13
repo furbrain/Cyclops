@@ -1,14 +1,16 @@
 from launch import LaunchDescription
 from launch.actions import TimerAction
-from launch_ros.actions import Node
+from launch_ros.actions import ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
 from ament_index_python.packages import get_package_share_directory
 import os
 
-tuning_file = os.path.join(get_package_share_directory('cyclops'), 'config/imx462.json')
+tuning_file = os.path.join(get_package_share_directory('cyclops'), 'config/imx462_beta.json')
 STAGGER_DELAY = 8.0  # seconds to wait before starting second camera
-RESPAWN_DELAY = 2.0 
-MAX_RESTARTS=5
-IPA_ENV = {'LIBCAMERA_RPI_TUNING_FILE': tuning_file}
+IPA_ENV = {
+    'LIBCAMERA_RPI_TUNING_FILE': tuning_file,
+    'LIBCAMERA_LOG_LEVELS': '*:WARN,IPARPI:DEBUG',  # logs per-frame AGC exposure/gain
+}
 PARAMS = {
     'SyncFrames': 10,   # should match between client and server
     'orientation': 180,
@@ -71,11 +73,19 @@ CAMERAS = [
     ('right', '/base/axi/pcie@1000120000/rp1/i2c@88000/arducam_pivariety@c', 1),
 ]
 
+# Both cameras MUST run in the same process. The Arducam Pi IPA reads each
+# camera's compressed tuning blob from the camera MCU over raw /dev/i2c-N during
+# libcamera CameraManager::start(), for *every* camera in the system. Two
+# camera_node processes therefore read both MCUs concurrently, interleave their
+# I2C transactions, and abort with "Exception during zlib decompression".
+# camera_ros shares one CameraManager between components in a process, so the
+# IPA initialisation happens once, serially.
 
-def make_camera_node(namespace, camera_path, sync_mode):
-    return Node(
+
+def make_camera_component(namespace, camera_path, sync_mode):
+    return ComposableNode(
         package='camera_ros',
-        executable='camera_node',
+        plugin='camera::CameraNode',
         name='camera',
         namespace=namespace,
         parameters=[{
@@ -85,15 +95,21 @@ def make_camera_node(namespace, camera_path, sync_mode):
             'camera_info_url': f'file://${{ROS_HOME}}/camera_info/{namespace}.yaml',
         }, PARAMS],
         remappings=REMAPPINGS,
-        additional_env=IPA_ENV,
-        respawn=True,
-        respawn_max_retries=MAX_RESTARTS,
-        respawn_delay=RESPAWN_DELAY
     )
 
 
 def generate_launch_description():
     return LaunchDescription([
-        make_camera_node(namespace, camera_path, sync_mode)
-        for namespace, camera_path, sync_mode in CAMERAS
+        ComposableNodeContainer(
+            package='rclcpp_components',
+            executable='component_container',
+            name='camera_container',
+            namespace='',
+            composable_node_descriptions=[
+                make_camera_component(namespace, camera_path, sync_mode)
+                for namespace, camera_path, sync_mode in CAMERAS
+            ],
+            additional_env=IPA_ENV,
+            output='screen',
+        )
     ])
