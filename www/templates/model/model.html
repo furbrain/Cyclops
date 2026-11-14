@@ -162,7 +162,15 @@
       <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span>Output</span>
-          <span id="job-state-badge" class="badge text-bg-secondary">idle</span>
+          <span class="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              id="job-abort-btn"
+              class="btn btn-sm btn-outline-danger d-none"
+              title="Stop the running job"
+            >Abort</button>
+            <span id="job-state-badge" class="badge text-bg-secondary">idle</span>
+          </span>
         </div>
         <pre id="job-output" class="job-output mb-0 p-3">Generate an asset or get info to see progress here.</pre>
       </div>

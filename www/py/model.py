@@ -37,6 +37,7 @@ import json
 import mimetypes
 import os
 import shutil
+import signal
 import re
 import subprocess
 import threading
@@ -179,8 +180,44 @@ def get_job(model_id, job_key):
     key = (model_id, job_key)
     with JOBS_LOCK:
         if key not in JOBS:
-            JOBS[key] = {"state": "idle", "log": [], "lock": threading.Lock()}
+            # process: the subprocess running now, if any; abort: set by abort_job()
+            JOBS[key] = {"state": "idle", "log": [], "lock": threading.Lock(), "process": None, "abort": False}
         return JOBS[key]
+
+
+class JobAborted(Exception):
+    pass
+
+
+# how long an aborted job gets to clean up (make deleting partial targets, unmounting images) before it's killed
+ABORT_GRACE_SECONDS = 15
+
+
+def abort_job(job) -> bool:
+    """Stop a running job: SIGTERM to everything its current subprocess started (make, its recipes and their
+    children are all in one process group), then SIGKILL if they're still going after ABORT_GRACE_SECONDS.
+    A job that's between subprocesses, or waiting for a build lock, stops when it next checks. Returns
+    whether the job was running"""
+    with job["lock"]:
+        if job["state"] != "running":
+            return False
+        job["abort"] = True
+        process = job["process"]
+        job["log"].append("Aborting...")
+    if process is not None:
+        signal_group(process, signal.SIGTERM)
+        timer = threading.Timer(ABORT_GRACE_SECONDS,
+                                lambda: process.poll() is None and signal_group(process, signal.SIGKILL))
+        timer.daemon = True
+        timer.start()
+    return True
+
+
+def signal_group(process, sig):
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass  # already finished
 
 
 def job_log(job, line):
@@ -203,13 +240,21 @@ def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
     `outputs` are files the command writes: they're deleted if it fails or is
     interrupted, so a partial file never looks up to date.
     """
+    if job["abort"]:
+        raise JobAborted()
     job_log(job, f"$ {' '.join(str(c) for c in cmd)}")
     try:
-        # unbuffered, so the output of python scripts (run directly or by make) arrives as it's printed
+        # unbuffered, so the output of python scripts (run directly or by make) arrives as it's printed;
+        # in a session (and so process group) of its own, so abort_job() can signal everything it starts
         process = subprocess.Popen(
             cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-            env=os.environ | {"PYTHONUNBUFFERED": "1"},
+            env=os.environ | {"PYTHONUNBUFFERED": "1"}, start_new_session=True,
         )
+        with job["lock"]:
+            job["process"] = process
+            aborted = job["abort"]  # abort_job() ran just before the process was recorded
+        if aborted:
+            signal_group(process, signal.SIGTERM)
         for line in iter(process.stdout.readline, ""):
             job_log(job, line.rstrip())
         process.stdout.close()
@@ -217,8 +262,13 @@ def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
     except BaseException:
         remove_files(job, outputs)
         raise
+    finally:
+        with job["lock"]:
+            job["process"] = None
     if code != 0:
         remove_files(job, outputs)
+    if job["abort"]:
+        raise JobAborted()
     if check and code != 0:
         # name the script rather than the interpreter for `python3 foo.py ...`
         name = next((Path(c).name for c in cmd if str(c).endswith(".py")), Path(cmd[0]).name)
@@ -242,7 +292,9 @@ def build_lock(model_path: Path, job):
         lock = BUILD_LOCKS.setdefault(model_path.resolve(), threading.Lock())
     if not lock.acquire(blocking=False):
         job_log(job, "Waiting for another build of this model to finish...")
-        lock.acquire()
+        while not lock.acquire(timeout=1):
+            if job["abort"]:
+                raise JobAborted()
     try:
         yield
     finally:
@@ -409,6 +461,7 @@ def start_job(model_id, job_key, target):
             return job, False
         job["state"] = "running"
         job["log"] = []
+        job["abort"] = False
 
     def runner():
         with app.app_context():
@@ -416,7 +469,16 @@ def start_job(model_id, job_key, target):
                 target(job)
                 with job["lock"]:
                     job["state"] = "done"
+            except JobAborted:
+                job_log(job, "Aborted.")
+                with job["lock"]:
+                    job["state"] = "aborted"
             except Exception as exc:
+                if job["abort"]:  # e.g. an aborted upload failing part way through
+                    job_log(job, f"Aborted ({exc}).")
+                    with job["lock"]:
+                        job["state"] = "aborted"
+                    return
                 job_log(job, f"ERROR: {exc}")
                 with job["lock"]:
                     job["state"] = "error"
@@ -591,6 +653,17 @@ def api_generate_status(model_id, asset_key):
     if asset_key not in ASSET_DEFS:
         abort(404, f"Unknown asset: {asset_key}")
     return jsonify(job_snapshot(get_job(model_id, asset_key)))
+
+
+@model_bp.route("/api/<model_id>/abort", methods=["POST"])
+def api_abort(model_id):
+    """Abort whatever jobs are running for this model (generation, get info, combine, FrogCore upload)"""
+    with JOBS_LOCK:
+        jobs = [(key, job) for (mid, key), job in JOBS.items() if mid == model_id]
+    aborted = [key for key, job in jobs if abort_job(job)]
+    if not aborted:
+        return jsonify({"error": "Nothing is running"}), 409
+    return jsonify({"ok": True, "aborted": aborted})
 
 
 @model_bp.route("/api/<model_id>/refresh", methods=["POST"])

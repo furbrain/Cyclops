@@ -45,9 +45,12 @@ sparse: $(colmap_files)
 # Run $(1) with every images.tar this model uses mounted alongside it at images/ (ratarmount creates it):
 # its own, or for a combined model each sub-survey's (found through the sub-survey symlinks, so sub-surveys
 # that are combined models themselves work too). Then run the optional cleanup $(2), whether or not $(1)
-# succeeded. An images/ that's already populated (extracted, or mounted by someone else) is used as it is.
+# succeeded, or was interrupted (an aborted job from the web page sends SIGTERM to make and everything it
+# started). An images/ that's already populated (extracted, or mounted by someone else) is used as it is.
 define with_images
 status=; mounted=; \
+cleanup() { for dir in $$mounted; do ratarmount -u $$dir; done; $(if $(strip $(2)),$(2);) :; }; \
+trap 'cleanup; exit 143' TERM INT; \
 for tar in $$(find -L . -name images -prune -o -name images.tar -print); do \
   dir=$${tar%.tar}; \
   if [ -d $$dir ] && [ -n "$$(ls -A $$dir)" ]; then continue; fi; \
@@ -55,8 +58,8 @@ for tar in $$(find -L . -name images -prune -o -name images.tar -print); do \
   mounted="$$dir $$mounted"; \
 done; \
 [ -n "$$status" ] || { $(1); status=$$?; }; \
-for dir in $$mounted; do ratarmount -u $$dir; done; \
-$(if $(strip $(2)),$(2);) \
+trap - TERM INT; \
+cleanup; \
 exit $$status
 endef
 

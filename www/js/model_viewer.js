@@ -510,6 +510,8 @@ const submapsValueEl = document.getElementById("submaps-value");
 // panel, so running two at once would interleave unrelated logs.
 let jobRunning = false;
 
+const jobAbortBtn = document.getElementById("job-abort-btn");
+
 function setJobBadge(state) {
   jobStateBadge.textContent = state;
   jobStateBadge.className =
@@ -520,12 +522,31 @@ function setJobBadge(state) {
       ? "text-bg-success"
       : state === "error"
       ? "text-bg-danger"
+      : state === "aborted"
+      ? "text-bg-warning"
       : "text-bg-secondary");
+  // the Abort button is only there while something is running
+  jobAbortBtn.classList.toggle("d-none", state !== "running");
+  if (state !== "running") jobAbortBtn.disabled = false;
 }
 
-// Polls `statusUrl` (a .../status endpoint returning {"state", "log"})
-// every 800ms while the job is running, streaming its output into the
-// output panel, and calls onDone/onError once it settles.
+// Stops whatever job this model has running; the poll then sees it end as "aborted"
+jobAbortBtn.addEventListener("click", () => {
+  jobAbortBtn.disabled = true;
+  fetch(`/model/api/${modelId}/abort`, { method: "POST" })
+    .then((res) => res.json())
+    .then((body) => {
+      if (body.error) {
+        jobOutput.textContent += `\n${body.error}`;
+        jobAbortBtn.disabled = false;
+      }
+    })
+    .catch((err) => {
+      jobOutput.textContent += `\nAbort failed: ${err.message}`;
+      jobAbortBtn.disabled = false;
+    });
+});
+
 // Show the latest log, following new output only if the user is already at
 // the bottom, so scrolling up to read earlier output isn't undone by the
 // next poll.
@@ -536,6 +557,10 @@ function setJobOutput(text) {
   if (atBottom) jobOutput.scrollTop = jobOutput.scrollHeight;
 }
 
+// Polls `statusUrl` (a .../status endpoint returning {"state", "log"})
+// every 800ms while the job is running, streaming its output into the
+// output panel, and calls onDone/onError once it settles (an aborted job
+// counts as an error, so whatever started it stops waiting).
 function pollJob(statusUrl, { onDone, onError } = {}) {
   const tick = () => {
     fetch(statusUrl)
@@ -548,7 +573,7 @@ function pollJob(statusUrl, { onDone, onError } = {}) {
           setTimeout(tick, 800);
         } else if (data.state === "done") {
           onDone?.();
-        } else if (data.state === "error") {
+        } else if (data.state === "error" || data.state === "aborted") {
           onError?.(data.log);
         }
       })
