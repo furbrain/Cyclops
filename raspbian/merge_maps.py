@@ -344,9 +344,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="merge the maps in an atlas, saving the result as atlas.json.gz in dir")
     parser.add_argument('-a', '--atlas', help="atlas file to use (.osa or .json.gz), default is atlas.json.gz in dir")
     parser.add_argument('-d', '--dir', help="directory to use", required=True)
-    parser.add_argument('-s', '--survey', help="survey .3d file to fit the atlas to, default is survey.3d in dir "
-                        "(made from survey.svx with cavern if there is one)")
-    parser.add_argument('--no-survey', action='store_true', help="ignore any survey")
+    parser.add_argument('-s', '--survey', help="survey .3d file to fit the atlas to, default is none")
     parser.add_argument('--survey-prefix', action='append', default=[],
                         help="survex prefix the aruco markers are under, e.g. 'garden' for station garden.a. "
                         "Default is the survey's top level prefix")
@@ -361,13 +359,7 @@ if __name__=="__main__":
     else:
         atlas = Atlas.from_json_file(atlas_file)
     atlas.align_to_imu()
-    if opts.no_survey:
-        survey_3d = None
-    elif opts.survey:
-        survey_3d = Path(opts.survey)
-    else:
-        from survey_data import ensure_survey_3d
-        survey_3d = ensure_survey_3d(model_dir)
+    survey_3d = Path(opts.survey) if opts.survey else None
     merge_maps(atlas, model_dir, survey_3d, opts.survey_prefix, not opts.no_bundle)
     atlas.merged = True
     atlas.save(model_dir / "atlas.json.gz")
