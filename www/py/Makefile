@@ -75,13 +75,13 @@ coarse_full.glb: coarse_mesh.ply scene.mvs $(IMAGES)
 	$(call texture,scene.mvs)
 
 coarse_mesh.ply: scene.mvs
-	ReconstructMesh -i $< -o $@
+	$(call with_images,ReconstructMesh -i $< -o $@)
 
 hires_full.glb: hires_mesh.ply scene_dense.mvs $(IMAGES)
 	$(call texture,scene_dense.mvs)
 
 hires_mesh.ply: scene_dense.mvs
-	ReconstructMesh -i $< -o $@
+	$(call with_images,ReconstructMesh -i $< -o $@)
 
 scene_dense.mvs: scene.mvs $(IMAGES)
 	$(call with_images,DensifyPointCloud -i $< -o $@)
