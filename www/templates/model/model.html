@@ -39,15 +39,10 @@
               <span id="submaps-value" class="fw-semibold">{{ info.submaps if info.submaps is not none else '—' }}</span>
               <button
                 type="button"
-                id="merge-btn"
-                class="btn btn-sm btn-outline-warning"
-              >Merge and Align</button>
-              <button
-                type="button"
                 id="refresh-btn"
                 class="btn btn-sm btn-outline-secondary"
-                title="Re-read info, point cloud, track and survey from the atlas"
-              >Refresh</button>
+                title="Bring the atlas, point cloud, track and survey up to date"
+              >Get info</button>
             </span>
           </li>
         </ul>
@@ -169,7 +164,7 @@
           <span>Output</span>
           <span id="job-state-badge" class="badge text-bg-secondary">idle</span>
         </div>
-        <pre id="job-output" class="job-output mb-0 p-3">Generate an asset or merge submaps to see progress here.</pre>
+        <pre id="job-output" class="job-output mb-0 p-3">Generate an asset or get info to see progress here.</pre>
       </div>
     </div>
 

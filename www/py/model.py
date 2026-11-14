@@ -37,11 +37,9 @@ import json
 import mimetypes
 import os
 import shutil
-import random
 import re
 import subprocess
 import threading
-import time
 from pathlib import Path
 
 from flask import Blueprint, current_app, render_template, request, jsonify, send_from_directory, abort
@@ -167,8 +165,8 @@ def asset_status(model_id: str) -> dict:
 # a live log, instead of the browser just hanging on one long POST.
 #
 # JOBS is keyed by (model_id, job_key): job_key is an asset key ("sparse",
-# "track", ...) for generation, or the literal string "merge" for the submap
-# merge. In-memory only — restart the server and job history is gone, and
+# "track", ...) for generation, or "refresh" / "combine" for those jobs.
+# In-memory only — restart the server and job history is gone, and
 # it's module-level state shared by every request regardless of how the
 # blueprint is mounted. Fine for a single dev-server instance; behind
 # multiple worker processes you'd want a shared store (DB row, Redis, etc.)
@@ -275,15 +273,6 @@ def run_generation_job(model_id, asset_key, job):
     job_log(job, "Done.")
 
 
-def run_merge_job(model_id, job):
-    """Redo the merge (and survey fit) from atlas_raw.json.gz even if make thinks it's up to date, then
-    the viewer data. A combined model is merged by combining it, so for one this is just a refresh"""
-    d = model_dir(model_id)
-    with build_lock(d, job):
-        run_make(d, job, "-W", "atlas_raw.json.gz", "info")
-    job_log(job, "Merge complete.")
-
-
 def create_combined_model(model_path: Path):
     """An empty combined model: its sub-surveys and links are set up from its model page"""
     model_path.mkdir()
@@ -380,11 +369,10 @@ def check_links(links, model_id: str) -> str | None:
 
 
 def run_combine_job(model_id, job):
-    """Redo the combine even if make thinks it's up to date (it still reuses whatever intermediate files
-    are up to date), then the viewer data"""
+    """Bring the combined atlas (and so the viewer data) up to date"""
     model_path = model_dir(model_id)
     with build_lock(model_path, job):
-        run_make(model_path, job, "-W", COMBINE_SETTINGS_FILE, "info")
+        run_make(model_path, job, "info")
     job_log(job, "Combine complete.")
 
 
@@ -593,28 +581,12 @@ def api_generate_status(model_id, asset_key):
     return jsonify(job_snapshot(get_job(model_id, asset_key)))
 
 
-@model_bp.route("/api/<model_id>/merge", methods=["POST"])
-def api_merge(model_id):
-    """Kick off a submap merge as a background job."""
-    info = load_info(model_id)
-
-    job, started = start_job(model_id, "merge", lambda job: run_merge_job(model_id, job))
-    if not started:
-        return jsonify({"error": "Merge is already running"}), 409
-    return jsonify({"ok": True}), 202
-
-
-@model_bp.route("/api/<model_id>/merge/status")
-def api_merge_status(model_id):
-    return jsonify(job_snapshot(get_job(model_id, "merge")))
-
-
 @model_bp.route("/api/<model_id>/refresh", methods=["POST"])
 def api_refresh(model_id):
-    """Re-run make_info.py as a background job."""
+    """Get info: bring the atlas and viewer data up to date (make info) as a background job."""
     job, started = start_job(model_id, "refresh", lambda job: run_refresh_job(model_id, job))
     if not started:
-        return jsonify({"error": "Refresh is already running"}), 409
+        return jsonify({"error": "Get info is already running"}), 409
     return jsonify({"ok": True}), 202
 
 

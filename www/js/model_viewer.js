@@ -470,17 +470,16 @@ function setOverlayVisible(key, visible) {
     });
 }
 
-// --- Background job polling (generation output, merge output) --------------
+// --- Background job polling (generation output, get info output) -----------
 
 const jobOutput = document.getElementById("job-output");
 const jobStateBadge = document.getElementById("job-state-badge");
-const mergeBtn = document.getElementById("merge-btn");
 const refreshBtn = document.getElementById("refresh-btn");
 const keyframesValueEl = document.getElementById("keyframes-value");
 const pointsValueEl = document.getElementById("points-value");
 const submapsValueEl = document.getElementById("submaps-value");
 
-// Only one job (generate or merge) at a time — they share the same output
+// Only one job (generate or get info) at a time — they share the same output
 // panel, so running two at once would interleave unrelated logs.
 let jobRunning = false;
 
@@ -562,34 +561,6 @@ function generateAsset(assetKey) {
     });
 }
 
-function runMerge() {
-  if (jobRunning) return Promise.reject(new Error("Another job is already running"));
-  jobRunning = true;
-  jobOutput.textContent = "";
-  setJobBadge("running");
-
-  return fetch(`/model/api/${modelId}/merge`, { method: "POST" })
-    .then((res) => {
-      if (!res.ok) {
-        return res
-          .json()
-          .catch(() => ({}))
-          .then((body) => {
-            throw new Error(body.error || `HTTP ${res.status}`);
-          });
-      }
-      return new Promise((resolve, reject) => {
-        pollJob(`/model/api/${modelId}/merge/status`, {
-          onDone: resolve,
-          onError: () => reject(new Error("Merge failed — see output above.")),
-        });
-      });
-    })
-    .finally(() => {
-      jobRunning = false;
-    });
-}
-
 function runRefresh() {
   if (jobRunning) return Promise.reject(new Error("Another job is already running"));
   jobRunning = true;
@@ -609,7 +580,7 @@ function runRefresh() {
       return new Promise((resolve, reject) => {
         pollJob(`/model/api/${modelId}/refresh/status`, {
           onDone: resolve,
-          onError: () => reject(new Error("Refresh failed — see output above.")),
+          onError: () => reject(new Error("Get info failed — see output above.")),
         });
       });
     })
@@ -618,8 +589,8 @@ function runRefresh() {
     });
 }
 
-// After a refresh or merge, pull the new details and asset availability from the
-// server, and reload the current asset if make_info.py just rewrote it.
+// After getting info, pull the new details and asset availability from the
+// server, and reload the current asset if make just rewrote it.
 function refreshDetailsFromServer() {
   return fetch(`/model/api/${modelId}/info`)
     .then((res) => res.json())
@@ -627,7 +598,6 @@ function refreshDetailsFromServer() {
       keyframesValueEl.textContent = info.keyframes ?? "—";
       pointsValueEl.textContent = info.points != null ? info.points.toLocaleString() : "—";
       submapsValueEl.textContent = info.submaps ?? "—";
-      mergeBtn.disabled = !(info.submaps > 1);
       Object.assign(assetStatus, info.assets);
       updateButtonStates();
       overlayButtons.forEach((btn) => updateOverlayButtonState(btn.dataset.overlay));
@@ -677,20 +647,6 @@ generateBtn.addEventListener("click", () => {
     })
     .finally(() => {
       generateBtn.disabled = false;
-    });
-});
-
-mergeBtn.addEventListener("click", () => {
-  if (jobRunning) return;
-  mergeBtn.disabled = true;
-
-  runMerge()
-    .then(refreshDetailsFromServer)
-    .catch((err) => {
-      jobOutput.textContent += `\n${err.message}`;
-    })
-    .finally(() => {
-      mergeBtn.disabled = false;
     });
 });
 
