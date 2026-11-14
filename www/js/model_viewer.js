@@ -189,20 +189,19 @@ function disposeOverlay(key) {
 // very first successful load and from the explicit "Reset view" button —
 // NOT on every asset switch/overlay toggle, so your viewpoint sticks once
 // you've set it up, instead of jumping back to a fitted default each time.
+//
+// The box covers the middle 98% of the vertices on each axis rather than all
+// of them: SLAM point clouds can have a few stray points kilometres away,
+// which would otherwise put the camera (and its near plane) so far out that
+// the model is a speck you can't zoom in on.
 function frameCombinedView() {
-  const box = new THREE.Box3();
-  let any = false;
-  if (currentObject) {
-    box.expandByObject(currentObject);
-    any = true;
-  }
+  const objects = [];
+  if (currentObject) objects.push(currentObject);
   for (const key of Object.keys(overlayObjects)) {
-    if (overlayVisible[key] && overlayObjects[key]) {
-      box.expandByObject(overlayObjects[key]);
-      any = true;
-    }
+    if (overlayVisible[key] && overlayObjects[key]) objects.push(overlayObjects[key]);
   }
-  if (!any || box.isEmpty()) return;
+  const box = robustBox(objects);
+  if (!box) return;
 
   const size = box.getSize(new THREE.Vector3()).length();
   const center = box.getCenter(new THREE.Vector3());
@@ -212,6 +211,34 @@ function frameCombinedView() {
   camera.near = dist / 100;
   camera.far = dist * 100;
   camera.updateProjectionMatrix();
+}
+
+// Bounding box of the middle `1 - 2 * trim` of the objects' vertices (in world
+// space) on each axis, or null if they have none. Samples at most ~100k
+// vertices so huge meshes stay quick.
+function robustBox(objects, trim = 0.01) {
+  const xs = [], ys = [], zs = [];
+  const v = new THREE.Vector3();
+  for (const obj of objects) {
+    obj.updateWorldMatrix(true, true);
+    obj.traverse((child) => {
+      const pos = child.geometry?.attributes?.position;
+      if (!pos) return;
+      const step = Math.max(1, Math.floor(pos.count / 100000));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld);
+        xs.push(v.x); ys.push(v.y); zs.push(v.z);
+      }
+    });
+  }
+  if (!xs.length) return null;
+  const range = (a) => {
+    a.sort((p, q) => p - q);
+    const k = Math.floor((a.length - 1) * trim);
+    return [a[k], a[a.length - 1 - k]];
+  };
+  const [x0, x1] = range(xs), [y0, y1] = range(ys), [z0, z1] = range(zs);
+  return new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1));
 }
 
 let hasFramedInitialView = false;
@@ -499,13 +526,22 @@ function setJobBadge(state) {
 // Polls `statusUrl` (a .../status endpoint returning {"state", "log"})
 // every 800ms while the job is running, streaming its output into the
 // output panel, and calls onDone/onError once it settles.
+// Show the latest log, following new output only if the user is already at
+// the bottom, so scrolling up to read earlier output isn't undone by the
+// next poll.
+function setJobOutput(text) {
+  if (jobOutput.textContent === text) return;
+  const atBottom = jobOutput.scrollHeight - jobOutput.scrollTop - jobOutput.clientHeight < 20;
+  jobOutput.textContent = text;
+  if (atBottom) jobOutput.scrollTop = jobOutput.scrollHeight;
+}
+
 function pollJob(statusUrl, { onDone, onError } = {}) {
   const tick = () => {
     fetch(statusUrl)
       .then((res) => res.json())
       .then((data) => {
-        jobOutput.textContent = data.log || "(no output yet)";
-        jobOutput.scrollTop = jobOutput.scrollHeight;
+        setJobOutput(data.log || "(no output yet)");
         setJobBadge(data.state);
 
         if (data.state === "running") {

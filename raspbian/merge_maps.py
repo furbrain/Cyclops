@@ -322,16 +322,15 @@ def merge_maps(atlas: Atlas, dir: Path, survey_3d: Optional[Path] = None,
                 f.write(connections.to_json())
 
         connections.apply_transform()
-    from survey_morph import morph_to_survey, parse_prefixes, read_survey_stations, bundle_adjust as bundle_adjust_atlas # imported here as survey_morph imports this module
+    from survey_morph import morph_to_survey, parse_prefixes, survey_prefixes_for, bundle_adjust as bundle_adjust_atlas # imported here as survey_morph imports this module
     # each map is a sub-atlas, so a connection between two maps is a seam that the morph closes up (which matters
     # when the maps form a loop and don't quite meet). This is done with or without a survey
     sub_atlases = {f"map{map_id}": SubAtlas(maps={map_id}) for map_id in sorted(atlas.maps)}
-    prefixes = parse_prefixes(survey_prefixes or [], list(sub_atlases))
     if survey_3d is not None:
         # unless told otherwise, markers are stations under the survey's one top level prefix (e.g. garden.a)
-        tops = {label.split(".")[0] for label in read_survey_stations(survey_3d) if "." in label}
-        if len(tops) == 1:
-            prefixes = {name: prefixes.get(name, next(iter(tops))) for name in sub_atlases}
+        prefixes = survey_prefixes_for(survey_prefixes or [], list(sub_atlases), survey_3d)
+    else:
+        prefixes = parse_prefixes(survey_prefixes or [], list(sub_atlases))
     survey_fit = morph_to_survey(atlas, sub_atlases, connections.connections, survey_3d, prefixes)
     connections.unify_maps()
     if bundle_adjust:

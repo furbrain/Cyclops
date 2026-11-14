@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 
 from atlas import Atlas, SubAtlas, SUB_ATLAS_FILE
 from merge_maps import InternalConnections, Connection, Link, CONNECTIONS_FILE
-from survey_morph import morph_to_survey, parse_prefixes, bundle_adjust as bundle_adjust_atlas
+from survey_morph import morph_to_survey, survey_prefixes_for, bundle_adjust as bundle_adjust_atlas
 
 
 # {"links": [{"from", "from_scope", "to", "to_scope"}, ...], "share_survey": bool}, written by the model page
@@ -120,7 +120,7 @@ def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Opti
     connections.get_ransac_transforms(translation_only=True)
     connections.apply_transform()
     if survey_3d is not None:
-        prefixes = parse_prefixes(survey_prefixes or [], list(subatlasses.sub_atlases))
+        prefixes = survey_prefixes_for(survey_prefixes or [], list(subatlasses.sub_atlases), survey_3d)
     else:
         prefixes = None
     survey_fit = morph_to_survey(atlas, subatlasses.sub_atlases, connections.connections, survey_3d, prefixes)
@@ -144,7 +144,8 @@ if __name__ == "__main__":
     parser.add_argument('--survey-prefix', action='append', default=[], metavar='[NAME=]PREFIX',
                         help="survex prefix the aruco markers are under, e.g. 'garden' for station garden.a. "
                         "Applies to every sub-survey, or just sub-survey NAME if given as NAME=PREFIX. "
-                        "May be repeated. Default is each sub-survey's own name")
+                        "May be repeated. Default is each sub-survey's own name if the survey has a prefix called that, "
+                        "otherwise the survey's top level prefix if it has just one")
     parser.add_argument('--all-links', action='store_true',
                         help="also look for connections between sub-surveys that are not linked in "
                         f"{COMBINE_SETTINGS_FILE}, in case they overlap")

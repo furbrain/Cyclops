@@ -467,6 +467,18 @@ def parse_prefixes(specs: List[str], sub_names: List[str]) -> Dict[str, str]:
     return prefixes
 
 
+def survey_prefixes_for(specs: List[str], sub_names: List[str], survey_3d: Path) -> Dict[str, str]:
+    """parse_prefixes(), then for each sub-atlas not given a prefix: its own name if the survey has a top
+    level prefix called that (each sub-survey surveyed separately), otherwise the survey's top level prefix
+    if it has just one (one survey covering everything, e.g. garden.a)"""
+    prefixes = parse_prefixes(specs, sub_names)
+    tops = {label.split(".")[0].lower() for label in read_survey_stations(survey_3d) if "." in label}
+    for name in sub_names:
+        if name not in prefixes and name.lower() not in tops and len(tops) == 1:
+            prefixes[name] = next(iter(tops))
+    return prefixes
+
+
 @dataclass
 class SurveyFit:
     """What was learned while fitting to the survey that the bundle adjustment needs afterwards, when the
