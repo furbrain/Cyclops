@@ -19,4 +19,5 @@ if __name__=="__main__":
     opts = parser.parse_args()
 
     model_dir = Path(opts.dir)
+    print(f"Converting {make_path(model_dir, opts.atlas)} to {make_path(model_dir, opts.output)}")
     make_json(make_path(model_dir, opts.atlas), make_path(model_dir, opts.output))

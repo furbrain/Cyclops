@@ -27,25 +27,24 @@ Assumptions (change these to match your real pipeline — search for "TODO"):
                               (points are taken in pairs: 0-1 is one leg, 2-3 the next, etc.)
   - Generating a missing asset, and merging submaps, both run as background
     jobs with their live output captured for the frontend to poll — see
-    "Background job infrastructure" below. The actual pipeline calls are
-    still stubbed with demo output; wire up the real thing there.
+    "Background job infrastructure" below. The pipeline itself is the
+    Makefile next to this module, copied into each model folder and run
+    there, so make works out what needs (re)building.
 """
 
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager
 import json
 import mimetypes
+import os
 import shutil
 import random
 import re
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
 
 from flask import Blueprint, current_app, render_template, request, jsonify, send_from_directory, abort
-
-from utils import CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME
 
 
 # Not registered by Python's mimetypes module by default — set it explicitly
@@ -88,8 +87,6 @@ MODEL_VARIANTS = ["pointcloud", "coarse", "coarse_texture", "hi-res", "hi-res_te
 # anything that needs an actual texture. If your mesher only outputs
 # OBJ+MTL+JPG or split glTF, convert once with `gltf-pipeline -i in.gltf -o
 # out.glb` (or export GLB directly if your tool supports it).
-SCENE_FILE = "scene.mvs"
-SCENE_DENSE_FILE = "scene_dense.mvs"
 COARSE_MESH_FILE = "coarse_mesh.ply"
 COARSE_TEXTURE_FILE = "coarse_full.glb"
 HIRES_MESH_FILE = "hires_mesh.ply"
@@ -105,16 +102,11 @@ ASSET_DEFS = {
     "survey": {"filename": "survey.json", "label": "Survey", "generatable": True, "format": "points"},
 }
 
-RASPBIAN_PATH = Path(__file__).resolve().parents[2] / "raspbian"
-MAKE_INFO_SCRIPT = RASPBIAN_PATH / "make_info.py"
-MERGE_SCRIPT = RASPBIAN_PATH / "merge_maps.py"
-COLMAP_SCRIPT = Path(__file__).resolve().parents[2] / "raspbian" / "colmap.py"
-COMBINE_SCRIPT = RASPBIAN_PATH / "combine.py"
-SPARSE_FILES = [CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME]
+# copied into each model folder (if it hasn't got one already) and run there
+MAKEFILE = Path(__file__).resolve().parent / "Makefile"
 
 # Must match raspbian/combine.py and merge_maps.py (not imported here: they pull in gtsam/orb_slam3_py)
 SUB_ATLAS_FILE = "subatlas.json"
-ATLAS_CONNECTIONS_FILE = "atlas_connections.csv"
 PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.json.gz"
 ATLAS_FILE = "atlas.json.gz"
 CONNECTIONS_FILE = "connections.json"
@@ -211,12 +203,14 @@ def run_subprocess_logged(job, cmd, cwd=None, check=True, outputs=()):
     RuntimeError on a non-zero exit instead.
 
     `outputs` are files the command writes: they're deleted if it fails or is
-    interrupted, so a partial file never looks up to date to is_up_to_date().
+    interrupted, so a partial file never looks up to date.
     """
     job_log(job, f"$ {' '.join(str(c) for c in cmd)}")
     try:
+        # unbuffered, so the output of python scripts (run directly or by make) arrives as it's printed
         process = subprocess.Popen(
-            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            env=os.environ | {"PYTHONUNBUFFERED": "1"},
         )
         for line in iter(process.stdout.readline, ""):
             job_log(job, line.rstrip())
@@ -239,173 +233,55 @@ def remove_files(job, paths):
             job_log(job, f"Removing partial output {path.name}")
             path.unlink()
 
-def is_up_to_date(output: Path, *inputs: Path) -> bool:
-    """True if output exists and is newer than all the inputs that exist"""
-    if not output.exists():
-        return False
-    mtime = output.stat().st_mtime
-    return all(x.stat().st_mtime <= mtime for x in inputs if x.exists())
+# One build at a time per model folder: two makes in the same folder could both rebuild a shared
+# prerequisite (scene.mvs, say), or one could unmount images/ while the other is using it.
+BUILD_LOCKS = {}
 
-def sparse_files(model_path: Path) -> list[Path]:
-    return list((model_path / "sparse" / f) for f in SPARSE_FILES)
 
-def make_mvs_scene(model_path: Path, job):
-    """Create an OpenMVS scene from the sparse COLMAP model, ready for densification and meshing"""
-    scene = model_path / SCENE_FILE
-    if is_up_to_date(scene, *sparse_files(model_path)):
-        job_log(job, "OpenMVS scene already exists")
-        return scene
-    run_subprocess_logged(
-        job,
-        ["InterfaceCOLMAP", "-i", str(model_path), "--image-folder", str(model_path / "images"),
-         "-o", str(scene)],
-        model_path,
-        outputs=[scene]
-    )
-    return scene
-
-def make_dense_scene(model_path: Path, job) -> Path:
-    """Densify the OpenMVS scene"""
-    scene = make_mvs_scene(model_path, job)
-    dense = model_path / SCENE_DENSE_FILE
-    if is_up_to_date(dense, scene):
-        job_log(job, "Dense OpenMVS scene already exists")
-        return dense
-    run_subprocess_logged(
-        job,
-        ["DensifyPointCloud", "-i", str(scene), "-o", str(dense)],
-        model_path,
-        outputs=[dense]
-    )
-    return dense
-
-def make_scene(model_path: Path, job, hires: bool) -> Path:
-    """Make the scene a mesh is built from: dense for hires, sparse for coarse"""
-    return make_dense_scene(model_path, job) if hires else make_mvs_scene(model_path, job)
-
-def make_mesh(model_path: Path, job, hires: bool) -> Path:
-    """ Create a coarse or high resolution mesh from the sparse COLMAP model
-    """
-    scene = make_scene(model_path, job, hires)
-    mesh = model_path / (HIRES_MESH_FILE if hires else COARSE_MESH_FILE)
-    if is_up_to_date(mesh, scene):
-        job_log(job, f"{'High resolution' if hires else 'Coarse'} mesh already exists")
-        return mesh
-    run_subprocess_logged(
-        job,
-        ["ReconstructMesh", "-i", str(scene), "-o", str(mesh)],
-        model_path,
-        outputs=[mesh]
-    )
-    return mesh
-
-def make_texture(model_path: Path, job, hires: bool) -> Path:
-    """ Create a coarse or high resolution textured mesh from the sparse COLMAP model
-    """
-    mesh = make_mesh(model_path, job, hires) # first make the mesh (and its scene)
-    scene = model_path / (SCENE_DENSE_FILE if hires else SCENE_FILE)
-    textured = model_path / (HIRES_TEXTURE_FILE if hires else COARSE_TEXTURE_FILE)
-    if is_up_to_date(textured, mesh):
-        job_log(job, f"{'High resolution' if hires else 'Coarse'} textured mesh already exists")
-        return textured
-    temp = model_path / "temp.glb"
+@contextmanager
+def build_lock(model_path: Path, job):
+    with JOBS_LOCK:
+        lock = BUILD_LOCKS.setdefault(model_path.resolve(), threading.Lock())
+    if not lock.acquire(blocking=False):
+        job_log(job, "Waiting for another build of this model to finish...")
+        lock.acquire()
     try:
-        run_subprocess_logged(
-            job,
-            ["TextureMesh", "-i", str(scene),
-             "-m", str(mesh),
-             "-o", str(temp),
-             "--export-type", "glb"],
-            model_path
-        )
-        run_subprocess_logged(
-            job,
-            ["gltf-pipeline", "-i", str(temp), "-o", str(textured)],
-            model_path,
-            outputs=[textured]
-        )
+        yield
     finally:
-        # remove temporary files, whether or not texturing succeeded
-        temp.unlink(missing_ok=True)
-        for f in model_path.glob("temp*.png"):
-            f.unlink()
-    return textured
-
-# asset key -> (builder, hires)
-MESH_BUILDERS = {
-    "coarse": (make_mesh, False),
-    "coarse_texture": (make_texture, False),
-    "hi-res": (make_mesh, True),
-    "hi-res_texture": (make_texture, True),
-}
+        lock.release()
 
 
-def refresh_info(model_path: Path, job):
-    """Re-run make_info.py on the atlas: rewrites info.json, pointcloud.json, track.json and survey.json"""
-    run_subprocess_logged(job, ["python3", str(MAKE_INFO_SCRIPT), "-d", str(model_path)])
+def run_make(model_path: Path, job, *args: str):
+    """Run make in model_path, copying the Makefile there first if it hasn't got one"""
+    if not (model_path / "Makefile").exists():
+        shutil.copy(MAKEFILE, model_path / "Makefile")
+        job_log(job, f"Copied {MAKEFILE} to {model_path}")
+    run_subprocess_logged(job, ["make", *args], cwd=model_path)
 
 
 def run_refresh_job(model_id, job):
-    refresh_info(model_dir(model_id), job)
+    """Bring info.json, pointcloud.json, track.json and survey.json up to date"""
+    d = model_dir(model_id)
+    with build_lock(d, job):
+        run_make(d, job, "info")
     job_log(job, "Done.")
 
 
 def run_generation_job(model_id, asset_key, job):
-    """
-    TODO: replace the demo simulation below with real calls into your
-    pipeline. Use run_subprocess_logged() for anything that's a CLI tool
-    (TextureMesh, obj2gltf, your ORB-SLAM3 export binary, ...), and
-    job_log(job, "...") directly to report progress from pure-Python steps
-    (e.g. writing track.json/survey.json yourself). Whatever you write to
-    disk should end up at model_dir(model_id) / ASSET_DEFS[asset_key]["filename"].
-    """
+    """Make the asset: the Makefile has a target named after each generatable asset key"""
     d = model_dir(model_id)
-    fmt = ASSET_DEFS[asset_key]["format"]
-    filename = ASSET_DEFS[asset_key]["filename"]
-
-    if fmt == "points":
-        refresh_info(d, job)
-    elif fmt in ("ply", "glb"):
-        with mounted_all_images(d, job):
-            ensure_sparse(d, job)
-            if asset_key not in MESH_BUILDERS:
-                raise NotImplementedError(f"Unknown mesh asset key: {asset_key}")
-            builder, hires = MESH_BUILDERS[asset_key]
-            builder(d, job, hires)
-    else:  # glb
-        raise NotImplementedError(
-            f"Unknown asset format {fmt} for {asset_key} — add it to run_generation_job()"
-        )
-
+    with build_lock(d, job):
+        run_make(d, job, asset_key)
     job_log(job, "Done.")
 
 
-def keep_pre_merge_atlas(model_path: Path, job) -> Path:
-    """Copy atlas.json.gz to atlas_pre_merge.json.gz, unless already merged before, and return the copy.
-    Merging always starts from this, so a re-merge discards the previous merge result"""
-    pre_merge = model_path / PRE_MERGE_ATLAS_FILE
-    if pre_merge.exists():
-        job_log(job, f"Merging from existing {PRE_MERGE_ATLAS_FILE}")
-    else:
-        atlas = model_path / ATLAS_FILE
-        if not atlas.exists():
-            raise RuntimeError(f"No {ATLAS_FILE} to merge")
-        shutil.copy2(atlas, pre_merge)
-        job_log(job, f"Copied {ATLAS_FILE} -> {PRE_MERGE_ATLAS_FILE}")
-    return pre_merge
-
-
 def run_merge_job(model_id, job):
-    model_path = model_dir(model_id)
-    pre_merge = keep_pre_merge_atlas(model_path, job)
-    # merge_maps.py writes the result over atlas.json.gz
-    run_subprocess_logged(job, ["python3", str(MERGE_SCRIPT), "-d", str(model_path), "-a", str(pre_merge)])
-    refresh_info(model_path, job)
+    """Redo the merge (and survey fit) from atlas_raw.json.gz even if make thinks it's up to date, then
+    the viewer data. A combined model is merged by combining it, so for one this is just a refresh"""
+    d = model_dir(model_id)
+    with build_lock(d, job):
+        run_make(d, job, "-W", "atlas_raw.json.gz", "info")
     job_log(job, "Merge complete.")
-
-
-def is_combined(model_path: Path) -> bool:
-    return (model_path / SUB_ATLAS_FILE).exists()
 
 
 def create_combined_model(model_path: Path):
@@ -420,10 +296,12 @@ def load_combine_settings(model_path: Path) -> dict:
 
 
 def write_combine_settings(model_path: Path, links: list[dict], share_survey: bool):
-    lines = [f"{x['from']}, {x['from_scope']}, {x['to']}, {x['to_scope']}\n" for x in links]
-    (model_path / ATLAS_CONNECTIONS_FILE).write_text("".join(lines))
-    settings = {"links": links, "share_survey": share_survey}
-    (model_path / COMBINE_SETTINGS_FILE).write_text(json.dumps(settings, indent=2))
+    """Write combine.json, which combine.py and the Makefile read too. Left alone (time included) if it
+    already says this, so make doesn't think the settings have changed"""
+    path = model_path / COMBINE_SETTINGS_FILE
+    text = json.dumps({"links": links, "share_survey": share_survey}, indent=2)
+    if not path.exists() or path.read_text() != text:
+        path.write_text(text)
 
 
 def update_combined_model(model_path: Path, links: list[dict], share_survey: bool) -> list[str]:
@@ -432,7 +310,7 @@ def update_combined_model(model_path: Path, links: list[dict], share_survey: boo
     colmap.py expect:
       <model>/<survey>          -> ../<survey>     (combine.py loads each sub-survey's atlas from here)
       <model>/images/<survey>   -> ../../<survey>  (colmap.py looks for <survey>/images/<kf>.jpg here)
-      <model>/atlas_connections.csv  one line per link: from, from_scope, to, to_scope
+      <model>/combine.json      the links and share_survey
     combine.py reuses its intermediate files on a recombine, so any that no longer match are
     deleted. Returns the names of the deleted files.
     """
@@ -502,13 +380,11 @@ def check_links(links, model_id: str) -> str | None:
 
 
 def run_combine_job(model_id, job):
+    """Redo the combine even if make thinks it's up to date (it still reuses whatever intermediate files
+    are up to date), then the viewer data"""
     model_path = model_dir(model_id)
-    settings = load_combine_settings(model_path)
-    cmd = ["python3", "-u", str(COMBINE_SCRIPT), "-d", str(model_path)]
-    if settings["share_survey"]:
-        cmd.append("--share-survey")
-    run_subprocess_logged(job, cmd, outputs=[model_path / ATLAS_FILE])
-    refresh_info(model_path, job)
+    with build_lock(model_path, job):
+        run_make(model_path, job, "-W", COMBINE_SETTINGS_FILE, "info")
     job_log(job, "Combine complete.")
 
 
@@ -701,7 +577,7 @@ def api_generate(model_id, asset_key):
         abort(400, f"Asset '{asset_key}' is not generatable")
 
     d = model_dir(model_id)
-    if asset_key == "survey" and not (d / "survey.svx").exists():
+    if asset_key == "survey" and not ((d / "survey.svx").exists() or (d / "survey.3d").exists()):
         return jsonify({"error": "Enter or upload a survey before generating it"}), 400
 
     job, started = start_job(model_id, asset_key, lambda job: run_generation_job(model_id, asset_key, job))
@@ -745,63 +621,3 @@ def api_refresh(model_id):
 @model_bp.route("/api/<model_id>/refresh/status")
 def api_refresh_status(model_id):
     return jsonify(job_snapshot(get_job(model_id, "refresh")))
-
-
-def image_sources(target_path: Path) -> list[Path]:
-    """The model dirs holding this model's images: itself, or for a combined model its sub-surveys"""
-    if not is_combined(target_path):
-        return [target_path]
-    sub_atlases = json.loads((target_path / SUB_ATLAS_FILE).read_text())["sub_atlases"]
-    return [src for name in sub_atlases for src in image_sources(target_path / name)]
-
-
-@contextmanager
-def mounted_all_images(target_path: Path, job):
-    """mounted_images() for every model dir this model takes images from"""
-    with ExitStack() as stack:
-        for src in image_sources(target_path):
-            stack.enter_context(mounted_images(src, job))
-        yield
-
-
-@contextmanager
-def mounted_images(target_path: Path, job):
-    """Mount images.tar at target_path/images with ratarmount for the duration of the block"""
-    mount_point = target_path / "images"
-    if mount_point.is_dir() and any(mount_point.iterdir()):
-        yield mount_point  # already extracted or mounted
-        return
-    if mount_point.is_symlink():  # stale link left by an earlier colmap.py run
-        mount_point.unlink()
-    mount_point.mkdir(exist_ok=True)
-    try:
-        run_subprocess_logged(job, ["ratarmount", str(target_path / "images.tar"), str(mount_point)])
-    except RuntimeError:
-        mount_point.rmdir()
-        raise
-    try:
-        yield mount_point
-    finally:
-        # don't let an unmount failure mask an exception from the body
-        run_subprocess_logged(job, ["ratarmount", "-u", str(mount_point)], check=False)
-        mount_point.rmdir()
-
-
-
-
-def ensure_sparse(target_path: Path, job):
-    """Run colmap.py to create the sparse COLMAP files if any are missing or older than the atlas they came
-    from (for example after a combined model is recombined with different sub-surveys, when the old files
-    still refer to images the model no longer has)"""
-    sparse_dir = target_path / "sparse"
-    if all(is_up_to_date(sparse_dir / f, target_path / ATLAS_FILE) for f in SPARSE_FILES):
-        job_log(job, "Sparse model already exists")
-        return
-    with mounted_all_images(target_path, job):
-        run_subprocess_logged(
-            job,
-            [sys.executable, "-u", str(COLMAP_SCRIPT), "-s",
-             "-d", str(target_path)]
-            + (["-c"] if is_combined(target_path) else []),
-            outputs=[sparse_dir / f for f in SPARSE_FILES],
-        )

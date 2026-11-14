@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from itertools import combinations
@@ -10,7 +11,8 @@ from merge_maps import InternalConnections, Connection, Link, CONNECTIONS_FILE
 from survey_morph import morph_to_survey, parse_prefixes, bundle_adjust as bundle_adjust_atlas
 
 
-ATLAS_CONNECTIONS_FILE = "atlas_connections.csv"
+# {"links": [{"from", "from_scope", "to", "to_scope"}, ...], "share_survey": bool}, written by the model page
+COMBINE_SETTINGS_FILE = "combine.json"
 PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.json.gz"
 
 
@@ -22,9 +24,8 @@ class SurveyLink:
     to_scope: Link
 
     @classmethod
-    def from_line(cls, text: str) -> "SurveyLink":
-        fields = [x.strip() for x in text.split(',')]
-        return cls(fields[0], Link.from_string(fields[1]), fields[2], Link.from_string(fields[3]))
+    def from_dict(cls, link: dict) -> "SurveyLink":
+        return cls(link["from"], Link.from_string(link["from_scope"]), link["to"], Link.from_string(link["to_scope"]))
 
 
 @dataclass
@@ -32,9 +33,8 @@ class SurveyLinks:
     links: List[SurveyLink]
 
     @classmethod
-    def from__file(cls, path: Path):
-        with open(path) as f:
-            return cls([SurveyLink.from_line(line) for line in f])
+    def from_settings(cls, settings: dict) -> "SurveyLinks":
+        return cls([SurveyLink.from_dict(x) for x in settings["links"]])
 
     def get_pre_merge_atlas(self, dir: Path, share_survey: bool = False) -> Tuple[Atlas, SubAtlas]:
         subatlas_names = {x.from_survey for x in self.links}
@@ -89,7 +89,9 @@ def find_unlinked_connections(links: SurveyLinks, atlas: Atlas, sub_atlas: SubAt
 def combine_atlases(model_dir: Path, share_survey: bool = False, survey_3d: Optional[Path] = None,
                     survey_prefixes: Optional[List[str]] = None, bundle_adjust: bool = True,
                     all_links: bool = False):
-    links = SurveyLinks.from__file(model_dir / ATLAS_CONNECTIONS_FILE)
+    settings = json.loads((model_dir / COMBINE_SETTINGS_FILE).read_text())
+    links = SurveyLinks.from_settings(settings)
+    share_survey = share_survey or settings.get("share_survey", False)
     if (model_dir / PRE_MERGE_ATLAS_FILE).exists() and (model_dir / SUB_ATLAS_FILE).exists():
         atlas = Atlas.from_json_file(model_dir / PRE_MERGE_ATLAS_FILE)
         with open(model_dir / SUB_ATLAS_FILE) as f:
@@ -133,8 +135,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="combine several sub-surveys into one atlas")
     parser.add_argument('-d', '--dir', help="combined model directory, containing "
-                        f"{ATLAS_CONNECTIONS_FILE} and a sub-directory per sub-survey", default=".")
-    parser.add_argument('-s', '--share-survey', help="all sub-surveys share a single survey",
+                        f"{COMBINE_SETTINGS_FILE} and a sub-directory per sub-survey", default=".")
+    parser.add_argument('-s', '--share-survey', help=f"all sub-surveys share a single survey, whatever "
+                        f"{COMBINE_SETTINGS_FILE} says",
                         action="store_true")
     parser.add_argument('--survey', help="survex .3d file: aruco markers are fixed to its stations and the "
                         "sub-surveys are morphed to fit (needs survex's dump3d on the path)")
@@ -144,7 +147,7 @@ if __name__ == "__main__":
                         "May be repeated. Default is each sub-survey's own name")
     parser.add_argument('--all-links', action='store_true',
                         help="also look for connections between sub-surveys that are not linked in "
-                        f"{ATLAS_CONNECTIONS_FILE}, in case they overlap")
+                        f"{COMBINE_SETTINGS_FILE}, in case they overlap")
     parser.add_argument('--no-bundle', action='store_true',
                         help="with --survey, skip the final bundle adjustment of the combined atlas")
     opts = parser.parse_args()
