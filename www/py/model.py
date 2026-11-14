@@ -273,6 +273,18 @@ def run_generation_job(model_id, asset_key, job):
     job_log(job, "Done.")
 
 
+def is_combined(model_path: Path) -> bool:
+    return (model_path / SUB_ATLAS_FILE).exists()
+
+
+def image_sources(target_path: Path) -> list[Path]:
+    """The model dirs holding this model's images: itself, or for a combined model its sub-surveys"""
+    if not is_combined(target_path):
+        return [target_path]
+    sub_atlases = json.loads((target_path / SUB_ATLAS_FILE).read_text())["sub_atlases"]
+    return [src for name in sub_atlases for src in image_sources(target_path / name)]
+
+
 def create_combined_model(model_path: Path):
     """An empty combined model: its sub-surveys and links are set up from its model page"""
     model_path.mkdir()

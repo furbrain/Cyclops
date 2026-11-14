@@ -19,7 +19,6 @@ IMAGE_FILENAME = "images.txt"
 POINTS_FILENAME = "points3D.txt"
 TS_MAP_FILENAME = "ts_map.json"
 SPARSE_POINTS_FILENAME = "sparse_points.json"
-_typestore: Optional[Typestore] = None
 # import cv_bridge
 # bridge = cv_bridge.CvBridge()
 

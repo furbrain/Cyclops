@@ -25,7 +25,7 @@ IMAGES := $(wildcard images.tar $(SUBS:%=%/images.tar))
 
 # --- Asset names, as in model.py's ASSET_DEFS ---------------------------------
 
-.PHONY: all info pointcloud track survey coarse coarse_texture hi-res hi-res_texture
+.PHONY: all info pointcloud track survey coarse coarse_texture hi-res hi-res_texture sparse
 
 all: info coarse_full.glb hires_full.glb
 # everything the viewer shows apart from the meshes
@@ -37,6 +37,8 @@ coarse: coarse_mesh.ply
 coarse_texture: coarse_full.glb
 hi-res: hires_mesh.ply
 hi-res_texture: hires_full.glb
+# the sparse COLMAP model, as uploaded to FrogCore
+sparse: $(colmap_files)
 
 # --- Helpers ------------------------------------------------------------------
 

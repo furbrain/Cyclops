@@ -15,8 +15,8 @@ from typing import Callable
 import requests
 from flask import Blueprint, current_app, jsonify, request
 
-from model import get_job, job_log, job_snapshot, start_job
-from model import ensure_sparse, SPARSE_FILES
+from model import get_job, job_log, job_snapshot, start_job, build_lock, run_make
+from utils import CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME
 
 frogcore_bp = Blueprint("frogcore", __name__)
 
@@ -24,7 +24,8 @@ frogcore_bp = Blueprint("frogcore", __name__)
 FROGCORE_CONFIG = Path.home() / ".config" / "cyclops" / "frogcore.json"
 FROGCORE_URL = "https://frog.shetlandattackpony.co.uk"
 SURVEY_FILE = "frogcore.json"
-FROGCORE_FILES = ["images.tar", "atlas.osa"] + ['sparse/' + f for f in SPARSE_FILES]
+# the sparse COLMAP model is made by `make sparse` (see model.py's Makefile)
+FROGCORE_FILES = ["images.tar", "atlas.osa"] + ['sparse/' + f for f in (CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME)]
 
 
 class FrogCoreClient:
@@ -127,7 +128,8 @@ def save_survey(p: Path, **kwargs):
 
 def upload_survey(target_path: Path, job):
     try:
-        ensure_sparse(target_path, job)
+        with build_lock(target_path, job):
+            run_make(target_path, job, "sparse")
         FrogCoreClient.from_config().upload_recording(target_path, lambda line: job_log(job, line))
     except Exception:
         save_survey(target_path, status="error")
