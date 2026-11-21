@@ -104,7 +104,7 @@ ASSET_DEFS = {
 # copied into each model folder (if it hasn't got one already) and run there
 MAKEFILE = Path(__file__).resolve().parent / "Makefile"
 
-# Must match raspbian/combine.py and merge_maps.py (not imported here: they pull in gtsam/orb_slam3_py)
+# Must match modelling/combine.py and merge_maps.py (not imported here: they pull in gtsam/orb_slam3_py)
 SUB_ATLAS_FILE = "subatlas.json"
 PRE_MERGE_ATLAS_FILE = "atlas_pre_merge.json.gz"
 ATLAS_FILE = "atlas.json.gz"

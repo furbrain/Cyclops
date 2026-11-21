@@ -6,7 +6,7 @@
 # from combine.py, which needs each sub-survey's atlas (brought up to date by running this Makefile in the
 # sub-survey's folder), and its images from its sub-surveys.
 
-RASPBIAN_DIR=/home/pi/Cyclops/raspbian
+MODELLING_DIR=/home/pi/Cyclops/modelling
 # for running make in sub-surveys' folders
 THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 
@@ -93,26 +93,26 @@ scene.mvs: $(colmap_files) $(IMAGES)
 	$(call with_images,InterfaceCOLMAP -i . --image-folder images -o $@)
 
 $(colmap_files) &: atlas.json.gz $(IMAGES)
-	$(call with_images,$(RASPBIAN_DIR)/colmap.py -s -d .)
+	$(call with_images,$(MODELLING_DIR)/colmap.py -s -d .)
 
 # --- Atlas and viewer data ----------------------------------------------------
 
 $(pointcloud_files) &: atlas.json.gz
-	$(RASPBIAN_DIR)/make_info.py -d . -a atlas.json.gz
+	$(MODELLING_DIR)/make_info.py -d . -a atlas.json.gz
 
 survey.json: survey.3d
-	$(RASPBIAN_DIR)/survey_json.py $< $@
+	$(MODELLING_DIR)/survey_json.py $< $@
 
 ifneq ($(wildcard atlas.osa),)
 # --- a model recorded on the device ---
 # merge_maps.py reuses connections.json if there is one, so drop it when it predates the atlas it came from
 atlas.json.gz: atlas_raw.json.gz $(SURVEY)
 	if [ connections.json -ot atlas_raw.json.gz ]; then rm -f connections.json; fi
-	$(RASPBIAN_DIR)/merge_maps.py -d . -a atlas_raw.json.gz $(if $(SURVEY),-s survey.3d)
+	$(MODELLING_DIR)/merge_maps.py -d . -a atlas_raw.json.gz $(if $(SURVEY),-s survey.3d)
 
 # no with_images needed: the aruco search reads images.tar directly
 atlas_raw.json.gz: atlas.osa images.tar
-	$(RASPBIAN_DIR)/make_json.py -d . -a $< -o $@
+	$(MODELLING_DIR)/make_json.py -d . -a $< -o $@
 
 else ifneq ($(wildcard combine.json),)
 # --- a combined model ---
@@ -130,7 +130,7 @@ atlas.json.gz: $(SUB_ATLASES) combine.json $(SURVEY)
 	for f in $(SUB_ATLASES) combine.json; do \
 	  [ atlas_pre_merge.json.gz -nt $$f ] || { rm -f atlas_pre_merge.json.gz subatlas.json connections.json; break; }; \
 	done
-	$(RASPBIAN_DIR)/combine.py -d . $(if $(SURVEY),--survey survey.3d)
+	$(MODELLING_DIR)/combine.py -d . $(if $(SURVEY),--survey survey.3d)
 endif
 
 # only when there's a .svx: otherwise an existing survey.3d is used as it is
