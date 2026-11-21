@@ -106,6 +106,12 @@ sudo usermod -a -G pi caddy # add caddy to pis user group
 sudo smbpasswd -a pi # "frog" login maps to pi, see raspbian/smbusers
 sudo systemctl disable --now nmbd # NetBIOS not used
 
+#allow the web UI (gunicorn, running as pi) to manage wifi via NetworkManager
+# the filename must sort before 49-polkit-pkla-compat.rules, otherwise the vendor
+# .pkla default (no system connection changes from inactive sessions) wins
+sudo install -m 644 /opt/TacticalFrog/current/raspbian/10-nm-wifi.rules /etc/polkit-1/rules.d/
+nmcli general permissions | grep modify.system # should say yes
+
 #install systemd services
 # caddy.service and smbd.service replace the packaged units so they use the configs in raspbian/
 cd /etc/systemd/system
