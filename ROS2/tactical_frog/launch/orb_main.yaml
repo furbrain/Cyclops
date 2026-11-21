@@ -99,7 +99,7 @@ launch:
           value: true
 
   - node:
-      pkg: cyclops
+      pkg: tactical_frog
       exec: orb_state_beeper
       name: orb_beeper
       namespace: $(var ns)/orb
@@ -110,7 +110,7 @@ launch:
           to: $(var ns)/beeper/preset
 
   - node:
-      pkg: cyclops
+      pkg: tactical_frog
       exec: led_indicator
       name: led_indicator
       namespace: $(var ns)/orb
@@ -120,7 +120,7 @@ launch:
 
 
   - node:
-      pkg: cyclops
+      pkg: tactical_frog
       exec: process_monitor
       name: process_monitor
       param:

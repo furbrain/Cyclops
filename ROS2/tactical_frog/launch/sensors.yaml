@@ -4,7 +4,7 @@ launch:
     default: ""
 
 - include:
-    file: "$(find-pkg-share cyclops)/launch/binoc.py"
+    file: "$(find-pkg-share tactical_frog)/launch/binoc.py"
 
 
 #- node:
@@ -47,7 +47,7 @@ launch:
 
 
 #- node:
-#    pkg: cyclops
+#    pkg: tactical_frog
 #    exec: tf2_dynamic
 #    name: map_rgb
 #    namespace: /tf
@@ -58,7 +58,7 @@ launch:
 #        value: rgb
 
 - node:
-    pkg: cyclops
+    pkg: tactical_frog
     exec: tf2_dynamic
     name: left_right
     namespace: /tf
@@ -69,7 +69,7 @@ launch:
         value: right
 
 - node:
-    pkg: cyclops
+    pkg: tactical_frog
     exec: tf2_dynamic
     name: left_imu
     namespace: /tf

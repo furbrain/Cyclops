@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 import rclpy
-from cyclops_interfaces.action import Calibrate
+from tactical_frog.action import Calibrate
 from sensor_msgs.msg import Image, CameraInfo
 from sensor_msgs.srv import SetCameraInfo
 from .utils import CalNode

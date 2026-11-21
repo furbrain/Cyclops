@@ -1,6 +1,6 @@
 import gpiozero
 import rclpy
-from cyclops_interfaces.srv import SetMode
+from tactical_frog.srv import SetMode
 
 from autonode import Node
 

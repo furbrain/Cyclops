@@ -6,7 +6,7 @@ cal_btns.forEach(function(btn) {
     btn.action = new ROSLIB.Action({
         ros: ros,
         name: btn.dataset.namespace + '/do_calibration',
-        actionType: "cyclops_interfaces/Calibrate",
+        actionType: "tactical_frog/Calibrate",
         });
     btn.service = new ROSLIB.Service({
         ros: ros,

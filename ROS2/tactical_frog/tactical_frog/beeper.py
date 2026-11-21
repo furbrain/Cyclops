@@ -8,8 +8,8 @@ from xmlrpc.client import ServerProxy
 import rclpy
 from autonode import Node, service
 
-from cyclops_interfaces.srv import BeepPreset, BeepPreset_Request, BeepPreset_Response
-from cyclops_interfaces.srv import Beep, Beep_Request, Beep_Response
+from tactical_frog.srv import BeepPreset, BeepPreset_Request, BeepPreset_Response
+from tactical_frog.srv import Beep, Beep_Request, Beep_Response
 
 class BeeperNode(Node):
     TUNES = {

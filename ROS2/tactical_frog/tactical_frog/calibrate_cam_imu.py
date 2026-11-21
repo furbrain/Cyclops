@@ -11,7 +11,7 @@ import yaml
 
 import rclpy
 from sensor_msgs.msg import CameraInfo
-from cyclops_interfaces.srv import SetTransform
+from tactical_frog.srv import SetTransform
 from geometry_msgs.msg import Transform
 
 from .utils import CalNode, get_ros_home, vector3_from_array, quat_from_sst

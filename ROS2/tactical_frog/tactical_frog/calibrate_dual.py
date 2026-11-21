@@ -6,7 +6,7 @@ import scipy.spatial.transform as sst
 import rclpy
 from geometry_msgs.msg import Transform, Vector3, Quaternion
 from sensor_msgs.msg import Image, CameraInfo
-from cyclops_interfaces.srv import SetTransform
+from tactical_frog.srv import SetTransform
 import time
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 

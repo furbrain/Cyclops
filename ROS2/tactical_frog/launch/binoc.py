@@ -5,7 +5,7 @@ from launch_ros.descriptions import ComposableNode
 from ament_index_python.packages import get_package_share_directory
 import os
 
-tuning_file = os.path.join(get_package_share_directory('cyclops'), 'config/imx462_beta.json')
+tuning_file = os.path.join(get_package_share_directory('tactical_frog'), 'config/imx462_beta.json')
 STAGGER_DELAY = 8.0  # seconds to wait before starting second camera
 IPA_ENV = {
     'LIBCAMERA_RPI_TUNING_FILE': tuning_file,

@@ -69,7 +69,7 @@ class OrbSetter(SmartNode):
         with open(self.imu_noise_url) as f:
             imu_noise_data = yaml.safe_load(f)
         self.get_logger().info(f"Writing ORB_SLAM3 settings to {self.settings_url}")
-        config_file = aip.get_package_share_path("cyclops") / "config" / "orb_slam3.yaml.tpl"
+        config_file = aip.get_package_share_path("tactical_frog") / "config" / "orb_slam3.yaml.tpl"
         with open(config_file) as f:
             template = f.read()
         left_ci = self.left_ci

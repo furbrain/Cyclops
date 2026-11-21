@@ -4,16 +4,16 @@ launch:
     default: ""
 
 - include:
-    file: "$(find-pkg-share cyclops)/launch/sensors.yaml"
+    file: "$(find-pkg-share tactical_frog)/launch/sensors.yaml"
 
 - node: # Left Camera
-    pkg: cyclops
+    pkg: tactical_frog
     exec: calibrate
     name: cal
     namespace: "$(var ns)/left"
 
 - node: # Right Camera
-    pkg: cyclops
+    pkg: tactical_frog
     exec: calibrate
     name: cal
     namespace: "$(var ns)/right"
@@ -28,7 +28,7 @@ launch:
           value: "$(var ns)/imu"
 
 - node: # LEFT -> RIGHT
-    pkg: cyclops
+    pkg: tactical_frog
     exec: calibrate_dual
     name: cal
     namespace: "$(var ns)/left_right"
@@ -42,7 +42,7 @@ launch:
         to: /tf/left_right/set_transform
 
 - node: # LEFT -> IMU
-    pkg: cyclops
+    pkg: tactical_frog
     exec: calibrate_cam_imu
     name: cal
     namespace: "$(var ns)/left_imu"

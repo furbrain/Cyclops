@@ -9,7 +9,7 @@ from subprocess import Popen
 from launch import LaunchService
 from launch.launch_description_sources import get_launch_description_from_any_launch_file
 from launch.logging import get_logger
-from cyclops_interfaces.srv import SetMode, BeepPreset
+from tactical_frog.srv import SetMode, BeepPreset
 
 from autonode import Node, service
 

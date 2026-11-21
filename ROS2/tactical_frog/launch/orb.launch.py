@@ -10,20 +10,20 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # First node
     first_node = Node(
-        package='cyclops',
+        package='tactical_frog',
         executable='orb_make_settings',
         name='orb_make_settings',
     )
 
     sensors_launch = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare('cyclops'), 'launch', 'sensors.yaml'])
+            PathJoinSubstitution([FindPackageShare('tactical_frog'), 'launch', 'sensors.yaml'])
         )
     )
 
     after_first_launch = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare('cyclops'), 'launch', 'orb_main.yaml'])
+            PathJoinSubstitution([FindPackageShare('tactical_frog'), 'launch', 'orb_main.yaml'])
         )
     )
 

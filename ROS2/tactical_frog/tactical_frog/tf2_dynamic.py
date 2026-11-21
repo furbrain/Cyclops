@@ -4,7 +4,7 @@ from pathlib import Path
 import rclpy
 from .utils import SmartNode
 from geometry_msgs.msg import TransformStamped
-from cyclops_interfaces.srv import SetTransform
+from tactical_frog.srv import SetTransform
 import yaml
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from rosidl_runtime_py import message_to_yaml, set_message_fields

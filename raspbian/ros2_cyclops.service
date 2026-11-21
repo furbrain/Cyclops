@@ -1,5 +1,5 @@
 [Unit]
-Description=ROS2 launch for cyclops/all.yaml
+Description=ROS2 launch for tactical_frog/all.yaml
 After=network.target
 
 [Service]
@@ -13,7 +13,7 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/h
 WorkingDirectory=/home/pi
 ExecStart=/bin/bash -c "\
   source /home/pi/ros2_ws/install/setup.bash && \
-  ros2 launch cyclops all.yaml \
+  ros2 launch tactical_frog all.yaml \
 "
 Restart=on-failure
 RestartSec=5

@@ -3,7 +3,7 @@ import time
 
 import rclpy
 from autonode import Node, subscription
-from cyclops_interfaces.srv import BeepPreset, BeepPreset_Request
+from tactical_frog.srv import BeepPreset, BeepPreset_Request
 from orb_slam3.msg import State
 
 class OrbBeeper(Node):

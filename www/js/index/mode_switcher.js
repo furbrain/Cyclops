@@ -8,7 +8,7 @@ const mode_observer = new IntersectionObserver((entries) => {
         serv = new ROSLIB.Service({
             ros: ros,
             name: '/set_mode',
-            type: "cyclops_interfaces/SetMode",
+            type: "tactical_frog/SetMode",
         });
         serv.callService({'mode': mode},
                 function(response) {

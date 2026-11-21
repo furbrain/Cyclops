@@ -1,5 +1,5 @@
 // Battery indicator: a small badge in the top right corner of the page showing the device's state of
-// charge, from the /battery topic (sensor_msgs/BatteryState, published by ROS2/cyclops/cyclops/battery_status.py)
+// charge, from the /battery topic (sensor_msgs/BatteryState, published by ROS2/tactical_frog/tactical_frog/battery_status.py)
 // via rosbridge. Include it on any page with <script src="/js/battery.js"></script>; it loads roslib itself
 // if the page hasn't.
 (() => {

@@ -12,7 +12,7 @@ import builtin_interfaces.msg
 import rclpy
 import rclpy.time
 from cv_bridge import CvBridge
-from cyclops_interfaces.action import Calibrate
+from tactical_frog.action import Calibrate
 from geometry_msgs.msg import Vector3, Quaternion
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy import Parameter, Future

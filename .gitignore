@@ -7,7 +7,7 @@ __pycache__
 *npy
 *npz
 *.bag
-/ROS2/cyclops/log/
+/ROS2/tactical_frog/log/
 *.stl
 *.FCBak
 *.dxf

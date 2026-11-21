@@ -6,7 +6,7 @@ btns_action.forEach(function(btn) {
     btn.action = new ROSLIB.Action({
         ros: ros,
         name: btn.dataset.rosAction,
-        actionType: "cyclops_interfaces/Calibrate",
+        actionType: "tactical_frog/Calibrate",
         });
     btn.onclick = function() {
         btn.action.sendGoal({},
