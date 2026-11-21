@@ -2,7 +2,7 @@ start with CM5 with Raspberry Pi OS (bookworm)
 install ros2 jazzy as described here: https://github.com/Ar-Ray-code/rpi-bullseye-ros2/tree/jazzy
 
 #install other apt packages:
-sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent autoconf-archive python3-netowrkx samba wsdd smbclient
+sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent autoconf-archive python3-networkx samba wsdd smbclient
 
 #set up distcc
 export CMAKE_C_COMPILER=aarch64-linux-gnu-gcc
@@ -28,7 +28,11 @@ sudo pip install empy==3.3.4 --break-system-packages
 #install mag_cal and rosbags
 sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab
 
-Clone TacticalFrog folder: git clone https://github.com/furbrain/TacticalFrog.git
+#clone TacticalFrog and link it to /opt/TacticalFrog/current (paths used by services and configs)
+cd /home/pi
+git clone https://github.com/furbrain/TacticalFrog.git
+sudo mkdir -p /opt/TacticalFrog
+sudo ln -sfn /home/pi/TacticalFrog/ /opt/TacticalFrog/current
 
 #install kalibr
 cd /opt/TacticalFrog/current/kalibr
@@ -96,15 +100,24 @@ sudo apt install -y caddy
 ln -s /opt/TacticalFrog/current/www www
 chmod 770 /home/pi # enable users in pi group to see home dir
 sudo usermod -a -G pi caddy # add caddy to pis user group
+# no need to edit /etc/caddy/Caddyfile: caddy.service (below) uses raspbian/Caddyfile from this repo
 
-#edit /etc/caddy/Caddyfile to:
-:80 {
-        root * /home/pi/www/
-        file_server
-}
+#set up samba file access
+sudo smbpasswd -a pi # "frog" login maps to pi, see raspbian/smbusers
+sudo systemctl disable --now nmbd # NetBIOS not used
 
-#restart caddy
-sudo systemctl reload caddy
+#install systemd services
+# caddy.service and smbd.service replace the packaged units so they use the configs in raspbian/
+cd /etc/systemd/system
+for u in beep_server caddy gunicorn multicast-loopback ros2_tactical_frog smbd; do
+  sudo ln -sfn /opt/TacticalFrog/current/raspbian/$u.service $u.service
+done
+sudo systemctl daemon-reload
+sudo systemctl reenable beep_server caddy gunicorn multicast-loopback ros2_tactical_frog smbd
+sudo systemctl restart beep_server caddy gunicorn multicast-loopback ros2_tactical_frog smbd
+
+#reload caddy after editing raspbian/Caddyfile (no sudo needed)
+caddy reload --config /opt/TacticalFrog/current/raspbian/Caddyfile
 
 #install openMVS
 sod it, use docker
