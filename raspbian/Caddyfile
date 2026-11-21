@@ -1,10 +1,11 @@
 # Cyclops web front end. Loaded by raspbian/caddy.service; after editing, apply with (no sudo needed)
 #   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
 #
-# Served on both HTTP and HTTPS. There's no public domain (and no internet in access-point mode), so HTTPS
-# uses Caddy's own local certificate authority, issuing a certificate on demand for whichever hostname or
-# IP the device is reached by. Browsers will warn until they trust that CA's root certificate, which is at
-# /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+# HTTP only. There's no public domain (and no internet in access-point mode), so HTTPS could only use a
+# self-signed/local-CA certificate, which makes every browser show a security warning. Not listening on
+# 443 at all means https:// attempts fail fast and browsers fall back to http://.
+# (To bring HTTPS back: add a ":443 { tls internal { on_demand } import cyclops }" site; the pages already
+# switch to wss:// for rosbridge when loaded over https.)
 
 (cyclops) {
 	#  Match all under ply
@@ -45,12 +46,5 @@
 }
 
 :80 {
-	import cyclops
-}
-
-:443 {
-	tls internal {
-		on_demand
-	}
 	import cyclops
 }
