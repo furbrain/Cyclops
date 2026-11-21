@@ -1,0 +1,23 @@
+# Replaces the packaged /lib/systemd/system/smbd.service so that smbd reads raspbian/smb.conf from this
+# repository instead of /etc/samba/smb.conf. Install (once, after "apt install samba wsdd") with:
+#   cd /home/pi/Cyclops/raspbian && sudo systemctl disable smbd && sudo systemctl enable ./smbd.service
+#   sudo systemctl disable --now nmbd    # NetBIOS isn't used (disable netbios = yes)
+#   sudo systemctl daemon-reload && sudo systemctl restart smbd
+# smbd notices changes to smb.conf by itself, so after that no sudo is needed to change the shares.
+
+[Unit]
+Description=Samba SMB Daemon (TacticalFrog smb.conf)
+Documentation=man:smbd(8) man:samba(7) man:smb.conf(5)
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=notify
+PIDFile=/run/samba/smbd.pid
+LimitNOFILE=16384
+ExecStart=/usr/sbin/smbd --foreground --no-process-group --configfile=/home/pi/Cyclops/raspbian/smb.conf
+ExecReload=/bin/kill -HUP $MAINPID
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

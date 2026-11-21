@@ -19,6 +19,13 @@
 		file_server
 	}
 
+	# read-only browsable listing of all recordings and models (also shared over SMB, see smb.conf)
+	redir /files /files/
+	handle_path /files/* {
+		root * /data/trips
+		file_server browse
+	}
+
 	# connect up the video server
 	handle_path /vid* {
 		reverse_proxy localhost:8080

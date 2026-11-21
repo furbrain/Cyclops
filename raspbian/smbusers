@@ -1,0 +1,4 @@
+# Samba username map (see "username map" in smb.conf): <unix user> = <SMB login names>
+# "frog" is the shared, well-known login for Windows (which won't do guest access): it logs in as pi, with
+# pi's Samba password (sudo smbpasswd -a pi). The only share is read-only, so it can only ever read.
+pi = frog

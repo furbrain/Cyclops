@@ -2,7 +2,7 @@ start with CM5 with Raspberry Pi OS (bookworm)
 install ros2 jazzy as described here: https://github.com/Ar-Ray-code/rpi-bullseye-ros2/tree/jazzy
 
 #install other apt packages:
-sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent autoconf-archive python3-netowrkx
+sudo apt install libcv-bridge-dev python3-cv-bridge python3-bson python3-ujson python3-autobahn python3-twisted python3-tornado python3-systemd distcc python3-flask python3-gunicorn python3-zipstream-ng python3-gevent autoconf-archive python3-netowrkx samba wsdd smbclient
 
 #set up distcc
 export CMAKE_C_COMPILER=aarch64-linux-gnu-gcc
