@@ -28,12 +28,6 @@ launch:
 
 - node:
     pkg: cyclops
-    exec: modeller
-    name: modeller
-    output: screen
-
-- node:
-    pkg: cyclops
     exec: button_monitor
     name: button_monitor
     param:

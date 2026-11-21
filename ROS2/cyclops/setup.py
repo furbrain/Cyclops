@@ -38,7 +38,6 @@ setup(
             "tracker  = cyclops.tracker:main",
             "orb_beeper = cyclops.orb_beeper:main",
             "orb_state_beeper = cyclops.orb_state_beeper:main",
-            "modeller = cyclops.modeller:main",
             "button_monitor = cyclops.button_monitor:main",
             "battery_status = cyclops.battery_status:main",
             "process_monitor = cyclops.process_monitor:main",
