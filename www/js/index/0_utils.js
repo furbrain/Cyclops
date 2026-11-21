@@ -1,7 +1,8 @@
 //Needs to be sourced first
 // create ros object
 const ros = new ROSLIB.Ros({
-      url : 'ws://' + window.location.hostname +':9090'
+      // via Caddy's /rosbridge proxy, so it's wss:// when the page is served over https
+      url : (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/rosbridge'
     });
 
 //flash a button to a particular btn-"cls", then revert after timeout ms

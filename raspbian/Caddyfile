@@ -1,17 +1,15 @@
-# The Caddyfile is an easy way to configure your Caddy web server.
+# Cyclops web front end. Loaded by raspbian/caddy.service; after editing, apply with (no sudo needed)
+#   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
 #
-# Unless the file starts with a global options block, the first
-# uncommented line is always the address of your site.
-#
-# To use your own domain name (with automatic HTTPS), first make
-# sure your domain's A/AAAA DNS records are properly pointed to
-# this machine's public IP, then replace ":80" below with your
-# domain name.
+# Served on both HTTP and HTTPS. There's no public domain (and no internet in access-point mode), so HTTPS
+# uses Caddy's own local certificate authority, issuing a certificate on demand for whichever hostname or
+# IP the device is reached by. Browsers will warn until they trust that CA's root certificate, which is at
+# /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
 
-:80 {
+(cyclops) {
 	#  Match all under ply
 	@ply path_regexp ply ^/ply/(.+)$
-	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*|/model/.*)$
+	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*|/model/.*|/wifi/.*)$
 
 	handle @ply {
 		# Serve PLY files from /data, not from site root
@@ -20,29 +18,39 @@
 		file_server
 	}
 
-
 	# connect up the video server
-        handle_path /vid* {
+	handle_path /vid* {
 		reverse_proxy localhost:8080
 	}
 
-	handle @api {
-                reverse_proxy localhost:5000
-        }
+	# rosbridge websocket, so pages served over HTTPS can reach it as wss://<host>/rosbridge
+	handle_path /rosbridge* {
+		reverse_proxy localhost:9090
+	}
 
-	# Everything else uses /var/www/html
+	handle @api {
+		reverse_proxy localhost:5000
+	}
+
+	# Everything else is static, from www/
 	handle {
 		root * /home/pi/Cyclops/www/
 		file_server
 	}
 
-	# Or serve a PHP site through php-fpm:
-	# php_fastcgi localhost:9000
 	log {
 		output file /var/log/caddy/access.log
 		format json
 	}
 }
 
-# Refer to the Caddy docs for more information:
-# https://caddyserver.com/docs/caddyfile
+:80 {
+	import cyclops
+}
+
+:443 {
+	tls internal {
+		on_demand
+	}
+	import cyclops
+}

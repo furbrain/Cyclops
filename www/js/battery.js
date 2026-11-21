@@ -59,7 +59,9 @@
   }
 
   function connect() {
-    const ros = new ROSLIB.Ros({ url: `ws://${window.location.hostname}:9090` });
+    // via Caddy's /rosbridge proxy, so it's wss:// when the page is served over https
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const ros = new ROSLIB.Ros({ url: `${scheme}://${window.location.host}/rosbridge` });
     ros.on("error", () => markStale("can't reach ROS (rosbridge)"));
     ros.on("close", () => {
       markStale("disconnected from ROS");

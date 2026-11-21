@@ -1,0 +1,30 @@
+# Replaces the packaged /lib/systemd/system/caddy.service so that Caddy reads the Caddyfile in this
+# repository instead of /etc/caddy/Caddyfile. Install (once) with:
+#   sudo ln -s /home/pi/Cyclops/raspbian/caddy.service /etc/systemd/system/caddy.service
+#   sudo systemctl daemon-reload && sudo systemctl restart caddy
+# After that, Caddyfile changes need no sudo: Caddy's admin API (localhost:2019) accepts reloads from
+# any local user, so just run
+#   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
+# (the Caddy user needs to be able to read this directory, which it already must to serve www/)
+
+[Unit]
+Description=Caddy (Cyclops Caddyfile)
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --environ --config /home/pi/Cyclops/raspbian/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
