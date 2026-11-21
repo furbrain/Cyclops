@@ -28,10 +28,10 @@ sudo pip install empy==3.3.4 --break-system-packages
 #install mag_cal and rosbags
 sudo pip install --break-system-packages circuitpython-mag-cal rosbags pymeshlab
 
-Clone cyclops folder: git clone https://github.com/furbrain/Cyclops.git
+Clone TacticalFrog folder: git clone https://github.com/furbrain/TacticalFrog.git
 
 #install kalibr
-cd Cyclops/kalibr
+cd /opt/TacticalFrog/current/kalibr
 docker build -t furbrain/kalibr .
 
 #create ros2 workspace
@@ -93,7 +93,7 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo tee /et
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update
 sudo apt install -y caddy
-ln -s Cyclops/www www
+ln -s /opt/TacticalFrog/current/www www
 chmod 770 /home/pi # enable users in pi group to see home dir
 sudo usermod -a -G pi caddy # add caddy to pis user group
 

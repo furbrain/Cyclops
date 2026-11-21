@@ -12,10 +12,10 @@ Group=pi
 # this user can be transiently created by systemd
 # DynamicUser=true
 RuntimeDirectory=gunicorn
-WorkingDirectory=/home/pi/Cyclops/www/py
+WorkingDirectory=/opt/TacticalFrog/current/www/py
 Environment="FLASK_ENV=development"
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/pi/.local/bin:/usr/local/bin/OpenMVS"
-ExecStart=/home/pi/Cyclops/raspbian/start_gunicorn.sh
+ExecStart=/opt/TacticalFrog/current/raspbian/start_gunicorn.sh
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
 TimeoutStopSec=5

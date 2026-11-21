@@ -6,7 +6,7 @@
 # from combine.py, which needs each sub-survey's atlas (brought up to date by running this Makefile in the
 # sub-survey's folder), and its images from its sub-surveys.
 
-MODELLING_DIR=/home/pi/Cyclops/modelling
+MODELLING_DIR=/opt/TacticalFrog/current/modelling
 # for running make in sub-surveys' folders
 THIS_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 

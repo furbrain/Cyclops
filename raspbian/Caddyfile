@@ -1,5 +1,5 @@
 # TacticalFrog web front end. Loaded by raspbian/caddy.service; after editing, apply with (no sudo needed)
-#   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
+#   caddy reload --config /opt/TacticalFrog/current/raspbian/Caddyfile
 #
 # HTTP only. There's no public domain (and no internet in access-point mode), so HTTPS could only use a
 # self-signed/local-CA certificate, which makes every browser show a security warning. Not listening on
@@ -42,7 +42,7 @@
 
 	# Everything else is static, from www/
 	handle {
-		root * /home/pi/Cyclops/www/
+		root * /opt/TacticalFrog/current/www/
 		file_server
 	}
 

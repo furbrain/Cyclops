@@ -143,16 +143,6 @@ SPARSE_POINTS_FILENAME = "sparse_points.json"
 #             raise ValueError(f"Mismatch between timestamp {timestamp} and {data_ts}")
 #     raise ValueError(f"No images found")
 
-# def load_ts_map(model: str, root_dir: Path = ROOT_DIR) -> Dict[int, int]:
-
-#     ts_map_path = root_dir / model / TS_MAP_FILENAME
-#     if not ts_map_path.exists():
-#         os.system(f"/home/pi/Cyclops/raspbian/make_model.py -p -n {model}")
-#     with open(ts_map_path) as f:
-#         tmp_dict = json.load(f)
-#     frame_dict = {int(x):y for x,y in tmp_dict.items()}
-#     return frame_dict
-
 # def deserialize(rawdata: bytes, msg_type: str) -> object:
 #     if _typestore is None:
 #         setup_typestore()

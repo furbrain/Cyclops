@@ -3,7 +3,7 @@
 Description=Beep Server
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/Cyclops/raspbian/beep_server.py
+ExecStart=/usr/bin/python3 /opt/TacticalFrog/current/raspbian/beep_server.py
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 Type=notify

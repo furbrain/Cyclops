@@ -1,10 +1,10 @@
 # Replaces the packaged /lib/systemd/system/caddy.service so that Caddy reads the Caddyfile in this
 # repository instead of /etc/caddy/Caddyfile. Install (once) with:
-#   sudo ln -s /home/pi/Cyclops/raspbian/caddy.service /etc/systemd/system/caddy.service
+#   sudo ln -s /opt/TacticalFrog/current/raspbian/caddy.service /etc/systemd/system/caddy.service
 #   sudo systemctl daemon-reload && sudo systemctl restart caddy
 # After that, Caddyfile changes need no sudo: Caddy's admin API (localhost:2019) accepts reloads from
 # any local user, so just run
-#   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
+#   caddy reload --config /opt/TacticalFrog/current/raspbian/Caddyfile
 # (the Caddy user needs to be able to read this directory, which it already must to serve www/)
 
 [Unit]
@@ -17,8 +17,8 @@ Requires=network-online.target
 Type=notify
 User=caddy
 Group=caddy
-ExecStart=/usr/bin/caddy run --environ --config /home/pi/Cyclops/raspbian/Caddyfile
-ExecReload=/usr/bin/caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile --force
+ExecStart=/usr/bin/caddy run --environ --config /opt/TacticalFrog/current/raspbian/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /opt/TacticalFrog/current/raspbian/Caddyfile --force
 TimeoutStopSec=5s
 LimitNOFILE=1048576
 LimitNPROC=512
