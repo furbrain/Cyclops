@@ -145,6 +145,33 @@ def fail(ssid, previous, error):
                       restored=restored, restore_error=restore_err)
 
 
+def saved_profiles():
+    """
+    Map SSID -> {"uuid", "name"} for saved client (non-hotspot) Wi-Fi profiles.
+    Matched on the profile's stored SSID, since profile names needn't match it
+    (e.g. profile "Origami5" for SSID "origami5").
+    """
+    rc, out, _ = run_nmcli(["-t", "-f", "UUID,TYPE", "connection", "show"])
+    if rc != 0:
+        return {}
+    profiles = {}
+    for line in out.splitlines():
+        uuid, _, ctype = line.partition(":")
+        if ctype != "802-11-wireless":
+            continue
+        rc, out2, _ = run_nmcli(["-g", "connection.id,802-11-wireless.ssid,802-11-wireless.mode",
+                                 "connection", "show", uuid])
+        if rc != 0:
+            continue
+        fields = out2.splitlines()
+        if len(fields) < 3 or fields[2] == "ap":
+            continue  # skip the hotspot profile
+        name, ssid = fields[0], fields[1]
+        if ssid:
+            profiles.setdefault(ssid, {"uuid": uuid, "name": name})
+    return profiles
+
+
 def background_connect(ssid, password):
     """Join a network off the request thread, verify it, revert on failure."""
     set_connect_state(status="connecting", ssid=ssid, error=None,
@@ -153,9 +180,16 @@ def background_connect(ssid, password):
     active = get_active_connection()
     previous = active["ssid"] if active else None  # NM connection profile name
 
-    args = ["device", "wifi", "connect", ssid, "ifname", CONFIG["wifi_device"]]
-    if password:
-        args += ["password", password]
+    saved = saved_profiles().get(ssid)
+    if saved and not password:
+        # Already set up: bring up the saved profile with its stored secrets.
+        args = ["connection", "up", saved["uuid"], "ifname", CONFIG["wifi_device"]]
+    else:
+        # New network, or a new password for a saved one (nmcli updates the
+        # existing profile in that case).
+        args = ["device", "wifi", "connect", ssid, "ifname", CONFIG["wifi_device"]]
+        if password:
+            args += ["password", password]
 
     rc, out, err = run_nmcli(args, timeout=CONFIG["connect_timeout"])
 
@@ -188,6 +222,7 @@ def scan_networks(rescan=True):
     if rc != 0:
         return [], err
 
+    saved = saved_profiles()
     networks = {}
     for line in out.splitlines():
         # nmcli terse output escapes literal ':' inside fields as '\:'
@@ -208,6 +243,7 @@ def scan_networks(rescan=True):
                 "signal": signal,
                 "security": security or "Open",
                 "in_use": in_use == "*",
+                "saved": ssid in saved,
             }
     return sorted(networks.values(), key=lambda n: n["signal"], reverse=True), None
 
@@ -285,12 +321,21 @@ def api_disconnect():
 
 @wifi_bp.route("/api/forget", methods=["POST"])
 def api_forget():
-    """Delete a saved connection profile by SSID name."""
+    """Delete the saved connection profile for an SSID."""
     data = request.get_json(silent=True) or {}
     ssid = (data.get("ssid") or "").strip()
     if not ssid:
         return jsonify({"success": False, "error": "SSID is required"}), 400
-    rc, out, err = run_nmcli(["connection", "delete", ssid])
+    saved = saved_profiles().get(ssid)
+    if not saved:
+        return jsonify({"success": False, "error": f"No saved profile for {ssid}"}), 404
+    active = get_active_connection()
+    if active and active["ssid"] == saved["name"]:
+        # Deleting the live profile would drop the link with nothing to fall back to.
+        return jsonify({"success": False,
+                        "error": "Can't delete the network the device is currently using - "
+                                 "connect to another network first."}), 409
+    rc, out, err = run_nmcli(["connection", "delete", saved["uuid"]])
     if rc == 0:
         return jsonify({"success": True})
     return jsonify({"success": False, "error": err or out}), 400

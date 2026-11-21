@@ -165,17 +165,80 @@
             <i class="bi ${signalIcon(net.signal)}"></i>
             <span>${escapeHtml(net.ssid)}</span>
             ${net.in_use ? '<span class="badge text-bg-success">current</span>' : ''}
+            ${net.saved && !net.in_use ? '<span class="badge text-bg-secondary">saved</span>' : ''}
           </div>
           <div class="d-flex align-items-center gap-2 text-secondary">
             ${net.security !== 'Open' ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock"></i>'}
             <small>${net.signal}%</small>
+            ${net.saved && !net.in_use ? `<button type="button" class="btn btn-sm btn-outline-danger forget-btn" title="Delete saved network">
+              <i class="bi bi-trash"></i></button>` : ''}
           </div>`;
         li.addEventListener('click', () => openConnect(net));
+        const forgetBtn = li.querySelector('.forget-btn');
+        if (forgetBtn) {
+          forgetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();  // don't also trigger a connect
+            forgetNetwork(net.ssid);
+          });
+        }
         networkList.appendChild(li);
       }
     }
 
-    function openConnect(net) {
+    async function forgetNetwork(ssid) {
+      if (!confirm(`Delete saved network "${ssid}"? You'll need its password to join it again.`)) return;
+      try {
+        const res = await fetch('api/forget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert(`Deleted <strong>${escapeHtml(ssid)}</strong>.`, 'secondary');
+          scan(false);
+        } else {
+          showAlert(escapeHtml(data.error || 'Delete failed'));
+        }
+      } catch (e) {
+        showAlert('Delete failed: could not reach the device.');
+      }
+    }
+
+    // POST a connect request; on acceptance show the "joining" notice and
+    // start polling. Returns null on success or an error message.
+    async function requestConnect(ssid, password) {
+      try {
+        const res = await fetch('api/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid, password })
+        });
+        const data = await res.json();
+        if (!data.success) return data.error || 'Connection failed';
+        showAlert(
+          `Joining <strong>${escapeHtml(ssid)}</strong>… the current connection will drop in a moment. ` +
+          `If the password was wrong or the network is unreachable, the previous connection (or the hotspot) comes back on its own ` +
+          `within about ${CONFIG_TIMEOUT_HINT}s and this page will reconnect and show what happened. ` +
+          `If it succeeds, this page won't come back — the device is now on the target network ` +
+          `(try its mDNS hostname, e.g. <code>frog.local</code>).`,
+          'info'
+        );
+        startConnectStatusPolling();
+        return null;
+      } catch (e) {
+        return 'Could not reach the device.';
+      }
+    }
+
+    async function openConnect(net) {
+      if (net.in_use) return;  // already on it
+      if (net.saved) {
+        // Already set up: connect with the stored password, no prompt.
+        const err = await requestConnect(net.ssid, '');
+        if (err) showAlert(escapeHtml(err));
+        return;
+      }
       currentSsid = net.ssid;
       modalSsid.textContent = net.ssid;
       passwordInput.value = '';
@@ -191,30 +254,13 @@
       modalSpinner.classList.remove('d-none');
       modalConnectBtn.disabled = true;
       try {
-        const res = await fetch('api/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ssid: currentSsid, password: passwordInput.value })
-        });
-        const data = await res.json();
-        if (data.success) {
-          passwordModal.hide();
-          showAlert(
-            `Joining <strong>${escapeHtml(currentSsid)}</strong>… the hotspot will drop in a moment. ` +
-            `If the password was wrong or the network is unreachable, the previous connection (or the hotspot) comes back on its own ` +
-            `within about ${CONFIG_TIMEOUT_HINT}s and this page will reconnect and show what happened. ` +
-            `If it succeeds, this page won't come back — the device is now on the target network ` +
-            `(try its mDNS hostname, e.g. <code>tacticalfrog.local:8080</code>, if you've set that up).`,
-            'info'
-          );
-          startConnectStatusPolling();
-        } else {
-          modalError.textContent = data.error || 'Connection failed';
+        const err = await requestConnect(currentSsid, passwordInput.value);
+        if (err) {
+          modalError.textContent = err;
           modalError.classList.remove('d-none');
+        } else {
+          passwordModal.hide();
         }
-      } catch (e) {
-        modalError.textContent = 'Could not reach the device.';
-        modalError.classList.remove('d-none');
       } finally {
         modalSpinner.classList.add('d-none');
         modalConnectBtn.disabled = false;
