@@ -11,8 +11,9 @@ no AP+STA concurrency). That means the moment we start joining a new
 network, the browser's connection to this page drops. So /api/connect:
   1. Acks the request immediately, before touching the radio.
   2. Attempts the join + a reachability check in a background thread.
-  3. Auto-reverts to the hotspot if the join fails or is unreachable,
-     so you can never get locked out with no way back in.
+  3. If the join fails or is unreachable, re-activates whatever connection
+     was active beforehand (falling back to the hotspot), so you aren't
+     locked out with no way back in.
   4. Records the outcome so the browser can poll for it once it's back
      on a network that can reach this device (the restored hotspot on
      failure; on success you're on the real network — see README re: mDNS
@@ -34,14 +35,10 @@ NMCLI = "nmcli"
 CONFIG = {
     # Shared wlan interface used for both the hotspot and client connections.
     "wifi_device": "wlan0",
-    # Command that re-establishes the hotspot. Examples:
-    #   NetworkManager-hosted hotspot profile named "Hotspot":
-    #     ["nmcli", "connection", "up", "Hotspot"]
-    #   hostapd/dnsmasq run as systemd units:
-    #     ["systemctl", "restart", "hostapd"]   (plus dnsmasq if it also drops)
-    #   custom script:
-    #     ["/usr/local/bin/start-ap.sh"]
-    "ap_restore_cmd": ["nmcli", "connection", "up", "Hotspot"],
+    # NetworkManager profile for the hotspot. Used as the fallback when a
+    # connect attempt fails and nothing was active beforehand (or the previous
+    # connection can't be brought back).
+    "ap_connection": "AP",
     "connect_timeout": 25,        # seconds to wait for nmcli to join the network
     "gateway_check_timeout": 8,   # seconds to wait for a ping reply from the gateway
 }
@@ -49,7 +46,8 @@ CONFIG = {
 
 # Tracks the outcome of the most recent background connect attempt so the
 # browser can poll for it after losing (and possibly regaining) the link.
-connect_state = {"status": "idle", "ssid": None, "error": None}
+connect_state = {"status": "idle", "ssid": None, "error": None,
+                 "restored": None, "restore_error": None}
 connect_state_lock = threading.Lock()
 
 
@@ -124,14 +122,36 @@ def ping_ok(host, timeout):
         return False
 
 
-def restore_ap():
-    """Bring the hotspot back up after a failed/unreachable connection attempt."""
-    subprocess.run(CONFIG["ap_restore_cmd"], capture_output=True, timeout=30)
+def restore_previous(previous):
+    """
+    After a failed/unreachable attempt, bring back the connection that was
+    active before (so we're reachable the same way as before), falling back to
+    the hotspot. Returns (restored_name, error) — restored_name is None if
+    nothing could be brought up.
+    """
+    candidates = [c for c in (previous, CONFIG["ap_connection"]) if c]
+    errors = []
+    for name in dict.fromkeys(candidates):  # de-dupe, keep order
+        rc, out, err = run_nmcli(["connection", "up", name], timeout=30)
+        if rc == 0:
+            return name, None
+        errors.append(f"{name}: {err or out or 'failed'}")
+    return None, "; ".join(errors)
+
+
+def fail(ssid, previous, error):
+    restored, restore_err = restore_previous(previous)
+    set_connect_state(status="failed", ssid=ssid, error=error,
+                      restored=restored, restore_error=restore_err)
 
 
 def background_connect(ssid, password):
     """Join a network off the request thread, verify it, revert on failure."""
-    set_connect_state(status="connecting", ssid=ssid, error=None)
+    set_connect_state(status="connecting", ssid=ssid, error=None,
+                      restored=None, restore_error=None)
+
+    active = get_active_connection()
+    previous = active["ssid"] if active else None  # NM connection profile name
 
     args = ["device", "wifi", "connect", ssid, "ifname", CONFIG["wifi_device"]]
     if password:
@@ -140,8 +160,7 @@ def background_connect(ssid, password):
     rc, out, err = run_nmcli(args, timeout=CONFIG["connect_timeout"])
 
     if rc != 0:
-        restore_ap()
-        set_connect_state(status="failed", ssid=ssid, error=err or out or "Connection failed")
+        fail(ssid, previous, err or out or "Connection failed")
         return
 
     # Got nmcli success — now confirm the network is actually usable before
@@ -154,8 +173,7 @@ def background_connect(ssid, password):
     reachable = bool(ip) and (gateway is None or ping_ok(gateway, CONFIG["gateway_check_timeout"]))
 
     if not reachable:
-        restore_ap()
-        set_connect_state(status="failed", ssid=ssid, error="Joined but not reachable (no IP or gateway unresponsive)")
+        fail(ssid, previous, "Joined but not reachable (no IP or gateway unresponsive)")
         return
 
     set_connect_state(status="success", ssid=ssid, error=None)

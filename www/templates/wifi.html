@@ -201,7 +201,7 @@
           passwordModal.hide();
           showAlert(
             `Joining <strong>${escapeHtml(currentSsid)}</strong>… the hotspot will drop in a moment. ` +
-            `If the password was wrong or the network is unreachable, the hotspot comes back on its own ` +
+            `If the password was wrong or the network is unreachable, the previous connection (or the hotspot) comes back on its own ` +
             `within about ${CONFIG_TIMEOUT_HINT}s and this page will reconnect and show what happened. ` +
             `If it succeeds, this page won't come back — the device is now on the target network ` +
             `(try its mDNS hostname, e.g. <code>tacticalfrog.local:8080</code>, if you've set that up).`,
@@ -221,6 +221,13 @@
       }
     });
 
+    // Pressing Enter in the password box would otherwise do a native form
+    // submit (reloading the page) instead of connecting.
+    document.getElementById('connectForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!modalConnectBtn.disabled) modalConnectBtn.click();
+    });
+
     // Rough hint only — real timeout lives server-side in CONFIG['connect_timeout'] + gateway check.
     const CONFIG_TIMEOUT_HINT = 35;
     let pollTimer = null;
@@ -233,7 +240,10 @@
           const data = await res.json();
           if (data.status === 'failed') {
             clearInterval(pollTimer);
-            showAlert(`Connection to <strong>${escapeHtml(data.ssid)}</strong> failed: ${escapeHtml(data.error || 'unknown error')}. Hotspot restored — you can retry.`, 'danger');
+            const restoredMsg = data.restored
+              ? `Restored <strong>${escapeHtml(data.restored)}</strong> — you can retry.`
+              : `Could not restore a previous connection or the hotspot${data.restore_error ? ': ' + escapeHtml(data.restore_error) : ''}.`;
+            showAlert(`Connection to <strong>${escapeHtml(data.ssid)}</strong> failed: ${escapeHtml(data.error || 'unknown error')}. ${restoredMsg}`, 'danger');
             refreshStatus();
             scan(true);
           } else if (data.status === 'success') {
