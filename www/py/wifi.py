@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Cyclops Wi-Fi Manager
+TacticalFrog Wi-Fi Manager
 ----------------------
 Small Flask app for scanning and connecting to Wi-Fi networks via
 NetworkManager (nmcli). Targets Raspberry Pi OS Bookworm on the CM5.

@@ -8,7 +8,7 @@
 # (the Caddy user needs to be able to read this directory, which it already must to serve www/)
 
 [Unit]
-Description=Caddy (Cyclops Caddyfile)
+Description=Caddy (TacticalFrog Caddyfile)
 Documentation=https://caddyserver.com/docs/
 After=network.target network-online.target
 Requires=network-online.target

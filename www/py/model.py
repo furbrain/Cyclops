@@ -120,7 +120,7 @@ def get_models_dir() -> Path:
     the host app can point this at real data by setting, before or after
     registering the blueprint:
 
-        app.config["CYCLOPS_MODELS_DIR"] = "/data/cyclops-models"
+        app.config["ROOT_DIR"] = "/data/trips"
 
     Read from current_app.config at request time (not import time), so one
     Flask app could even register this blueprint twice against different

@@ -10,7 +10,7 @@ timestamp=1764525175
 band=bg
 channel=2
 mode=ap
-ssid=cyclops
+ssid=TacticalFrog
 
 [ipv4]
 method=shared

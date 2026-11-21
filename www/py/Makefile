@@ -47,6 +47,8 @@ sparse: $(colmap_files)
 # that are combined models themselves work too). Then run the optional cleanup $(2), whether or not $(1)
 # succeeded, or was interrupted (an aborted job from the web page sends SIGTERM to make and everything it
 # started). An images/ that's already populated (extracted, or mounted by someone else) is used as it is.
+# OpenMVS writes its outputs and logs as mode 600, so they're made world-readable afterwards: the HTTP file
+# listing (Caddy, running as the caddy user) has to be able to read them.
 define with_images
 status=; mounted=; \
 cleanup() { for dir in $$mounted; do ratarmount -u $$dir; done; $(if $(strip $(2)),$(2);) :; }; \
@@ -57,7 +59,7 @@ for tar in $$(find -L . -name images -prune -o -name images.tar -print); do \
   ratarmount $$tar $$dir || { status=1; break; }; \
   mounted="$$dir $$mounted"; \
 done; \
-[ -n "$$status" ] || { $(1); status=$$?; }; \
+[ -n "$$status" ] || { $(1); status=$$?; chmod -f go+r $@ *.log; }; \
 trap - TERM INT; \
 cleanup; \
 exit $$status

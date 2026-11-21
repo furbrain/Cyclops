@@ -1,13 +1,13 @@
-# Cyclops web front end. Loaded by raspbian/caddy.service; after editing, apply with (no sudo needed)
+# TacticalFrog web front end. Loaded by raspbian/caddy.service; after editing, apply with (no sudo needed)
 #   caddy reload --config /home/pi/Cyclops/raspbian/Caddyfile
 #
 # HTTP only. There's no public domain (and no internet in access-point mode), so HTTPS could only use a
 # self-signed/local-CA certificate, which makes every browser show a security warning. Not listening on
 # 443 at all means https:// attempts fail fast and browsers fall back to http://.
-# (To bring HTTPS back: add a ":443 { tls internal { on_demand } import cyclops }" site; the pages already
+# (To bring HTTPS back: add a ":443 { tls internal { on_demand } import tacticalfrog }" site; the pages already
 # switch to wss:// for rosbridge when loaded over https.)
 
-(cyclops) {
+(tacticalfrog) {
 	#  Match all under ply
 	@ply path_regexp ply ^/ply/(.+)$
 	@api path_regexp apy ^(/|/api/.*|/download/.*|/viewer/.*|/model/.*|/wifi/.*)$
@@ -53,5 +53,5 @@
 }
 
 :80 {
-	import cyclops
+	import tacticalfrog
 }

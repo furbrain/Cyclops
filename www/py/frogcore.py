@@ -1,7 +1,7 @@
 """
 FrogCore integration: Flask Blueprint plus API client.
 
-Uploads Cyclops recordings to FrogCore as surveys and asks FrogCore to build them.
+Uploads TacticalFrog recordings to FrogCore as surveys and asks FrogCore to build them.
 Register without a url prefix so the routes live at /api/frogcore/... and /api/survey/...:
 
     from frogcore import frogcore_bp, load_survey
@@ -21,7 +21,7 @@ from utils import CAM_FILENAME, IMAGE_FILENAME, POINTS_FILENAME
 frogcore_bp = Blueprint("frogcore", __name__)
 
 # FrogCore account details are entered via the web UI and kept here, readable only by us
-FROGCORE_CONFIG = Path.home() / ".config" / "cyclops" / "frogcore.json"
+FROGCORE_CONFIG = Path.home() / ".config" / "tacticalfrog" / "frogcore.json"
 FROGCORE_URL = "https://frog.shetlandattackpony.co.uk"
 SURVEY_FILE = "frogcore.json"
 # the sparse COLMAP model is made by `make sparse` (see model.py's Makefile)

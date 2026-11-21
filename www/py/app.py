@@ -23,7 +23,6 @@ app.register_blueprint(model_bp, url_prefix="/model")
 app.register_blueprint(frogcore_bp)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
-app.config['CYCLOPS_MODELS_DIR'] = DEFAULT_ROOT_DIR
 app.config['ROOT_DIR'] = DEFAULT_ROOT_DIR
 # FLASK_ROOT_DIR=/some/dir overrides the default; app.config['ROOT_DIR'] can also be set directly
 app.config.from_prefixed_env()
