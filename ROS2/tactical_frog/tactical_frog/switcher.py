@@ -9,6 +9,8 @@ from subprocess import Popen
 from launch import LaunchService
 from launch.launch_description_sources import get_launch_description_from_any_launch_file
 from launch.logging import get_logger
+from rclpy.qos import QoSProfile, DurabilityPolicy
+from std_msgs.msg import String
 from tactical_frog.srv import SetMode, BeepPreset
 
 from autonode import Node, service
@@ -23,11 +25,29 @@ class SwitcherNode(Node):
     def __init__(self):
         super().__init__()
         self.launch_service: Optional[LaunchService] = None
-        self.current_mode: str = "reset"
+        self._current_mode: str = "reset"
+        self.mode_lock = asyncio.Lock()
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.mode_pub = self.create_publisher(String, "mode", latched)
+        # republish periodically too, in case a subscriber doesn't use transient_local
+        self.create_timer(2.0, self.publish_mode)
+        self.publish_mode()
         self.clean_recording_dir()
         self.beeper = self.create_client(BeepPreset, "/beeper/preset")
         self.beep(BeepPreset.Request.HAPPY)
 
+
+    @property
+    def current_mode(self) -> str:
+        return self._current_mode
+
+    @current_mode.setter
+    def current_mode(self, mode: str):
+        self._current_mode = mode
+        self.publish_mode()
+
+    def publish_mode(self):
+        self.mode_pub.publish(String(data=self._current_mode))
 
     def beep(self, tune):
         req = BeepPreset.Request()
@@ -67,9 +87,11 @@ class SwitcherNode(Node):
 
     async def _reset_mode(self):
         if self.launch_service is not None:
+            was_capturing = self.current_mode == "capture"
+            self.current_mode = "stopping"
             self.beep(BeepPreset.Request.FINISH)
             await self.launch_service.shutdown()
-            if self.current_mode=="capture":
+            if was_capturing:
                 await self._wait_for_atlas()
             self.clean_recording_dir()
             self.beep(BeepPreset.Request.BIP)
@@ -77,7 +99,7 @@ class SwitcherNode(Node):
         self.current_mode = "reset"
 
     async def start_mode(self, fname: str, mode: str):
-        if self.current_mode == fname:
+        if self.current_mode == mode:
             return
         await self._reset_mode()
         descriptor = get_launch_description_from_any_launch_file(fname)
@@ -88,31 +110,47 @@ class SwitcherNode(Node):
         asyncio.create_task(self.launch_service.run_async())
         self.current_mode = mode
 
+    async def _do_set_mode(self, mode: str):
+        # Runs on the asyncio loop: rclpy's executor can't await asyncio futures,
+        # so launch shutdown / atlas waiting must not happen inside a service callback.
+        async with self.mode_lock:
+            if mode == self.current_mode:
+                return
+            self.get_logger().info(f"Switching mode to {mode}")
+            try:
+                if mode == "calibrate":
+                    await self.start_mode(self.cal_fname, mode)
+                    self.beep(BeepPreset.Request.BIP)
+                elif mode == "capture":
+                    self.clean_recording_dir()
+                    await self.start_mode(self.capture_fname, mode)
+                    self.beep(BeepPreset.Request.HAPPY)
+                else:
+                    await self._reset_mode()
+            except Exception as e:
+                self.get_logger().error(f"Error switching to mode {mode}: {e!r}")
+                self.publish_mode()
+                return
+            self.get_logger().info(f"Switching mode to {mode} complete")
+
+    def _request_mode(self, mode: str) -> bool:
+        if self.current_mode == "stopping":
+            self.get_logger().warn(f"Mode change to {mode} requested while still stopping; ignoring")
+            return False
+        asyncio.ensure_future(self._do_set_mode(mode))
+        return True
+
     @service(SetMode)
-    async def set_mode(self, req:SetMode.Request, rsp:SetMode.Response):
-        self.get_logger().info(f"Switching mode to {req.mode}")
-        if req.mode == "calibrate":
-            await self.start_mode(self.cal_fname, req.mode)
-            self.beep(BeepPreset.Request.BIP)
-        elif req.mode == "capture":
-            self.clean_recording_dir()
-            await self.start_mode(self.capture_fname, req.mode)
-            self.beep(BeepPreset.Request.HAPPY)
-        else:
-            await self._reset_mode()
-        rsp.success = True
-        self.get_logger().info(f"Switching mode complete")
+    def set_mode(self, req:SetMode.Request, rsp:SetMode.Response):
+        """Request a mode change. Returns immediately; progress is published on /mode."""
+        rsp.success = self._request_mode(req.mode)
         return rsp
 
     @service(SetMode)
-    async def toggle_mode(self, req:SetMode.Request, rsp:SetMode.Response):
-        if req.mode == self.current_mode:
-            asyncio.ensure_future(self._reset_mode())
-            rsp.success = True
-            return rsp
-        else:
-            return await self.set_mode(req, rsp)
-
+    def toggle_mode(self, req:SetMode.Request, rsp:SetMode.Response):
+        mode = "reset" if req.mode == self.current_mode else req.mode
+        rsp.success = self._request_mode(mode)
+        return rsp
 
     async def run(self):
         while rclpy.ok():

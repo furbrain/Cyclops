@@ -74,7 +74,8 @@ def get_models():
 def hello_world():
     js_dir = WEB_ROOT / "js" / "index"
     entries = get_files(Path(app.template_folder)/"main")
-    js_files = [x.relative_to(WEB_ROOT) for x in sorted(js_dir.iterdir())]
+    # append mtime so browsers fetch updated scripts instead of using a stale cache
+    js_files = [f"{x.relative_to(WEB_ROOT)}?v={int(x.stat().st_mtime)}" for x in sorted(js_dir.iterdir())]
     models = get_models()
     return render_template("index.html", entries=entries, js_files=js_files, models=models)
 
