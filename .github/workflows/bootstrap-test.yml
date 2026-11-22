@@ -1,0 +1,106 @@
+# Tests bootstrap.sh on GitHub's arm64 runners: push to bootstrap-test or a claude/ branch, or run it by hand.
+# It builds all three releases (cached by commit) without publishing them, then runs .github/bootstrap-test/run.sh.
+name: Bootstrap test
+
+on:
+  push:
+    branches: [bootstrap-test, "claude/**"]
+  workflow_dispatch:
+    inputs:
+      skip_kalibr:
+        description: Leave out kalibr
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: TacticalFrog
+            path: .
+          - name: orb_slam3
+            path: ROS2/orb_slam3_ros
+            repo: furbrain/orb_slam3_ros
+          - name: OpenMVS
+            path: openMVS
+            repo: furbrain/openMVS
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Find the commit
+        id: commit
+        env:
+          SUBMODULE: ${{ matrix.path }}
+        run: |
+          if [ "$SUBMODULE" = . ]; then sha=$(git rev-parse HEAD); else sha=$(git rev-parse "HEAD:$SUBMODULE"); fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: out
+          key: bootstrap-test-${{ matrix.name }}-${{ steps.commit.outputs.sha }}
+
+      - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          NAME: ${{ matrix.name }}
+          REPO: ${{ matrix.repo }}
+          COMMIT: ${{ steps.commit.outputs.sha }}
+        run: |
+          src=$GITHUB_WORKSPACE
+          if [ -n "$REPO" ]; then
+            src=$RUNNER_TEMP/src
+            git init -q "$src"
+            git -C "$src" fetch -q --depth 1 "https://github.com/$REPO.git" "$COMMIT"
+            git -C "$src" checkout -q FETCH_HEAD
+          fi
+          script=$RUNNER_TEMP/build.sh
+          cp "$src/.github/release/build.sh" "$script"
+          # OpenMVS's pipeline test currently fails on reconstruction quality. That's not what is being tested
+          # here and these builds aren't published, so run only its unit tests.
+          if [ "$NAME" = OpenMVS ]; then sed -i 's/^for n in 0 1; do/for n in 0; do/' "$script"; fi
+          mkdir -p out
+          docker run --rm -v "$src:/src:ro" -v "$script:/build.sh:ro" -v "$PWD/out:/out" \
+            -e VERSION=boottest -e COMMIT="$COMMIT" debian:bookworm bash /build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: out/*.tar.gz
+          retention-days: 7
+
+  bootstrap:
+    name: Bootstrap stock Debian
+    needs: release
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: releases
+
+      - name: Test
+        env:
+          SKIP_KALIBR: ${{ inputs.skip_kalibr && '1' || '0' }}
+        run: sudo env SKIP_KALIBR="$SKIP_KALIBR" .github/bootstrap-test/run.sh releases
