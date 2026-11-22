@@ -147,8 +147,10 @@ inside bash -c 'for f in /opt/OpenMVS/current/*; do
   if ldd "$f" 2>/dev/null | grep "not found"; then exit 1; fi
 done'
 if [ "${SKIP_KALIBR:-0}" != 1 ]; then
-  as_pi bash -c "docker run --rm furbrain/kalibr:latest rosrun kalibr kalibr_calibrate_imu_camera --help 2>&1 |
-    grep -q -- --max-iter"
+  # not piped straight into grep -q: that stops reading early, and pipefail then fails on docker's broken pipe
+  kalibr_help=$(as_pi docker run --rm furbrain/kalibr:latest rosrun kalibr kalibr_calibrate_imu_camera --help 2>&1) ||
+    { echo "$kalibr_help" >&2; false; }
+  grep -q -- --max-iter <<< "$kalibr_help" || { echo "$kalibr_help" >&2; echo "kalibr has no --max-iter" >&2; false; }
   echo "ok: kalibr, as pi"
 fi
 
