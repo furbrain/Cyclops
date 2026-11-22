@@ -142,7 +142,7 @@ def survey_upload(target: str):
     if not target_path.is_dir():
         return jsonify(success=False, message="No such recording"), 404
     if not FrogCoreClient.is_configured():
-        return jsonify(success=False, message="Set up your FrogCore account on the Home page first"), 400
+        return jsonify(success=False, message="Set up your FrogCore account on the Settings tab first"), 400
     job, started = start_job(target, "frogcore_upload", lambda job: upload_survey(target_path, job))
     if not started:
         return jsonify(success=False, message="Upload already in progress"), 409

@@ -1,12 +1,12 @@
 <h3>Recordings</h3>
 <div class="row justify-content-center mb-2">
-    <div class="col-sm-6">
+    <div class="col-12 col-xl-8 col-xxl-6">
     <button class="btn btn-outline-primary" onclick="reloadRecordings()">Refresh</button>
     <button class="btn btn-outline-primary" onclick="openCombineModal()">New combined model…</button>
     </div>
 </div>
 <div class="row justify-content-center">
-    <div class="col-sm-6 " id="recordings_holder">
+    <div class="col-12 col-xl-8 col-xxl-6" id="recordings_holder">
         {% include "recordings_fragment.html" %}
     </div>
 </div>
@@ -38,7 +38,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
         <div class="modal-header">
-            <h5 class="modal-title">Rename File</h5>
+            <h5 class="modal-title">Delete File</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">

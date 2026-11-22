@@ -57,6 +57,14 @@ const viewer_observer = new IntersectionObserver((entries) => {
 });
 
 
+// Keep each canvas the width of its div, at 4:3
+const viewer_resizer = new ResizeObserver((entries) => {
+  entries.forEach(entry => {
+    const width = Math.floor(entry.contentRect.width);
+    if (width > 0) entry.target.viewer.resize(width, Math.round(width * 3 / 4)); // 0 when on a hidden tab
+  });
+});
+
 const viewers = document.querySelectorAll('div.ros-viewer');
 viewers.forEach(function(viewer_div) {
     console.log("Processing viewer: "+ viewer_div.id)
@@ -74,4 +82,5 @@ viewers.forEach(function(viewer_div) {
     addPointClouds(viewer_div);
     addMarkers(viewer_div);
     viewer_observer.observe(viewer_div);
+    viewer_resizer.observe(viewer_div);
 });

@@ -23,17 +23,77 @@
         border-radius: 0.5rem;
     }
 
+    /* The 3D viewers are up to 800px wide; ros_viewer.js sizes the canvas to fit */
+    .ros-viewer {
+        width: 800px;
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .ros-viewer canvas {
+        display: block;
+    }
+
+    /* Too narrow for an 800px viewer with something beside it, so let the columns shrink */
+    @media (max-width: 1199.98px) {
+        .tab-pane .col-sm {
+            min-width: 0;
+        }
+    }
+
+    /* Phones: fit all the tabs on one line */
+    @media (max-width: 575.98px) {
+        #nav-tab .nav-link {
+            padding-left: 0.3rem;
+            padding-right: 0.3rem;
+            font-size: min(3.8vw, 1rem);
+        }
+    }
+
+    /* Not a class on the element, as mode_switcher.js replaces its classes */
+    #capture-status {
+        white-space: normal;
+    }
+
+    .recording-name {
+        overflow-wrap: anywhere;
+    }
+
+    /* Not enough room for the columns of recordings, so give each one a block of its own */
+    @media (max-width: 767.98px) {
+        .recordings-table tr {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            border-bottom: 1px solid var(--bs-border-color);
+            padding: 0.5rem 0;
+        }
+        .recordings-table tr:first-child {
+            display: none; /* column headings */
+        }
+        .recordings-table td {
+            border: 0;
+            padding: 0.25rem;
+        }
+        .recordings-table .recording-name {
+            flex-basis: 100%;
+            font-weight: bold;
+        }
+    }
+
 </style>
 </head>
 
 <body>
+<!-- Title. Also keeps the nav bar below the battery badge (battery.js), which is fixed at the top right -->
+<h1 class="h4 px-3 py-2 mb-0">Tactical Frog</h1>
+
 <!-- Nav bar menu -->
 <ul class="nav nav-tabs" id="nav-tab">
 {% for key, value in entries.items() %}
     {% if value is mapping %}
        <li class="nav-item dropdown">
            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">Calibrate</a>
-            <ul class="dropdown-menu">
+            <ul class="dropdown-menu dropdown-menu-end">
                 {% for key2, value2 in value.items() %}
                     {% if value2.suffix == ".split" %}
                         <li><hr class="dropdown-divider"></li>
@@ -52,7 +112,7 @@
 </ul>
 
 <!-- Panes -->
-<div class="tab-content">
+<div class="tab-content container-fluid">
 {% for key, value in entries.items() %}
     {% if value is mapping %}
         {% for key2, value2 in value.items() %}
@@ -73,6 +133,16 @@
 
 <!-- Scripts -->
 <script src="/js/bootstrap.bundle.min.js"></script>
+<script>
+    // /#recordings etc opens that tab. This is before the other scripts, so they never see Capture as visible
+    // (which would start its video stream)
+    (function() {
+        const tab = document.getElementById(location.hash.slice(1) + "-tab");
+        if (!tab) return;
+        bootstrap.Tab.getOrCreateInstance(tab).show();
+        history.replaceState(null, "", location.pathname + location.search); // so a refresh doesn't come back here
+    })();
+</script>
 {% for js in js_files -%}
     <script src="{{js}}"></script>
 {% endfor -%}

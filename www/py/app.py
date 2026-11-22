@@ -54,16 +54,12 @@ def sum_dirs(p: Path):
 class Model:
     name: str
     size: int
-    has_rough: bool
-    has_refined: bool
 
     @classmethod
     def fromPath(cls, p: Path):
         name = p.stem
         size = sum_dirs(p)
-        has_rough = (p / "map_1" / "rough.obj").exists()
-        has_refined = (p / "map_1" / "refined.obj").exists()
-        return cls(name, size, has_rough, has_refined)
+        return cls(name, size)
 
 
 def get_models():
@@ -102,10 +98,6 @@ def delete(target: str):
     except IOError:
         return {"success": False}
     return {"success": True}
-
-@app.route("/viewer/<target>/<style>")
-def ply_viewer(target: str, style: str):
-    return render_template("ply_viewer.html", target=target, style=style)
 
 def keyframe_images(target: str) -> list[tuple[Path, tarfile.TarInfo]]:
     """(images.tar, member) for each keyframe image of a model, in keyframe order. A combined model's

@@ -1,22 +1,12 @@
-<table class="table">
-    <tr><th>Name</th><th></th><th></th><th></th><th>Size</th><th>Rough</th><th>Refined</th></tr>
+<table class="table recordings-table">
+    <tr><th>Name</th><th></th><th></th><th></th><th>Size</th></tr>
     {% for model in models %}
         <tr>
-            <td><a href="/model/{{model.name}}">{{model.name}}</a></td>
+            <td class="recording-name"><a href="/model/{{model.name}}">{{model.name}}</a></td>
             <td><a class="btn btn-outline-primary" href="/viewer/{{model.name}}/slideshow" target="_blank">Slideshow</a></td>
             <td><button class="btn btn-outline-primary" onclick="openRenameModal('{{model.name}}')">Rename</button></td>
             <td><button class="btn btn-outline-danger" onclick="openDeleteModal('{{model.name}}')">Delete</button></td>
             <td>{{model.size | filesizeformat}}</td>
-            <td>
-                {% if model.has_rough %}
-                    <a href="/viewer/{{model.name}}/rough">View</a>
-                {% endif %}
-            </td>
-            <td>
-                {% if model.has_refined %}
-                    <a href="/viewer/{{model.name}}/refined">View</a>
-                {% endif %}
-            </td>
         </tr>
     {% endfor %}
 </table>
