@@ -272,11 +272,23 @@ index 46c2ecc..50de257 100644
  
 EOF_PATCH
   ;;
+  # The thresholds are the device's change. The include isn't: subscriber.hpp only arrived in message_filters
+  # 4.11.6, and this ROS has 4.11.1 (a newer one in the workspace would hide /opt/ros's from orb_slam3).
+  # From 4.11.6 subscriber.h just includes subscriber.hpp, so this is the same code either way.
   ros_mimu_calibrate) cat <<'EOF_PATCH'
 diff --git a/src/collate_node.cpp b/src/collate_node.cpp
-index 0bd5018..26a2ed5 100644
+index 0bd5018..485f5cd 100644
 --- a/src/collate_node.cpp
 +++ b/src/collate_node.cpp
+@@ -4,7 +4,7 @@
+ #include <numeric>
+ #include <vector>
+
+-#include "message_filters/subscriber.hpp"
++#include "message_filters/subscriber.h"
+ #include "message_filters/sync_policies/approximate_time.h"
+ #include "message_filters/synchronizer.h"
+ #include "rclcpp/rclcpp.hpp"
 @@ -71,8 +71,8 @@ public:
    // Thresholds: 3× mag (6e-6 T), 3× accel (1.0 m/s²), 3× gyro (0.1 rad/s)
    const std::array<double, NUM_CHANNELS> MAX_READINGS = {
