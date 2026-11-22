@@ -148,8 +148,14 @@ inside bash -c 'for f in /opt/OpenMVS/current/*; do
 done'
 if [ "${SKIP_KALIBR:-0}" != 1 ]; then
   # not piped straight into grep -q: that stops reading early, and pipefail then fails on docker's broken pipe
-  kalibr_help=$(as_pi docker run --rm furbrain/kalibr:latest rosrun kalibr kalibr_calibrate_imu_camera --help 2>&1) ||
-    { echo "$kalibr_help" >&2; false; }
+  kalibr=(rosrun kalibr kalibr_calibrate_imu_camera --help)
+  if ! kalibr_help=$(as_pi docker run --rm furbrain/kalibr:latest "${kalibr[@]}" 2>&1); then
+    echo "kalibr failed:" >&2
+    # again with unbuffered output and Python's traceback on a crash, to show where it got to
+    as_pi docker run --rm -e PYTHONUNBUFFERED=1 -e PYTHONFAULTHANDLER=1 furbrain/kalibr:latest "${kalibr[@]}" >&2 ||
+      echo "exit status $?" >&2
+    false
+  fi
   grep -q -- --max-iter <<< "$kalibr_help" || { echo "$kalibr_help" >&2; echo "kalibr has no --max-iter" >&2; false; }
   echo "ok: kalibr, as pi"
 fi

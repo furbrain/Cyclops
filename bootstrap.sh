@@ -894,6 +894,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\
   python3-catkin-tools python3-osrf-pycommon && rm -rf /var/lib/apt/lists/*
 ENV WORKSPACE=/catkin_ws
 ENV LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+# it's run with no display, so matplotlib mustn't try GTK
+ENV MPLBACKEND=Agg
 COPY src /catkin_ws/src/kalibr
 RUN cd /catkin_ws && catkin init && catkin config --extend /opt/ros/noetic \\
   --cmake-args -DCMAKE_BUILD_TYPE=Release && catkin build --no-status -p $JOBS -j$JOBS && rm -rf build logs
