@@ -14,7 +14,7 @@ Group=pi
 RuntimeDirectory=gunicorn
 WorkingDirectory=/opt/TacticalFrog/current/www/py
 Environment="FLASK_ENV=development"
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/pi/.local/bin:/usr/local/bin/OpenMVS"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/pi/.local/bin:/opt/OpenMVS/current"
 ExecStart=/opt/TacticalFrog/current/raspbian/start_gunicorn.sh
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed

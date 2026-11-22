@@ -34,6 +34,14 @@ git clone https://github.com/furbrain/TacticalFrog.git
 sudo mkdir -p /opt/TacticalFrog
 sudo ln -sfn /home/pi/TacticalFrog/ /opt/TacticalFrog/current
 
+#orb_slam3 and OpenMVS are updated separately, so each has its own "current" link
+# (these can be made before either is built; a development device links to its local builds)
+# orb_slam3/current is a colcon install prefix for that one package (has lib/ and share/)
+# OpenMVS/current is the folder holding the binaries
+sudo mkdir -p /opt/orb_slam3 /opt/OpenMVS
+sudo ln -sfn /home/pi/ros2_ws/install/orb_slam3 /opt/orb_slam3/current
+sudo ln -sfn /usr/local/bin/OpenMVS /opt/OpenMVS/current
+
 #install kalibr
 cd /opt/TacticalFrog/current/kalibr
 docker build -t furbrain/kalibr .

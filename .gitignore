@@ -16,3 +16,4 @@ __pycache__
 **/gerbers/*
 .vscode/
 build/
+/dist/
