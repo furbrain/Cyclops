@@ -1,0 +1,42 @@
+# Pushing any tag builds a tarball for the Pi (arm64, Debian bookworm) and attaches it to a GitHub release.
+# The build itself is .github/release/build.sh, which can be run the same way on a Pi.
+name: Release
+
+on:
+  push:
+    tags: ['**']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false # the build runs third party code, so don't leave it the token
+
+      - name: Build
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$RUNNER_TEMP/out:/out" \
+            -e VERSION="$GITHUB_REF_NAME" \
+            -e COMMIT="$(git rev-parse HEAD)" \
+            debian:bookworm bash /src/.github/release/build.sh
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd "$RUNNER_TEMP/out"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" ./* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" ./* --verify-tag --title "TacticalFrog $GITHUB_REF_NAME" --generate-notes
+          fi

@@ -2,6 +2,7 @@
 # Build a TacticalFrog release:  ./make_release.sh [git ref, default HEAD] [output dir, default dist/]
 #
 # Run it on a Pi with the same OS and ROS as the devices it's for, as it compiles the tactical_frog interfaces.
+# (Pushing a tag does the same on GitHub, see .github/workflows/release.yml.) RELEASE_VERSION overrides the version.
 # Only committed files are included. The tarball holds one folder, TacticalFrog-<version>, which is what
 # /opt/TacticalFrog/current should link to:
 #   raspbian/ modelling/ www/     as in the repo
@@ -16,7 +17,7 @@ ref=${1:-HEAD}
 out=${2:-$repo/dist}
 
 commit=$(git -C "$repo" rev-parse --verify "$ref^{commit}")
-version=$(git -C "$repo" describe --tags --always "$commit")
+version=${RELEASE_VERSION:-$(git -C "$repo" describe --tags --always "$commit")}
 version=${version//\//-}
 name=TacticalFrog-$version
 if [ -n "$(git -C "$repo" status --porcelain --ignore-submodules=dirty)" ]; then
