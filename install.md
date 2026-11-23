@@ -1,3 +1,89 @@
+# Installing TacticalFrog
+
+A device runs three separately built releases, each in `/opt/<name>/<version>` with a `current` link to the
+one in use:
+
+| Release | From | Contents |
+| --- | --- | --- |
+| TacticalFrog | this repository | the web UI, services, modelling scripts and the `tactical_frog` ROS package |
+| orb_slam3 | [furbrain/orb_slam3_ros](https://github.com/furbrain/orb_slam3_ros) (submodule `ROS2/orb_slam3_ros`) | the SLAM node, as a colcon prefix |
+| OpenMVS | [furbrain/openMVS](https://github.com/furbrain/openMVS) (submodule `openMVS`) | the reconstruction tools, statically linked |
+
+Everything else (ROS 2 jazzy, the camera stack, `~/ros2_ws`, kalibr, the system configuration) is installed
+once by `bootstrap.sh`.
+
+## A new device
+
+1. Install stock Debian 12 (bookworm) for arm64 on the CM5.
+2. Run `bootstrap.sh` as root. It needs internet and takes an hour or more. It doesn't need a checkout of this
+   repository, and it's safe to run again, e.g. after a network failure:
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/furbrain/TacticalFrog/main/bootstrap.sh
+   sudo ./bootstrap.sh
+   ```
+   Settings go before it, e.g. `sudo FROG_HOSTNAME=frog2 ./bootstrap.sh`; see the top of the script.
+   The log is `/var/log/tacticalfrog-bootstrap.log`.
+3. Reboot. Wifi then starts as the open "TacticalFrog" hotspot.
+4. Install the three releases, in any order, from their GitHub releases. Use the orb_slam3 and OpenMVS
+   versions named in the TacticalFrog release's `RELEASES` file. For each of TacticalFrog, orb_slam3 and OpenMVS:
+   ```bash
+   sudo tar -xzf NAME-VERSION-aarch64.tar.gz -C /opt/NAME --no-same-owner
+   sudo ln -sfn NAME-VERSION /opt/NAME/current
+   ```
+   Everything starts by itself a few seconds after the third: http://frog.local
+5. Calibrate the cameras and IMU from the web page, as they're different on every device.
+6. Optional, for the "frog" file sharing login that Windows needs: `sudo smbpasswd -a pi`
+
+`bootstrap.sh` refuses to run on a development device (see below), so that it can't wreck one.
+
+## Updates
+
+Settings › Software update installs the latest TacticalFrog release together with the orb_slam3 and OpenMVS
+releases it was built with. The page also shows an alert when an update can be installed. Updating needs an
+internet connection, and the battery charging or over 50%.
+
+All three are downloaded, checked and unpacked next to the versions in use before anything is switched, so a
+failed update changes nothing. Recording and the web page stop for about a minute while the services restart.
+
+By hand:
+```bash
+sudo systemctl start tacticalfrog-update
+```
+```bash
+journalctl -u tacticalfrog-update
+```
+
+The previous versions are kept. To go back, point the three `current` links at them again (`ls /opt/NAME`
+shows what's there), then reload the services, as their unit files come from the TacticalFrog release:
+```bash
+sudo systemctl daemon-reload
+```
+```bash
+sudo systemctl restart multicast-loopback beep_server caddy smbd gunicorn ros2_tactical_frog
+```
+
+## Making a release
+
+Pushing a tag to a repository builds its release and publishes it on GitHub (`.github/workflows/release.yml`).
+Any tag publishes a release.
+
+Each TacticalFrog release records, in `RELEASES`, the orb_slam3 and OpenMVS commits it was built with (its
+submodules) and their release tags, and devices update to those along with it. So release them in this order:
+
+1. Tag orb_slam3 and/or OpenMVS at the commits you want, and wait for their releases to be published.
+2. Move the submodules in this repository to those commits, and commit.
+3. Tag this repository. Its release workflow refuses to publish if either submodule commit has no release.
+
+The "Bootstrap test" workflow (`.github/workflows/bootstrap-test.yml`) builds all three from the submodule
+commits without publishing them, bootstraps stock Debian in a container and checks that they all work together.
+It runs on pushes to `bootstrap-test` and `claude/` branches, or by hand. It can't test the CM5's boot
+configuration, cameras, IMU, beeper or hotspot.
+
+## A development device
+
+A development device has a git checkout as `/opt/TacticalFrog/current` and builds orb_slam3 and OpenMVS
+itself. These are the notes it was set up from; `bootstrap.sh` does the same for a release device.
+
 start with CM5 with Raspberry Pi OS (bookworm)
 install ros2 jazzy as described here: https://github.com/Ar-Ray-code/rpi-bullseye-ros2/tree/jazzy
 
@@ -145,5 +231,3 @@ git clone --branch 2023.12 git@github.com:cnr-isti-vclab/vcglib.git
 export VCG_ROOT=/home/pi/vcglib
 
 git clone --recurse-submodules https://github.com/cdcseacave/openMVS.git
-
-
