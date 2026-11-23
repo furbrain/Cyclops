@@ -12,9 +12,24 @@ one in use:
 Everything else (ROS 2 jazzy, the camera stack, `~/ros2_ws`, kalibr, the system configuration) is installed
 once by `bootstrap.sh`.
 
-## A new device
+## A new device, from the disk image
 
-1. Install stock Debian 12 (bookworm) for arm64 on the CM5.
+Each release has a disk image, `tacticalfrog-VERSION-cm5.img.xz`: Raspberry Pi OS Lite (bookworm) with
+everything below already done and all three releases installed. Images over GitHub's 2GB limit for release
+files are only an artifact of the "Disk image" workflow run, kept for 5 days.
+
+1. Write it to the SD card or eMMC with Raspberry Pi Imager ("Use custom"), or any image writer.
+   Imager's OS customisation can set a password and turn on SSH. The username must be `pi`, as TacticalFrog
+   needs it. Without customisation, `pi` has no password, so you can't log in, but the web UI still works.
+2. Boot it. The first boot grows it to fill the card and reboots, which takes a minute or two.
+3. Join the "TacticalFrog" wifi hotspot and go to http://frog.local, then calibrate the cameras and IMU.
+
+The "Disk image" workflow (`.github/workflows/image.yml`, `.github/image/build.sh`) can also build one by hand
+from any release, or from a commit.
+
+## A new device, by hand
+
+1. Install stock Debian 12 (bookworm) or Raspberry Pi OS Lite (bookworm) for arm64 on the CM5.
 2. Run `bootstrap.sh` as root. It needs internet and takes an hour or more. It doesn't need a checkout of this
    repository, and it's safe to run again, e.g. after a network failure:
    ```bash
