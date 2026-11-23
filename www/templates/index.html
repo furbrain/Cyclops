@@ -87,6 +87,9 @@
 <!-- Title. Also keeps the nav bar below the battery badge (battery.js), which is fixed at the top right -->
 <h1 class="h4 px-3 py-2 mb-0">Tactical Frog</h1>
 
+<!-- Filled in by js/index/software_update.js when there's a new release and it's OK to install it -->
+<div id="update-alert" class="px-3"></div>
+
 <!-- Nav bar menu -->
 <ul class="nav nav-tabs" id="nav-tab">
 {% for key, value in entries.items() %}

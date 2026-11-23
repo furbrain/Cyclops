@@ -769,6 +769,18 @@ polkit.addRule(function(action, subject) {
    });
 EOF
   chmod 644 /etc/polkit-1/rules.d/10-nm-wifi.rules
+  # and to start the software update (raspbian/tacticalfrog-update.service), which runs as root
+  cat > /etc/polkit-1/rules.d/10-tacticalfrog-update.rules <<'EOF'
+polkit.addRule(function(action, subject) {
+     if (action.id == "org.freedesktop.systemd1.manage-units" &&
+         action.lookup("unit") == "tacticalfrog-update.service" &&
+         action.lookup("verb") == "start" &&
+         subject.user == "pi") {
+       return polkit.Result.YES;
+     }
+   });
+EOF
+  chmod 644 /etc/polkit-1/rules.d/10-tacticalfrog-update.rules
 
   install -d /etc/NetworkManager/conf.d /etc/NetworkManager/system-connections
   printf '[connection]\nwifi.powersave=2\n' > /etc/NetworkManager/conf.d/tacticalfrog-powersave.conf
@@ -824,6 +836,9 @@ setup_services() {
     ln -sfn "/opt/TacticalFrog/current/raspbian/$unit.service" "/etc/systemd/system/$unit.service"
     ln -sfn "/etc/systemd/system/$unit.service" "/etc/systemd/system/$target.wants/$unit.service"
   done <<< "$UNITS"
+  # not enabled: the web UI starts it
+  ln -sfn /opt/TacticalFrog/current/raspbian/tacticalfrog-update.service \
+    /etc/systemd/system/tacticalfrog-update.service
 
   # start everything when the last release arrives, so that it doesn't need another reboot
   cat > /usr/local/sbin/tacticalfrog-await-releases <<'EOF'
@@ -948,6 +963,8 @@ finish() {
    It all starts by itself a few seconds after the third: http://$FROG_HOSTNAME.local
 
 3. Calibrate the cameras and IMU from the web page, as they're different on every device.
+
+Later releases install themselves from the web page, Settings > Software update, which updates all three together.
 
 Optional, for the "frog" file sharing login that Windows needs:  sudo smbpasswd -a $FROG_USER
 EOF

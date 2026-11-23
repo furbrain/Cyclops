@@ -1,5 +1,6 @@
 # Pushing any tag builds a tarball for the Pi (arm64, Debian bookworm) and attaches it to a GitHub release.
 # The build itself is .github/release/build.sh, which can be run the same way on a Pi.
+# The orb_slam3 and OpenMVS submodules' commits must have releases already: devices update to them along with it.
 name: Release
 
 on:
@@ -27,6 +28,7 @@ jobs:
             -v "$RUNNER_TEMP/out:/out" \
             -e VERSION="$GITHUB_REF_NAME" \
             -e COMMIT="$(git rev-parse HEAD)" \
+            -e REQUIRE_PARTNER_RELEASES=1 \
             debian:bookworm bash /src/.github/release/build.sh
 
       - name: Publish

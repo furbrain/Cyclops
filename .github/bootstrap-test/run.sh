@@ -163,6 +163,28 @@ if [ "${SKIP_KALIBR:-0}" != 1 ]; then
   echo "ok: kalibr, as pi"
 fi
 
+step "Software update"
+# through the web UI's API. The partners must be the ones this TacticalFrog release was built with. It can't
+# be allowed here, as there's no battery reading (and maybe no published release)
+inside curl -fsS --max-time 120 http://127.0.0.1/api/update/status | python3 -c '
+import json, sys
+info = json.load(sys.stdin)
+print("update check:", {k: info[k] for k in ("latest", "online", "update_available", "allowed", "reason")})
+assert info["installed"]["TacticalFrog"]["version"] == "boottest", info["installed"]
+assert info["repair"] == [], ("partners not the ones in RELEASES", info["repair"])
+assert not info["allowed"], "update allowed with no battery reading"'
+inside cat /opt/TacticalFrog/current/RELEASES
+# pi can start the updater (the polkit rule), which refuses and says why; nothing changes
+before=$(inside readlink /opt/TacticalFrog/current /opt/orb_slam3/current /opt/OpenMVS/current)
+if as_pi systemctl start tacticalfrog-update.service; then echo "the updater didn't refuse" >&2; false; fi
+inside cat /var/lib/tacticalfrog-update/status.json | python3 -c '
+import json, sys
+status = json.load(sys.stdin)
+print("updater:", status["message"])
+assert status["state"] == "failed", status'
+[ "$(inside readlink /opt/TacticalFrog/current /opt/orb_slam3/current /opt/OpenMVS/current)" = "$before" ]
+echo "ok: the updater refused, and nothing changed"
+
 step "It still runs after a reboot"
 reboot_it
 check_running

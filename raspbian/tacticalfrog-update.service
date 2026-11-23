@@ -1,0 +1,12 @@
+# Updates TacticalFrog, orb_slam3 and OpenMVS together to the latest TacticalFrog release (see
+# tacticalfrog_update.py). Not enabled: the web UI starts it, which a polkit rule from bootstrap.sh lets pi do.
+# By hand:  sudo systemctl start tacticalfrog-update && journalctl -u tacticalfrog-update
+[Unit]
+Description=Update TacticalFrog and the orb_slam3 and OpenMVS releases that go with it
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/TacticalFrog/current/raspbian/tacticalfrog_update.py install
+StateDirectory=tacticalfrog-update
+StateDirectoryMode=0755
+TimeoutStartSec=30min
