@@ -96,6 +96,8 @@ step "Boot it as a container"
   # no fstab: the container's root is already mounted; eth0 is docker's, not NetworkManager's
   echo "RUN : > /etc/fstab && mkdir -p /etc/NetworkManager/conf.d && \\"
   echo "  printf '[keyfile]\\nunmanaged-devices=interface-name:eth0\\n' > /etc/NetworkManager/conf.d/image-build.conf && \\"
+  # there's no root device to find the modules for, so take the usual ones (a kernel update builds an initramfs)
+  echo "  mkdir -p /etc/initramfs-tools/conf.d && printf 'MODULES=most\\n' > /etc/initramfs-tools/conf.d/image-build.conf && \\"
   echo "  mkdir -p /etc/systemd/system/beep_server.service.d && \\"
   echo "  printf '[Unit]\\nConditionVirtualization=no\\n' > /etc/systemd/system/beep_server.service.d/image-build.conf && \\"
   printf '  for u in %s; do ln -sfn /dev/null /etc/systemd/system/$u; done\n' "${CONTAINER_MASKS[*]}"
@@ -127,6 +129,16 @@ for name in OpenMVS orb_slam3 TacticalFrog; do
   [ "$name" != TacticalFrog ] || version=${base#TacticalFrog-}
 done
 image=tacticalfrog-$version-cm5.img
+
+step "Check the CM5 will boot the newest kernel"
+inside bash -c '
+  set -e
+  kernel=$(ls /lib/modules | grep -- "-rpi-2712$" | sort -V | tail -n 1)
+  echo "kernel $kernel"
+  cmp "/boot/vmlinuz-$kernel" /boot/firmware/kernel_2712.img
+  cmp "/boot/initrd.img-$kernel" /boot/firmware/initramfs_2712
+  # the first boot resize is done in the initramfs
+  lsinitramfs /boot/firmware/initramfs_2712 | grep -q "scripts/local-premount/firstboot"'
 
 step "Check it starts"
 # as tacticalfrog-await-releases does when the last release arrives
@@ -186,7 +198,7 @@ cp "$work/resolv.conf" "$r/etc/resolv.conf"
 for unit in "${CONTAINER_MASKS[@]}"; do
   if [ "$(readlink "$r/etc/systemd/system/$unit")" = /dev/null ]; then rm "$r/etc/systemd/system/$unit"; fi
 done
-rm -f "$r/etc/NetworkManager/conf.d/image-build.conf" "$r/etc/systemd/system/beep_server.service.d/image-build.conf"
+rm -f "$r/etc/initramfs-tools/conf.d/image-build.conf" "$r/etc/NetworkManager/conf.d/image-build.conf" "$r/etc/systemd/system/beep_server.service.d/image-build.conf"
 rmdir "$r/etc/systemd/system/beep_server.service.d" 2>/dev/null || true
 : > "$r/etc/machine-id"
 chmod 444 "$r/etc/machine-id"
