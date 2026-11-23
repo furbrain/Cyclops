@@ -1,0 +1,117 @@
+# Builds a disk image for the CM5 with everything installed (.github/image/build.sh): write it to an SD card or
+# the eMMC (e.g. with Raspberry Pi Imager) and boot. It's as small as possible, and grows to fill the card on its
+# first boot.
+#  - after each release is published (release.yml calls this): from that release, attached to it
+#  - by hand: from a TacticalFrog release (with the orb_slam3 and OpenMVS releases its RELEASES names), attached
+#    to it, or with no tag, from this commit and its submodules
+#  - on pushes to claude/ branches that change it: from that commit, to test it
+# The image is kept as an artifact for a few days either way.
+name: Disk image
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: TacticalFrog release to build it from (empty builds all three from this commit)
+        type: string
+        default: ""
+      skip_kalibr:
+        description: Leave out kalibr (about 6GB, only for camera-IMU calibration)
+        type: boolean
+        default: false
+  push:
+    branches: ["claude/**"]
+    paths: [".github/image/**", ".github/workflows/image.yml", ".github/workflows/build-releases.yml", "bootstrap.sh"]
+
+permissions:
+  contents: write # to attach the image to the release
+
+concurrency:
+  group: image-${{ inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    if: ${{ !inputs.tag }}
+    uses: ./.github/workflows/build-releases.yml
+
+  image:
+    name: Build the image
+    needs: release
+    if: ${{ !cancelled() && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+          persist-credentials: false
+
+      - name: Get the releases built from this commit
+        if: ${{ !inputs.tag }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: releases
+
+      - name: Get the published releases
+        if: ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p releases
+          get() { # get <repository> <tag> <name>
+            gh release download "$2" -R "$1" -D releases -p "$3-*-aarch64.tar.gz" -p "$3-*-aarch64.tar.gz.sha256"
+            (cd releases && sha256sum -c "$3"-*-aarch64.tar.gz.sha256)
+          }
+          get furbrain/TacticalFrog "$TAG" TacticalFrog
+          tar -xzOf releases/TacticalFrog-*-aarch64.tar.gz --wildcards '*/RELEASES' | grep -v '^#' > RELEASES
+          cat RELEASES
+          while read -r name commit tag; do
+            case $name in
+              orb_slam3) repository=furbrain/orb_slam3_ros ;;
+              OpenMVS) repository=furbrain/openMVS ;;
+              *) continue ;;
+            esac
+            [ "$tag" != - ] || { echo "TacticalFrog $TAG was built with an $name commit that has no release" >&2; exit 1; }
+            get "$repository" "$tag" "$name"
+            got=$(tar -xzOf releases/"$name"-*-aarch64.tar.gz --wildcards '*/VERSION' | cut -d' ' -f2)
+            [ "$got" = "$commit" ] || { echo "$name $tag is $got, not $commit" >&2; exit 1; }
+          done < RELEASES
+
+      - name: Build
+        env:
+          SKIP_KALIBR: ${{ inputs.skip_kalibr && '1' || '0' }}
+        run: |
+          df -h /
+          sudo env SKIP_KALIBR="$SKIP_KALIBR" WORK="$RUNNER_TEMP" .github/image/build.sh releases out
+          df -h /
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: out/*.img.xz*
+          compression-level: 0 # it's compressed already
+          retention-days: 5
+
+      - name: Attach it to the release
+        if: ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          image=$(ls out/*.img.xz)
+          if [ "$(stat -c %s "$image")" -ge $((2 * 1024 * 1024 * 1024)) ]; then
+            echo "::warning::$(basename "$image") is over GitHub's 2GB limit for release files, so it's only an artifact of this run"
+          else
+            gh release upload "$TAG" out/*.img.xz out/*.img.xz.sha256 --clobber
+          fi

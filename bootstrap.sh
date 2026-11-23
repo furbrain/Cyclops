@@ -16,6 +16,8 @@
 #   WIFI_COUNTRY=GB      wifi regulatory domain, if one isn't set already
 #   SKIP_KALIBR=0        1 leaves out kalibr (about 6GB, only used for camera-IMU calibration)
 #   JOBS=                parallel compile jobs, default depends on CPUs and memory
+#   FROG_IMAGE=0         1 when building a disk image for the CM5 somewhere else (.github/image/build.sh): set
+#                        it up as a CM5 even though this isn't one
 #
 # Everything downloaded is pinned: change the versions below deliberately, and test on a spare device.
 set -Eeuo pipefail
@@ -24,6 +26,7 @@ FROG_HOSTNAME=${FROG_HOSTNAME:-frog}
 WIFI_COUNTRY=${WIFI_COUNTRY:-GB}
 SKIP_KALIBR=${SKIP_KALIBR:-0}
 JOBS=${JOBS:-}
+FROG_IMAGE=${FROG_IMAGE:-0}
 
 # the services in the release run as pi, with these paths, so these aren't settings
 FROG_USER=pi
@@ -408,7 +411,7 @@ fetch() {
 
 installed_version() { dpkg-query -W -f='${db:Status-Status} ${Version}' "$1" 2>/dev/null || true; }
 
-is_pi() { grep -qsa 'Raspberry Pi' /proc/device-tree/model; }
+is_pi() { [ "$FROG_IMAGE" = 1 ] || grep -qsa 'Raspberry Pi' /proc/device-tree/model; }
 
 preflight() {
   [ "$(id -u)" = 0 ] || die "run this as root (sudo ./bootstrap.sh)"
@@ -670,7 +673,9 @@ setup_boot() {
     warn "this isn't a Raspberry Pi: skipped the boot configuration, so no cameras, IMU or beeper"
     return 0
   fi
-  grep -qa 'Compute Module 5' /proc/device-tree/model || warn "this isn't a CM5, which is all that's supported"
+  if [ "$FROG_IMAGE" != 1 ] && ! grep -qa 'Compute Module 5' /proc/device-tree/model; then
+    warn "this isn't a CM5, which is all that's supported"
+  fi
   if [ ! -f "$BOOT/config.txt" ]; then
     warn "no $BOOT/config.txt: set up the overlays in raspbian/config.txt by hand"
     return 0
@@ -817,7 +822,24 @@ EOF
     warn "wlan0 is in /etc/network/interfaces: the hotspot and wifi page need it removed from there"
   fi
   systemctl enable NetworkManager.service avahi-daemon.service
-  if is_pi; then rfkill unblock wifi || warn "couldn't unblock wifi"; fi
+
+  # Raspberry Pi OS starts with wifi blocked (rfkill default_state=0) until raspi-config sets the country,
+  # and the hotspot needs it, so unblock it at every boot
+  cat > /etc/systemd/system/tacticalfrog-wifi-unblock.service <<'EOF'
+[Unit]
+Description=Unblock wifi for the TacticalFrog hotspot
+After=systemd-rfkill.service
+Before=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/sbin/rfkill unblock wifi
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl enable tacticalfrog-wifi-unblock.service
+  if is_pi && [ "$FROG_IMAGE" != 1 ]; then rfkill unblock wifi || warn "couldn't unblock wifi"; fi
 }
 
 setup_services() {
