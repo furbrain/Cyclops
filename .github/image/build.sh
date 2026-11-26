@@ -3,10 +3,9 @@
 #   sudo .github/image/build.sh <folder with the three release tarballs> <output folder>
 # It's Raspberry Pi OS Lite (bookworm), set up by bootstrap.sh with the releases installed, shrunk to the
 # smallest size that holds it. On its first boot Raspberry Pi OS grows it to fill the card or eMMC.
-# Like the bootstrap test, it boots the OS as a systemd container to bootstrap it, as that needs systemd and
-# docker. DON'T run it on a device: the container is privileged.
-#   SKIP_KALIBR=1   leave out kalibr (about 6GB, only used for camera-IMU calibration)
-#   WORK=/mnt       where to work: needs about 40GB
+# Like the bootstrap test, it boots the OS as a systemd container to bootstrap it, as that needs systemd.
+# DON'T run it on a device: the container is privileged.
+#   WORK=/mnt       where to work: needs about 25GB
 set -Eeuo pipefail
 
 releases=$(realpath "${1:?folder with the release tarballs}")
@@ -104,9 +103,8 @@ step "Boot it as a container"
 } > "$work/Dockerfile"
 docker build -q -t "$NAME-boot" "$work" >/dev/null
 docker network create --subnet 192.168.251.0/24 "$NAME" >/dev/null 2>&1 || true
-docker volume rm "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" --network "$NAME" --privileged --cgroupns=private --hostname raspberrypi \
-  --env container=docker --tmpfs /run --tmpfs /run/lock --volume "$NAME:/var/lib/docker" \
+  --env container=docker --tmpfs /run --tmpfs /run/lock \
   --stop-signal SIGRTMIN+3 "$NAME-boot" /sbin/init >/dev/null
 booted
 inside mkdir -p /boot/firmware
@@ -114,7 +112,7 @@ inside test -f /boot/firmware/config.txt
 
 step "Bootstrap"
 docker cp "$repo/bootstrap.sh" "$NAME:/root/bootstrap.sh"
-inside env FROG_IMAGE=1 SKIP_KALIBR="${SKIP_KALIBR:-0}" bash /root/bootstrap.sh
+inside env FROG_IMAGE=1 bash /root/bootstrap.sh
 
 step "Install the releases"
 version=
@@ -157,19 +155,16 @@ inside bash -c '
   set -e
   apt-get clean
   rm -rf /var/lib/apt/lists/* /var/cache/tacticalfrog-bootstrap /home/pi/ros2_ws/build /home/pi/ros2_ws/log
-  if command -v docker >/dev/null; then docker builder prune -af >/dev/null; fi
   journalctl --rotate >/dev/null 2>&1 || true
   rm -rf /var/log/journal/* /home/pi/.ros/log /root/.cache /home/pi/.cache /root/bootstrap.sh
   find /var/log -type f \( -name "*.gz" -o -name "*.[0-9]" \) -delete'
 used_mb=$(inside du -sx -B1M --exclude=/boot/firmware / | cut -f1)
-docker_mb=$(inside du -s -B1M /var/lib/docker | cut -f1)
-inside systemctl stop docker.service docker.socket 2>/dev/null || true
 docker stop -t 120 "$NAME" >/dev/null
-echo "root filesystem: ${used_mb}MB, docker: ${docker_mb}MB"
+echo "root filesystem: ${used_mb}MB"
 
 step "Write the image"
 # room to unpack it into; it's shrunk to fit afterwards
-root_mb=$(((used_mb + docker_mb) * 115 / 100 + 1024))
+root_mb=$((used_mb * 115 / 100 + 1024))
 truncate -s 0 "$out/$image"
 dd if="$work/base.img" of="$out/$image" bs=512 count="$p2_start" status=none
 rm "$work/base.img"
@@ -181,15 +176,12 @@ mkdir "$work/new"
 mount "${loop}p2" "$work/new"
 docker export "$NAME" | tar -C "$work/new" --xattrs --xattrs-include='*' --numeric-owner -xpf - \
   --exclude='boot/firmware/*' --exclude=.dockerenv
-mkdir -p "$work/new/boot/firmware" "$work/new/var/lib/docker" "$work/boot"
-docker run --rm -v "$NAME:/from:ro" "$NAME-base" tar -C /from --xattrs --xattrs-include='*' --numeric-owner -c . |
-  tar -C "$work/new/var/lib/docker" --xattrs --xattrs-include='*' --numeric-owner -xpf -
+mkdir -p "$work/new/boot/firmware" "$work/boot"
 docker export "$NAME" | tar -C "$work/boot" -xf - --wildcards 'boot/firmware/*'
 mount "${loop}p1" "$work/new/boot/firmware"
 rm -rf "${work:?}"/new/boot/firmware/*
 cp -r --no-preserve=all "$work/boot/boot/firmware/." "$work/new/boot/firmware/"
 docker rm "$NAME" >/dev/null
-docker volume rm "$NAME" >/dev/null
 
 # undo what was only for the container, and leave what each device makes for itself on its first boot
 r=$work/new

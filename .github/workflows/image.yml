@@ -20,10 +20,6 @@ on:
         description: TacticalFrog release to build it from (empty builds all three from this commit)
         type: string
         default: ""
-      skip_kalibr:
-        description: Leave out kalibr (about 6GB, only for camera-IMU calibration)
-        type: boolean
-        default: false
   push:
     branches: ["claude/**"]
     paths: [".github/image/**", ".github/workflows/image.yml", ".github/workflows/build-releases.yml", "bootstrap.sh"]
@@ -88,11 +84,9 @@ jobs:
           done < RELEASES
 
       - name: Build
-        env:
-          SKIP_KALIBR: ${{ inputs.skip_kalibr && '1' || '0' }}
         run: |
           df -h /
-          sudo env SKIP_KALIBR="$SKIP_KALIBR" WORK="$RUNNER_TEMP" .github/image/build.sh releases out
+          sudo env WORK="$RUNNER_TEMP" .github/image/build.sh releases out
           df -h /
 
       - uses: actions/upload-artifact@v4

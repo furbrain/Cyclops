@@ -14,7 +14,6 @@
 # Settings, e.g. sudo FROG_HOSTNAME=frog2 ./bootstrap.sh
 #   FROG_HOSTNAME=frog   the device is then http://frog.local
 #   WIFI_COUNTRY=GB      wifi regulatory domain, if one isn't set already
-#   SKIP_KALIBR=0        1 leaves out kalibr (about 6GB, only used for camera-IMU calibration)
 #   JOBS=                parallel compile jobs, default depends on CPUs and memory
 #   FROG_IMAGE=0         1 when building a disk image for the CM5 somewhere else (.github/image/build.sh): set
 #                        it up as a CM5 even though this isn't one
@@ -24,7 +23,6 @@ set -Eeuo pipefail
 
 FROG_HOSTNAME=${FROG_HOSTNAME:-frog}
 WIFI_COUNTRY=${WIFI_COUNTRY:-GB}
-SKIP_KALIBR=${SKIP_KALIBR:-0}
 JOBS=${JOBS:-}
 FROG_IMAGE=${FROG_IMAGE:-0}
 
@@ -53,11 +51,10 @@ LIBCAMERA_DEBS=(
   "libcamera-dev c56f7d09f0b1acedc8564ecda7aa395c9d01807fd7d0e7ae8aa27f2420fe4d03"
 )
 
-# andriilitvynchuk8/kalibr, which kalibr/Dockerfile starts from, has gone from Docker Hub. It was built on
-# exactly this ros:noetic-perception image, so build the same thing from kalibr's own source.
-KALIBR_BASE=ros:noetic-perception@sha256:32370c500818eaefb8491d7d85e9f415541b7f4bfec8afc59c4240653e7a77e4
-KALIBR_COMMIT=1f60227442d25e36365ef5f72cd80b9666d73467
-KALIBR_IMAGE=furbrain/kalibr:latest
+# kalibr for the camera-IMU calibration: furbrain's version, which needs neither ROS nor docker, built natively
+KALIBR_REPO=furbrain/kalibr
+KALIBR_COMMIT=3826babd1a7593fa30cf0e3676647f29d83fd553
+KALIBR_PREFIX=/usr/local/lib/kalibr
 
 # what goes in ~/ros2_ws/src:  <directory> <repository on github> <commit>
 SOURCES='
@@ -351,7 +348,7 @@ APT_PACKAGES=(
   # ros2_system_monitor runs these
   sysstat ifstat lm-sensors
   # kalibr
-  docker.io
+  libsuitesparse-dev python3-igraph python3-pyx
 )
 
 # Installed for everyone in /usr/local, without dependencies, so that pip can't replace Debian's packages:
@@ -429,7 +426,6 @@ preflight() {
 
   if [ ! -e "$WS/.bootstrap" ]; then
     local need=10 free
-    [ "$SKIP_KALIBR" = 1 ] || need=18
     free=$(df --output=avail -BG / | tail -n 1 | tr -dc 0-9)
     [ "$free" -ge "$need" ] || die "needs ${need}GB free on /, there is only ${free}GB"
   fi
@@ -550,7 +546,7 @@ setup_user() {
   for group in gpio i2c spi; do
     getent group "$group" >/dev/null || groupadd --system "$group"
   done
-  for group in adm audio dialout video render input plugdev netdev gpio i2c spi docker; do
+  for group in adm audio dialout video render input plugdev netdev gpio i2c spi; do
     if getent group "$group" >/dev/null; then usermod -aG "$group" "$FROG_USER"; fi
   done
   usermod -aG "$FROG_USER" caddy
@@ -848,7 +844,7 @@ setup_services() {
   systemctl stop caddy.service smbd.service 2>/dev/null || true
   systemctl disable --now nmbd.service 2>/dev/null || true
   systemctl mask --now samba-ad-dc.service
-  systemctl enable wsdd.service docker.service
+  systemctl enable wsdd.service
 
   # systemctl enable won't take units that don't exist yet, so make the same links it would
   local unit target
@@ -897,50 +893,35 @@ EOF
 
 install_kalibr() {
   step "kalibr"
-  if [ "$SKIP_KALIBR" = 1 ]; then
-    warn "kalibr was skipped, so camera-IMU calibration won't work"
-    return 0
+  local dir=$CACHE/kalibr stamp attempt site
+  # rebuilt if numpy changes too, as its extension modules are built against it
+  stamp="$KALIBR_COMMIT numpy-$(python3 -c 'import numpy; print(numpy.__version__)')"
+  if [ "$(cat "$KALIBR_PREFIX/.bootstrap" 2>/dev/null)" = "$stamp" ]; then
+    echo "already built"
+  else
+    rm -rf "$dir"
+    git init -q "$dir/src"
+    for attempt in 1 2 3 4 5; do
+      git -C "$dir/src" fetch -q --depth 1 "https://github.com/$KALIBR_REPO.git" "$KALIBR_COMMIT" && break
+      [ "$attempt" -lt 5 ] || die "couldn't fetch $KALIBR_REPO at $KALIBR_COMMIT"
+      sleep $((attempt * 5))
+    done
+    git -C "$dir/src" -c advice.detachedHead=false checkout -q FETCH_HEAD
+    # against the numpy in /usr/local (see PIP_PACKAGES), which it runs with
+    cmake -S "$dir/src" -B "$dir/build" -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=/usr/bin/python3 \
+      -DCMAKE_INSTALL_PREFIX="$KALIBR_PREFIX" -DKALIBR_PYTHON_INSTALL_DIR="$KALIBR_PREFIX/python" \
+      -DKALIBR_BIN_INSTALL_DIR="$KALIBR_PREFIX/bin"
+    cmake --build "$dir/build" --parallel "$JOBS"
+    rm -rf "$KALIBR_PREFIX"
+    cmake --install "$dir/build"
+    echo "$stamp" > "$KALIBR_PREFIX/.bootstrap"
+    rm -rf "$dir"
   fi
-  systemctl start docker.service
-  if docker image inspect "$KALIBR_IMAGE" >/dev/null 2>&1; then
-    echo "already installed"
-    return 0
-  fi
-  local dir=$CACHE/kalibr
-  rm -rf "$dir"
-  mkdir -p "$dir"
-  git -C "$dir" init -q src
-  git -C "$dir/src" fetch -q --depth 1 https://github.com/ethz-asl/kalibr.git "$KALIBR_COMMIT"
-  git -C "$dir/src" checkout -q FETCH_HEAD
-  cat > "$dir/ros_entrypoint.sh" <<'EOF'
-#!/bin/bash
-set -e
-
-# setup ros environment
-source "/opt/ros/$ROS_DISTRO/setup.bash" --
-source /catkin_ws/devel/setup.bash --
-exec "$@"
-EOF
-  cat > "$dir/Dockerfile" <<EOF
-FROM $KALIBR_BASE
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\
-  python3-dev python3-pip python3-scipy python3-matplotlib ipython3 python3-wxgtk4.0 python3-tk \\
-  python3-igraph python3-pyx git wget autoconf automake \\
-  libeigen3-dev libboost-all-dev libsuitesparse-dev doxygen libopencv-dev \\
-  libpoco-dev libtbb-dev libblas-dev liblapack-dev libv4l-dev \\
-  python3-catkin-tools python3-osrf-pycommon && rm -rf /var/lib/apt/lists/*
-ENV WORKSPACE=/catkin_ws
-ENV LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
-# it's run with no display, so matplotlib mustn't try GTK
-ENV MPLBACKEND=Agg
-COPY src /catkin_ws/src/kalibr
-RUN cd /catkin_ws && catkin init && catkin config --extend /opt/ros/noetic \\
-  --cmake-args -DCMAKE_BUILD_TYPE=Release && catkin build --no-status -p $JOBS -j$JOBS && rm -rf build logs
-COPY ros_entrypoint.sh /ros_entrypoint.sh
-RUN chmod 755 /ros_entrypoint.sh
-EOF
-  docker build -t "$KALIBR_IMAGE" "$dir"
-  rm -rf "$dir"
+  # its Python packages, for everyone's python3, and its tools on the PATH
+  site=$(python3 -c 'import site; print(site.getsitepackages()[0])') # /usr/local/lib/python3.X/dist-packages
+  mkdir -p "$site"
+  echo "$KALIBR_PREFIX/python" > "$site/kalibr.pth"
+  ln -sfn "$KALIBR_PREFIX"/bin/kalibr_* /usr/local/bin/
 }
 
 check_install() {
@@ -950,7 +931,8 @@ check_install() {
     set -e
     cd
     source "$HOME/ros2_ws/install/setup.bash"
-    for tool in cavern dump3d gltf-pipeline ratarmount rosbags-convert nmcli make mpstat ifstat fusermount3; do
+    for tool in cavern dump3d gltf-pipeline ratarmount rosbags-convert nmcli make mpstat ifstat fusermount3 \
+      kalibr_calibrate_imu_camera kalibr_calibrate_cameras; do
       command -v "$tool" >/dev/null || PATH=$PATH:/usr/sbin:/sbin command -v "$tool" >/dev/null ||
         { echo "missing: $tool" >&2; exit 1; }
     done
@@ -961,8 +943,9 @@ import cv2, dataclasses_json, flask, gevent, gpiozero, gtsam, matplotlib, networ
 import systemd.daemon, mag_cal, rclpy, rosbags, tornado, bson
 from scipy.spatial.transform import RigidTransform
 import autonode, cv_bridge, rosbridge_library, rosapi
+import sm, aslam_cv, kalibr_common, kalibr_imu_camera_calibration
 EOF
-    bad=$(find "$HOME/ros2_ws/install" -type f \( -name "*.so" -o -path "*/lib/*" -perm -100 \) \
+    bad=$(find "$HOME/ros2_ws/install" /usr/local/lib/kalibr -type f \( -name "*.so" -o -path "*/lib/*" -perm -100 \) \
       -exec sh -c "ldd \"\$1\" 2>/dev/null | grep \"not found\" | sed \"s|^|\$1: |\"" sh {} \;)
     [ -z "$bad" ] || { echo "$bad" >&2; exit 1; }
   '

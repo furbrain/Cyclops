@@ -103,17 +103,17 @@ umount "$r"
 losetup -d "$loop"
 rm -rf "$work"
 
-# not docker's usual subnet, as the docker inside uses that
+# not docker's usual subnet, in case that's in use
 docker network create --subnet 192.168.250.0/24 "$NAME" >/dev/null
 docker run -d --name "$NAME" --network "$NAME" --privileged --cgroupns=private --hostname stock \
-  --env container=docker --tmpfs /run --tmpfs /run/lock --volume "$NAME:/var/lib/docker" \
+  --env container=docker --tmpfs /run --tmpfs /run/lock \
   --stop-signal SIGRTMIN+3 "$NAME" /sbin/init >/dev/null
 booted
 if inside id pi 2>/dev/null; then echo "not a stock system" >&2; exit 1; fi
 
 step "Bootstrap"
 docker cp "$repo/bootstrap.sh" "$NAME:/root/bootstrap.sh"
-inside env SKIP_KALIBR="${SKIP_KALIBR:-0}" bash /root/bootstrap.sh
+inside bash /root/bootstrap.sh
 
 step "Reboot, with no releases yet"
 reboot_it
@@ -146,22 +146,21 @@ done
 inside bash -c 'for f in /opt/OpenMVS/current/*; do
   if ldd "$f" 2>/dev/null | grep "not found"; then exit 1; fi
 done'
-if [ "${SKIP_KALIBR:-0}" != 1 ]; then
-  # not piped straight into grep -q: that stops reading early, and pipefail then fails on docker's broken pipe
-  kalibr=(rosrun kalibr kalibr_calibrate_imu_camera --help)
-  status=0
-  kalibr_help=$(as_pi docker run --rm furbrain/kalibr:latest "${kalibr[@]}" 2>&1) || status=$?
-  # its --help always exits with 2: a bare "except:" round parse_args() turns argparse's exit(0) into exit(2)
-  if [ "$status" != 0 ] && [ "$status" != 2 ]; then
-    echo "kalibr failed:" >&2
-    # again with unbuffered output and Python's traceback on a crash, to show where it got to
-    as_pi docker run --rm -e PYTHONUNBUFFERED=1 -e PYTHONFAULTHANDLER=1 furbrain/kalibr:latest "${kalibr[@]}" >&2 ||
-      echo "exit status $?" >&2
-    false
-  fi
-  grep -q -- --max-iter <<< "$kalibr_help" || { echo "$kalibr_help" >&2; echo "kalibr has no --max-iter" >&2; false; }
-  echo "ok: kalibr, as pi"
-fi
+# kalibr's own end to end test, as pi: a camera-IMU calibration of synthetic data from a ROS 2 bag, as the
+# device makes, checked against the ground truth. It's in kalibr's source, at the commit bootstrap.sh builds
+kalibr_commit=$(sed -n 's/^KALIBR_COMMIT=//p' "$repo/bootstrap.sh")
+kalibr_repo=$(sed -n 's/^KALIBR_REPO=//p' "$repo/bootstrap.sh")
+kalibr_src=$(mktemp -d)
+git -C "$kalibr_src" init -q
+git -C "$kalibr_src" fetch -q --depth 1 "https://github.com/$kalibr_repo.git" "$kalibr_commit"
+git -C "$kalibr_src" checkout -q FETCH_HEAD
+inside rm -rf /tmp/kalibr-test
+docker cp "$kalibr_src" "$NAME:/tmp/kalibr-test"
+rm -rf "$kalibr_src"
+inside chown -R pi:pi /tmp/kalibr-test
+as_pi env MPLBACKEND=Agg timeout 1800 python3 /tmp/kalibr-test/tests/smoke_test.py --imu
+inside rm -rf /tmp/kalibr-test
+echo "ok: kalibr calibrates a camera and IMU, as pi"
 
 step "Software update"
 # through the web UI's API. The partners must be the ones this TacticalFrog release was built with. It can't
@@ -190,7 +189,7 @@ reboot_it
 check_running
 
 step "Bootstrap again"
-inside env SKIP_KALIBR="${SKIP_KALIBR:-0}" bash /root/bootstrap.sh
+inside bash /root/bootstrap.sh
 reboot_it
 check_running
 

@@ -143,9 +143,16 @@ sudo mkdir -p /opt/orb_slam3 /opt/OpenMVS
 sudo ln -sfn /home/pi/ros2_ws/install/orb_slam3 /opt/orb_slam3/current
 sudo ln -sfn /usr/local/bin/OpenMVS /opt/OpenMVS/current
 
-#install kalibr
-cd /opt/TacticalFrog/current/kalibr
-docker build -t furbrain/kalibr .
+#install kalibr: furbrain/kalibr, which needs neither ROS nor docker (bootstrap.sh's install_kalibr does this,
+# at the commit it names)
+sudo apt install libsuitesparse-dev python3-igraph python3-pyx
+git clone https://github.com/furbrain/kalibr.git
+cmake -S kalibr -B kalibr/build -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=/usr/bin/python3 \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/lib/kalibr -DKALIBR_PYTHON_INSTALL_DIR=/usr/local/lib/kalibr/python \
+  -DKALIBR_BIN_INSTALL_DIR=/usr/local/lib/kalibr/bin
+cmake --build kalibr/build -j4 && sudo cmake --install kalibr/build
+echo /usr/local/lib/kalibr/python | sudo tee /usr/local/lib/python3.11/dist-packages/kalibr.pth
+sudo ln -sfn /usr/local/lib/kalibr/bin/kalibr_* /usr/local/bin/
 
 #create ros2 workspace
 mkdir -p ros2_ws/src

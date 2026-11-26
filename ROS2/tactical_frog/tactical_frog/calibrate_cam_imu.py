@@ -1,3 +1,4 @@
+import os
 import shutil
 import signal
 import subprocess
@@ -66,11 +67,6 @@ class CalibratorCamIMU(CalNode):
             result.message = "Bag recording did not stop in good time"
             return
 
-        # convert ros2 bag to ros1 bag
-        subprocess.run(['rosbags-convert',
-                        '--src',self.cal_dir / 'ros2.bag',
-                        '--dst',self.cal_dir / 'ros1.bag'])
-
         # create various yaml files:
         with open(self.cal_dir / "target.yaml", "w") as f:
             if self.target_type=="circle":
@@ -98,18 +94,23 @@ class CalibratorCamIMU(CalNode):
             data['rostopic'] = self.imu_topic
         with open(self.cal_dir / "imu.yaml", "w") as f:
             yaml.dump(data, f)
-        # run kalibr in docker
-        subprocess.run(['docker', 'run', '-v', f"{self.cal_dir}:/data", 'furbrain/kalibr:latest',
-                        'rosrun', 'kalibr', 'kalibr_calibrate_imu_camera',
-                        '--bag', '/data/ros1.bag',
-                        '--target', '/data/target.yaml',
-                        '--cam', '/data/cam.yaml',
-                        '--imu', '/data/imu.yaml',
-                        '--max-iter', '10',
-                        '--dont-show-report',
-                        ])
-
-        with open(self.cal_dir / "ros1-camchain-imucam.yaml") as f:
+        # kalibr (furbrain/kalibr, installed by bootstrap.sh) reads the ROS 2 bag itself, and writes its results
+        # next to it, named after it: ros2-camchain-imucam.yaml etc. No display, so no GUI backend for its plots
+        kalibr = subprocess.run(['kalibr_calibrate_imu_camera',
+                                 '--bag', str(self.cal_dir / 'ros2.bag'),
+                                 '--target', str(self.cal_dir / 'target.yaml'),
+                                 '--cam', str(self.cal_dir / 'cam.yaml'),
+                                 '--imu', str(self.cal_dir / 'imu.yaml'),
+                                 '--max-iter', '10',
+                                 '--dont-show-report',
+                                 ], cwd=self.cal_dir, env={**os.environ, 'MPLBACKEND': 'Agg'},
+                                stdin=subprocess.DEVNULL)
+        results = self.cal_dir / "ros2-camchain-imucam.yaml"
+        if kalibr.returncode != 0 or not results.exists():
+            result.success = False
+            result.message = f"kalibr failed (exit status {kalibr.returncode}): see the log"
+            return
+        with open(results) as f:
             data = yaml.safe_load(f)
         matrix = np.array(data['cam0']['T_cam_imu'])
         # matrix = np.linalg.inv(matrix) # need to invert to take to the other direction

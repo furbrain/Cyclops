@@ -6,11 +6,6 @@ on:
   push:
     branches: [bootstrap-test, "claude/**"]
   workflow_dispatch:
-    inputs:
-      skip_kalibr:
-        description: Leave out kalibr
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -40,6 +35,4 @@ jobs:
           path: releases
 
       - name: Test
-        env:
-          SKIP_KALIBR: ${{ inputs.skip_kalibr && '1' || '0' }}
-        run: sudo env SKIP_KALIBR="$SKIP_KALIBR" .github/bootstrap-test/run.sh releases
+        run: sudo .github/bootstrap-test/run.sh releases
