@@ -62,7 +62,10 @@ class CalibratorCamIMU(CalNode):
         self.process.send_signal(signal.SIGINT)
         try:
             self.process.wait(5.0)
-        except TimeoutError:
+        except subprocess.TimeoutExpired:
+            # don't leave it recording into the folder the next calibration starts afresh
+            self.process.kill()
+            self.process.wait()
             result.success = False
             result.message = "Bag recording did not stop in good time"
             return
