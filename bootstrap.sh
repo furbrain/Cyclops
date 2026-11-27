@@ -1024,9 +1024,15 @@ finish() {
 === Done. Log: $LOG
 
 EOF
-  if [ -n "$RELEASES_INSTALLED" ]; then
+  local have=1 name
+  for name in TacticalFrog orb_slam3 OpenMVS; do [ -f "/opt/$name/current/VERSION" ] || have=; done
+  if [ -n "$RELEASES_INSTALLED" ] || [ -n "$have" ]; then
+    if [ -n "$RELEASES_INSTALLED" ]; then
+      echo "TacticalFrog $RELEASES_INSTALLED is installed, with the orb_slam3 and OpenMVS releases that go with it."
+    else
+      echo "The releases already in /opt are kept: TacticalFrog $(cut -d' ' -f1 /opt/TacticalFrog/current/VERSION)."
+    fi
     cat <<EOF
-TacticalFrog $RELEASES_INSTALLED is installed, with the orb_slam3 and OpenMVS releases that go with it.
 
 1. Reboot:  sudo reboot
    After that wifi starts as the open "TacticalFrog" hotspot, which takes priority over saved networks.
