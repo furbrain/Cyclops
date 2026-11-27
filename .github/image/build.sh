@@ -112,7 +112,7 @@ inside test -f /boot/firmware/config.txt
 
 step "Bootstrap"
 docker cp "$repo/bootstrap.sh" "$NAME:/root/bootstrap.sh"
-inside env FROG_IMAGE=1 bash /root/bootstrap.sh
+inside env FROG_IMAGE=1 FROG_RELEASE=none bash /root/bootstrap.sh # the releases are installed below
 
 step "Install the releases"
 version=

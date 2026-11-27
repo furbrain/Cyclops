@@ -3,11 +3,11 @@
 #
 #   sudo ./bootstrap.sh        (or as root; needs internet, and takes an hour or more)
 #   sudo reboot
-#   then unpack the TacticalFrog, orb_slam3 and OpenMVS releases as described at the end of the run.
-#   Everything starts by itself once the third one is in place.
+# It installs the latest TacticalFrog release, and the orb_slam3 and OpenMVS releases that go with it, before the
+# reboot: afterwards wifi is the device's own hotspot, with no internet. Everything starts after the reboot.
 #
 # It stands alone: it doesn't need a checkout of this repository. It installs everything that isn't in a
-# release (OS packages, ROS, the camera stack, ~/ros2_ws, kalibr) and sets up the system.
+# release (OS packages, ROS, the camera stack, ~/ros2_ws, kalibr), sets up the system and installs the releases.
 # It carries on if your ssh session drops (see the log), and can be run again, e.g. after a network failure. It refuses to run on a development device (one with
 # /opt/TacticalFrog/current as a git checkout, or a ~/ros2_ws that it didn't make).
 #
@@ -15,6 +15,8 @@
 #   FROG_HOSTNAME=frog   the device is then http://frog.local
 #   WIFI_COUNTRY=GB      wifi regulatory domain, if one isn't set already
 #   JOBS=                parallel compile jobs, default depends on CPUs and memory
+#   FROG_RELEASE=latest  the TacticalFrog release to install (its tag), with its orb_slam3 and OpenMVS releases;
+#                        "none" to install them by hand afterwards (see the end of the run)
 #   FROG_IMAGE=0         1 when building a disk image for the CM5 somewhere else (.github/image/build.sh): set
 #                        it up as a CM5 even though this isn't one
 #
@@ -25,6 +27,7 @@ FROG_HOSTNAME=${FROG_HOSTNAME:-frog}
 WIFI_COUNTRY=${WIFI_COUNTRY:-GB}
 JOBS=${JOBS:-}
 FROG_IMAGE=${FROG_IMAGE:-0}
+FROG_RELEASE=${FROG_RELEASE:-latest}
 
 # the services in the release run as pi, with these paths, so these aren't settings
 FROG_USER=pi
@@ -924,6 +927,68 @@ install_kalibr() {
   ln -sfn "$KALIBR_PREFIX"/bin/kalibr_* /usr/local/bin/
 }
 
+# the GitHub repository each release comes from
+release_repo() {
+  case $1 in
+    TacticalFrog) echo furbrain/TacticalFrog ;;
+    orb_slam3) echo furbrain/orb_slam3_ros ;;
+    OpenMVS) echo furbrain/openMVS ;;
+  esac
+}
+
+# fetch_release <name> <tag>: download a release's tarball into $CACHE, check it, and print where it is
+fetch_release() {
+  local version file url
+  version=$(printf %s "$2" | tr -c 'A-Za-z0-9._+-' '-') # as the release builds name their files
+  file=$1-$version-aarch64.tar.gz
+  url=https://github.com/$(release_repo "$1")/releases/download/$2/$file
+  curl -fsSL --retry 5 --retry-all-errors -o "$CACHE/$file.sha256" "$url.sha256" >&2 || return 1
+  curl -fL --no-progress-meter --retry 5 --retry-all-errors -o "$CACHE/$file" "$url" >&2 || return 1
+  (cd "$CACHE" && sha256sum -c --quiet "$file.sha256" >&2) || die "$file is corrupt"
+  echo "$CACHE/$file"
+}
+
+RELEASES_INSTALLED=
+install_releases() {
+  step "Releases"
+  if [ "$FROG_RELEASE" = none ]; then
+    echo "skipped (FROG_RELEASE=none)"
+    return 0
+  fi
+  local tag=$FROG_RELEASE tf name commit partner_tag tarball got folder tarballs=()
+  if [ "$tag" = latest ]; then
+    if ! tag=$(curl -fsSL --retry 5 https://api.github.com/repos/furbrain/TacticalFrog/releases/latest |
+      python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null); then
+      warn "no TacticalFrog release could be found on GitHub, so install the releases by hand"
+      return 0
+    fi
+  fi
+  # all three are downloaded and checked before any is installed
+  echo "TacticalFrog $tag"
+  tf=$(fetch_release TacticalFrog "$tag") || die "couldn't download TacticalFrog $tag"
+  tarballs=("$tf")
+  while read -r name commit partner_tag; do
+    case $name in orb_slam3 | OpenMVS) ;; *) continue ;; esac
+    [ "$partner_tag" != - ] || die "TacticalFrog $tag was built with an $name commit that has no release"
+    echo "$name $partner_tag"
+    tarball=$(fetch_release "$name" "$partner_tag") || die "couldn't download $name $partner_tag"
+    got=$(tar -xzOf "$tarball" "$(basename "$tarball" -aarch64.tar.gz)/VERSION" | cut -d' ' -f2)
+    [ "$got" = "$commit" ] || die "$name $partner_tag is commit $got, but TacticalFrog $tag needs $commit"
+    tarballs+=("$tarball")
+  done < <(tar -xzOf "$tf" "$(basename "$tf" -aarch64.tar.gz)/RELEASES" 2>/dev/null | grep -v '^#' || true)
+  [ "${#tarballs[@]}" = 3 ] || die "TacticalFrog $tag doesn't say which orb_slam3 and OpenMVS releases go with it"
+  for tarball in "${tarballs[@]}"; do
+    folder=$(basename "$tarball" -aarch64.tar.gz)
+    name=${folder%%-*}
+    if [ ! -f "/opt/$name/$folder/VERSION" ]; then
+      tar -xzf "$tarball" -C "/opt/$name" --no-same-owner
+    fi
+    ln -sfn "$folder" "/opt/$name/current"
+    rm -f "$tarball" "$tarball.sha256"
+  done
+  RELEASES_INSTALLED=$tag
+}
+
 check_install() {
   step "Checking"
   # not a test of the hardware, just that everything the releases expect is there and loads
@@ -958,16 +1023,36 @@ finish() {
 
 === Done. Log: $LOG
 
+EOF
+  if [ -n "$RELEASES_INSTALLED" ]; then
+    cat <<EOF
+TacticalFrog $RELEASES_INSTALLED is installed, with the orb_slam3 and OpenMVS releases that go with it.
+
 1. Reboot:  sudo reboot
    After that wifi starts as the open "TacticalFrog" hotspot, which takes priority over saved networks.
-   If you are connected over wifi, join that and use $FROG_HOSTNAME.local
+   Join it (or stay on ethernet) and go to http://$FROG_HOSTNAME.local
 
-2. Install the three releases (in any order). For each of TacticalFrog, orb_slam3 and OpenMVS:
+2. Calibrate the cameras and IMU from the web page, as they're different on every device.
+EOF
+  else
+    cat <<EOF
+The releases aren't installed. Download them now, while there's internet, from
+https://github.com/furbrain/TacticalFrog/releases (the TacticalFrog release's RELEASES file names the
+orb_slam3 and OpenMVS releases that go with it), then:
+
+1. Install the three releases (in any order). For each of TacticalFrog, orb_slam3 and OpenMVS:
      sudo tar -xzf NAME-VERSION-aarch64.tar.gz -C /opt/NAME --no-same-owner
      sudo ln -sfn NAME-VERSION /opt/NAME/current
-   It all starts by itself a few seconds after the third: http://$FROG_HOSTNAME.local
+
+2. Reboot:  sudo reboot
+   After that wifi starts as the open "TacticalFrog" hotspot, which takes priority over saved networks.
+   Join it (or stay on ethernet) and go to http://$FROG_HOSTNAME.local
+   (Installed after the reboot instead, it all starts by itself a few seconds after the third.)
 
 3. Calibrate the cameras and IMU from the web page, as they're different on every device.
+EOF
+  fi
+  cat <<EOF
 
 Later releases install themselves from the web page, Settings > Software update, which updates all three together.
 
@@ -1001,6 +1086,7 @@ main() {
   setup_network
   setup_services
   install_kalibr
+  install_releases
   check_install
   finish
 }

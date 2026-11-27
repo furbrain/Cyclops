@@ -112,8 +112,9 @@ booted
 if inside id pi 2>/dev/null; then echo "not a stock system" >&2; exit 1; fi
 
 step "Bootstrap"
+# the releases built from this commit are installed below (after a reboot, as by hand), not published ones
 docker cp "$repo/bootstrap.sh" "$NAME:/root/bootstrap.sh"
-inside bash /root/bootstrap.sh
+inside env FROG_RELEASE=none bash /root/bootstrap.sh
 
 step "Reboot, with no releases yet"
 reboot_it
@@ -189,13 +190,13 @@ reboot_it
 check_running
 
 step "Bootstrap again"
-inside bash /root/bootstrap.sh
+inside env FROG_RELEASE=none bash /root/bootstrap.sh
 reboot_it
 check_running
 
 step "It refuses to touch a development device"
 inside touch /opt/TacticalFrog/current/.git
-if inside bash /root/bootstrap.sh; then echo "didn't refuse" >&2; false; fi
+if inside env FROG_RELEASE=none bash /root/bootstrap.sh; then echo "didn't refuse" >&2; false; fi
 
 step "What failed without the hardware, for information"
 inside systemctl --failed --no-pager || true

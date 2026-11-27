@@ -38,16 +38,21 @@ from any release, or from a commit.
    ```
    Settings go before it, e.g. `sudo FROG_HOSTNAME=frog2 ./bootstrap.sh`; see the top of the script.
    The log is `/var/log/tacticalfrog-bootstrap.log`.
-3. Reboot. Wifi then starts as the open "TacticalFrog" hotspot.
-4. Install the three releases, in any order, from their GitHub releases. Use the orb_slam3 and OpenMVS
-   versions named in the TacticalFrog release's `RELEASES` file. For each of TacticalFrog, orb_slam3 and OpenMVS:
+
+   At the end it installs the latest TacticalFrog release, with the orb_slam3 and OpenMVS releases named in its
+   `RELEASES` file, while there's still internet. `FROG_RELEASE=<tag>` installs a particular release instead.
+3. Reboot. Wifi then starts as the open "TacticalFrog" hotspot, with no internet, and everything starts by
+   itself: join the hotspot (or stay on ethernet) and go to http://frog.local
+
+   If bootstrap.sh couldn't install the releases (it says so at the end), or was run with `FROG_RELEASE=none`,
+   download them before rebooting and install them in any order. For each of TacticalFrog, orb_slam3 and OpenMVS:
    ```bash
    sudo tar -xzf NAME-VERSION-aarch64.tar.gz -C /opt/NAME --no-same-owner
    sudo ln -sfn NAME-VERSION /opt/NAME/current
    ```
-   Everything starts by itself a few seconds after the third: http://frog.local
-5. Calibrate the cameras and IMU from the web page, as they're different on every device.
-6. Optional, for the "frog" file sharing login that Windows needs: `sudo smbpasswd -a pi`
+   Installed after the reboot instead, everything starts by itself a few seconds after the third.
+4. Calibrate the cameras and IMU from the web page, as they're different on every device.
+5. Optional, for the "frog" file sharing login that Windows needs: `sudo smbpasswd -a pi`
 
 `bootstrap.sh` refuses to run on a development device (see below), so that it can't wreck one.
 
