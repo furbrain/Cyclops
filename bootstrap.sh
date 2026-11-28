@@ -62,7 +62,7 @@ KALIBR_PREFIX=/usr/local/lib/kalibr
 # what goes in ~/ros2_ws/src:  <directory> <repository on github> <commit>
 SOURCES='
 async_web_server_cpp                fkie/async_web_server_cpp                 d1876da58215b853ac6fd66ef704442babc5f873
-autonode                            furbrain/autonode                         2833fe0dd1e3c03ef229b70c6a64b36154a508a2
+autonode                            furbrain/autonode                         cef8b88950ed8494cff1d098eb2be56e2bcc7276
 camera_ros                          furbrain/camera_ros                       f49f2980af22e3fe3e06923d189218a1e4063e10
 diagnostics                         ros/diagnostics                           9b2d945722625811d0dfd3d2c946ceb01abc5607
 icm20948_ros2                       furbrain/icm20948_ros2                    512f274bf23ba24939ca6369a98e21cafc926fdb
@@ -466,9 +466,6 @@ build_workspace() {
       workspace_patch "$dir" | as_user git -C "$WS/src/$dir" apply -
     fi
   done <<< "$SOURCES"
-  # ament's marker file was never committed
-  as_user mkdir -p "$WS/src/autonode/resource"
-  as_user touch "$WS/src/autonode/resource/autonode"
 
   for dir in "${WS_PACKAGES[@]}"; do paths+=("src/$dir"); done
   # Debug is what the devices have been tested with; -g0 as debug info needs lots of memory to build
