@@ -1,5 +1,7 @@
 # Pushing any tag builds a tarball for the Pi (arm64, Debian bookworm) and attaches it to a GitHub release.
 # The build itself is .github/release/build.sh, which can be run the same way on a Pi.
+# The orb_slam3 and OpenMVS submodules' commits must have releases already: devices update to them along with it.
+# Then it builds a disk image with all three installed and attaches that too (image.yml).
 name: Release
 
 on:
@@ -27,6 +29,7 @@ jobs:
             -v "$RUNNER_TEMP/out:/out" \
             -e VERSION="$GITHUB_REF_NAME" \
             -e COMMIT="$(git rev-parse HEAD)" \
+            -e REQUIRE_PARTNER_RELEASES=1 \
             debian:bookworm bash /src/.github/release/build.sh
 
       - name: Publish
@@ -40,3 +43,10 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" ./* --verify-tag --title "TacticalFrog $GITHUB_REF_NAME" --generate-notes
           fi
+
+  # a disk image with this release installed, attached to the release
+  image:
+    needs: release
+    uses: ./.github/workflows/image.yml
+    with:
+      tag: ${{ github.ref_name }}

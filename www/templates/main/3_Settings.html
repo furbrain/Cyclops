@@ -4,6 +4,26 @@
     <a class="btn btn-outline-secondary" href="/wifi/">Wi-Fi Setup</a>
     </div>
 </div>
+<!-- Software update: filled in by js/index/software_update.js -->
+<div class="row justify-content-center mt-4">
+    <div class="col-sm-6">
+        <h2 class="h5">Software update</h2>
+        <table class="table table-sm mb-2">
+            <tbody id="update-versions">
+                <tr><td colspan="2" class="text-secondary">Checking...</td></tr>
+            </tbody>
+        </table>
+        <div class="small mb-2" id="update-message"></div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" id="update-button" onclick="startUpdate()" disabled>Update</button>
+            <button class="btn btn-outline-secondary" id="update-check" onclick="checkForUpdate(true)">Check again</button>
+        </div>
+        <div class="small text-secondary mt-2">
+            Updates TacticalFrog, orb_slam3 and OpenMVS together. Needs an internet connection, and the battery
+            charging or over 50%. Recording stops while the services restart.
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="frogcoreModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">

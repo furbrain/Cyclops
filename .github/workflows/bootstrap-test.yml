@@ -1,0 +1,38 @@
+# Tests bootstrap.sh on GitHub's arm64 runners: push to bootstrap-test or a claude/ branch, or run it by hand.
+# It builds all three releases (build-releases.yml) without publishing them, then runs .github/bootstrap-test/run.sh.
+name: Bootstrap test
+
+on:
+  push:
+    branches: [bootstrap-test, "claude/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: ./.github/workflows/build-releases.yml
+
+  bootstrap:
+    name: Bootstrap stock Debian
+    needs: release
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: releases
+
+      - name: Test
+        run: sudo .github/bootstrap-test/run.sh releases

@@ -16,11 +16,13 @@ from frogcore import frogcore_bp
 WEB_ROOT = Path(__file__).parent.parent
 from wifi import wifi_bp
 from model import model_bp, image_sources
+from update import update_bp
 
 app = Flask(__name__, template_folder=WEB_ROOT / "templates")
 app.register_blueprint(wifi_bp, url_prefix="/wifi")
 app.register_blueprint(model_bp, url_prefix="/model")
 app.register_blueprint(frogcore_bp)
+app.register_blueprint(update_bp)
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 app.config['ROOT_DIR'] = DEFAULT_ROOT_DIR
