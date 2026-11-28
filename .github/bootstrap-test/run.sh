@@ -116,6 +116,11 @@ step "Bootstrap"
 docker cp "$repo/bootstrap.sh" "$NAME:/root/bootstrap.sh"
 inside env FROG_RELEASE=none bash /root/bootstrap.sh
 
+# the hotspot needs wifi, so a radio block is never restored
+for unit in systemd-rfkill.service systemd-rfkill.socket; do
+  [ "$(inside systemctl is-enabled "$unit" 2>/dev/null || true)" = masked ] || { echo "$unit isn't masked" >&2; false; }
+done
+
 step "Reboot, with no releases yet"
 reboot_it
 retry 60 inside systemctl is-active --quiet tacticalfrog-await-releases.service

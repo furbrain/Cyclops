@@ -203,6 +203,8 @@ printf '[Unit]\nConditionPathExists=|/boot/firmware/userconf.txt\nConditionPathE
 grep -q 'init=/usr/lib/raspberrypi-sys-mods/firstboot' "$r/boot/firmware/cmdline.txt" ||
   { echo "cmdline.txt has lost the first boot resize" >&2; false; }
 grep -q '^# BEGIN TacticalFrog' "$r/boot/firmware/config.txt" || { echo "config.txt wasn't set up" >&2; false; }
+grep -q 'rfkill.default_state=1' "$r/boot/firmware/cmdline.txt" || { echo "wifi would start blocked" >&2; false; }
+[ "$(readlink "$r/etc/systemd/system/systemd-rfkill.service")" = /dev/null ] || { echo "systemd-rfkill isn't masked" >&2; false; }
 cat "$r/boot/firmware/cmdline.txt"
 sync
 umount "$r/boot/firmware" "$r"

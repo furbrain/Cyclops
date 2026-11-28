@@ -62,7 +62,7 @@ KALIBR_PREFIX=/usr/local/lib/kalibr
 # what goes in ~/ros2_ws/src:  <directory> <repository on github> <commit>
 SOURCES='
 async_web_server_cpp                fkie/async_web_server_cpp                 d1876da58215b853ac6fd66ef704442babc5f873
-autonode                            furbrain/autonode                         31c18056cc6423dfcc4c69ec1945bb694bac0ffb
+autonode                            furbrain/autonode                         2833fe0dd1e3c03ef229b70c6a64b36154a508a2
 camera_ros                          furbrain/camera_ros                       f49f2980af22e3fe3e06923d189218a1e4063e10
 diagnostics                         ros/diagnostics                           9b2d945722625811d0dfd3d2c946ceb01abc5607
 icm20948_ros2                       furbrain/icm20948_ros2                    512f274bf23ba24939ca6369a98e21cafc926fdb
@@ -71,7 +71,7 @@ image_common                        furbrain/image_common                     06
 image_transport_plugins             ros-perception/image_transport_plugins    f3376b5c38867a0b305f3d918fc5d3c4423e2f75
 imu_tools                           CCNYRoboticsLab/imu_tools                 69261f53be33cb489022cdedf217c7358905d888
 ros2-system-monitor                 AgoraRobotics/ros2-system-monitor         a77b8ed8241cb8741d8925c84d95647d39e24af7
-ros_mimu_calibrate                  furbrain/ros_mimu_calibrate               453bdee43b6ce8d2a51b149e424249674947672a
+ros_mimu_calibrate                  furbrain/ros_mimu_calibrate               db56129db039dcbd4d0d80e79f34aa5ebb315d4c
 rosbridge_suite                     RobotWebTools/rosbridge_suite             b1f6b4c0009da86c39132ad36e73cc54ae196a4e
 tf2_web_republisher                 furbrain/tf2_web_republisher              8b8a46fb5cd0131dcd8f5044e7fa51af9d71e137
 vision_opencv                       ros-perception/vision_opencv              27de9ecf9862e6fba509b7e49e3c2511c7d11627
@@ -108,157 +108,6 @@ WS_PACKAGES=(
 # When one gets committed upstream, move the commit on and delete it from here.
 workspace_patch() {
   case $1 in
-  autonode) cat <<'EOF_PATCH'
-diff --git a/autonode/autonode.py b/autonode/autonode.py
-index 3487533..eb2109a 100644
---- a/autonode/autonode.py
-+++ b/autonode/autonode.py
-@@ -1,14 +1,20 @@
- import asyncio
- import signal
- from dataclasses import dataclass
--from typing import Any, Optional
-+from typing import Any, Optional, Union, Callable
- from inspect import getmembers, ismethod
-+from pathlib import Path
-+import os
- 
- import rclpy.node
-+from rclpy.action import ActionServer
- from rclpy.callback_groups import CallbackGroup
- from rclpy.node import SetParametersResult, ParameterDescriptor
- from rclpy.qos import QoSProfile, qos_profile_services_default
--from rclpy.qos_event import SubscriptionEventCallbacks
-+try:
-+    from rclpy.event_handler import SubscriptionEventCallbacks
-+except ImportError:
-+    from rclpy.qos_event import SubscriptionEventCallbacks
- from rclpy.qos_overriding_options import QoSOverridingOptions
- 
- 
-@@ -21,12 +27,29 @@ class Parameter:
- class DynamicParameter(Parameter):
-     ...
- 
-+def get_ros_home() -> Path:
-+    if "ROS_HOME" in os.environ:
-+        ros_home = Path(os.environ.get("ROS_HOME"))
-+    else:
-+        ros_home = Path(os.environ.get("HOME")) / ".ros"
-+    return ros_home
-+
-+def get_url_from_str(url: str) -> Path:
-+    if url.startswith("/"):
-+        return Path(url)
-+    else:
-+        return get_ros_home() / url
-+
-+
- def service(srv_type,
--            srv_name: str,
-+            srv_name: str = "",
-             *,
-             qos_profile: QoSProfile = qos_profile_services_default,
-             callback_group: Optional[CallbackGroup] = None):
-     def wrapper(func):
-+        nonlocal srv_name
-+        if srv_name == "":
-+            srv_name = func.__name__
-         func.service_args = {"srv_type": srv_type,
-                              "srv_name": srv_name,
-                              "qos_profile": qos_profile,
-@@ -35,14 +58,17 @@ def service(srv_type,
-     return wrapper
- 
- def subscription(msg_type,
--                 topic: str,
--                 qos_profile: QoSProfile,
-+                 topic: str = "",
-+                 qos_profile: Union[QoSProfile, int] = 10,
-                  *,
-                  callback_group: Optional[CallbackGroup] = None,
-                  event_callbacks: Optional[SubscriptionEventCallbacks] = None,
-                  qos_overriding_options: Optional[QoSOverridingOptions] = None,
-                  raw=False):
--    def wrapper(func):
-+    def wrapper(func: Callable):
-+        nonlocal topic
-+        if topic == "":
-+            topic = func.__name__
-         func.subscription_args = {"msg_type": msg_type,
-                              "topic": topic,
-                              "qos_profile": qos_profile,
-@@ -53,6 +79,15 @@ def subscription(msg_type,
-         return func
-     return wrapper
- 
-+def action(action_type, action_name: str = ""):
-+    def wrapper(func: Callable):
-+        nonlocal action_name
-+        if action_name == "":
-+            action_name = func.__name__
-+        func.action_args = {"action_type": action_type, "action_name": action_name}
-+        return func
-+    return wrapper
-+
- class Node(rclpy.node.Node):
-     def __init__(self, name=""):
-         # set name to specified or classname (without "node" at the end)
-@@ -80,7 +115,10 @@ class Node(rclpy.node.Node):
-                 self._dynamic_params.append(var)
-                 desc.read_only = False
-             self.declare_parameter(var, default, descriptor=desc)
--            setattr(self, var, self.get_parameter(var).value)
-+            if tp==Path:
-+                setattr(self, var, get_url_from_str(self.get_parameter(var).value))
-+            else:
-+                setattr(self, var, self.get_parameter(var).value)
-         self.add_on_set_parameters_callback(self._on_param_change)
- 
-         # create service and subscriptions
-@@ -88,11 +126,14 @@ class Node(rclpy.node.Node):
-             if var.startswith("__"): # skip dunder methods
-                 continue
-             if hasattr(val,"service_args"):
--                setattr(self, var+"_service", self.create_service(callback=getattr(self, var),
-+                setattr(self, var+"_service", self.create_service(callback=val,
-                                                                   **val.service_args))
-             if hasattr(val, "subscription_args"):
--                setattr(self, var+"_sub", self.create_subscription(callback=getattr(self, var),
-+                setattr(self, var+"_sub", self.create_subscription(callback=val,
-                                                                    **val.subscription_args))
-+            if hasattr(val, "action_args"):
-+                setattr(self, var + "_action_server", ActionServer(self, **val.action_args,
-+                                                                   callback=val))
-         self._running = True
-         signal.signal(signal.SIGINT, self._sig_handler)
-         signal.signal(signal.SIGTERM, self._sig_handler)
-@@ -135,19 +176,20 @@ class Node(rclpy.node.Node):
-             self.destroy_node()
-             rclpy.shutdown()
- 
--    async def run_async(self):
-+    async def _run_async(self):
-         try:
-             while self._running and rclpy.ok():
-                 rclpy.spin_once(self, timeout_sec=0.01)
-                 await asyncio.sleep(0.01)
-                 await self.on_loop_async()
--        except Exception as e:
--            self.get_logger().error(f"Unhandled exception: {e}")
-         finally:
-             self.cleanup()
-             self.destroy_node()
-             rclpy.shutdown()
- 
-+    def run_async(self):
-+        asyncio.run(self._run_async())
-+
-     def cleanup(self):
-         """
-         Override this function if there are any resources which need releasing before shutting down
-EOF_PATCH
-  ;;
   diagnostics) cat <<'EOF_PATCH'
 diff --git a/diagnostic_updater/CMakeLists.txt b/diagnostic_updater/CMakeLists.txt
 index 46c2ecc..50de257 100644
@@ -275,34 +124,22 @@ index 46c2ecc..50de257 100644
  
 EOF_PATCH
   ;;
-  # The thresholds are the device's change. The include isn't: subscriber.hpp only arrived in message_filters
-  # 4.11.6, and this ROS has 4.11.1 (a newer one in the workspace would hide /opt/ros's from orb_slam3).
-  # From 4.11.6 subscriber.h just includes subscriber.hpp, so this is the same code either way.
+  # subscriber.hpp only arrived in message_filters 4.11.6, and this ROS has 4.11.1 (a newer one in the workspace
+  # would hide /opt/ros's from orb_slam3). From 4.11.6 subscriber.h just includes subscriber.hpp: the same code.
   ros_mimu_calibrate) cat <<'EOF_PATCH'
 diff --git a/src/collate_node.cpp b/src/collate_node.cpp
-index 0bd5018..485f5cd 100644
+index 26a2ed5..485f5cd 100644
 --- a/src/collate_node.cpp
 +++ b/src/collate_node.cpp
 @@ -4,7 +4,7 @@
  #include <numeric>
  #include <vector>
-
+ 
 -#include "message_filters/subscriber.hpp"
 +#include "message_filters/subscriber.h"
  #include "message_filters/sync_policies/approximate_time.h"
  #include "message_filters/synchronizer.h"
  #include "rclcpp/rclcpp.hpp"
-@@ -71,8 +71,8 @@ public:
-   // Thresholds: 3× mag (6e-6 T), 3× accel (1.0 m/s²), 3× gyro (0.1 rad/s)
-   const std::array<double, NUM_CHANNELS> MAX_READINGS = {
-     6e-6, 6e-6, 6e-6,
--    1.0,  1.0,  1.0,
--    0.1,  0.1,  0.1
-+    1.5,  1.5,  1.5,
-+    0.2,  0.2,  0.2
-   };
- 
-   MovementDetector()
 EOF_PATCH
   ;;
   rosbridge_suite) cat <<'EOF_PATCH'
@@ -728,6 +565,9 @@ edit_cmdline() {
     fi
   fi
   [[ $line == *cfg80211.ieee80211_regdom=* ]] || line="$line cfg80211.ieee80211_regdom=$WIFI_COUNTRY"
+  # radios start unblocked: modprobe applies this after Raspberry Pi OS's modprobe.d (rfkill is a module)
+  line=$(sed -E 's/ ?rfkill\.default_state=[^ ]*//g' <<< "$line")
+  line="$line rfkill.default_state=1"
   echo "$line" > "$file"
 }
 
@@ -822,22 +662,10 @@ EOF
   fi
   systemctl enable NetworkManager.service avahi-daemon.service
 
-  # Raspberry Pi OS starts with wifi blocked (rfkill default_state=0) until raspi-config sets the country,
-  # and the hotspot needs it, so unblock it at every boot
-  cat > /etc/systemd/system/tacticalfrog-wifi-unblock.service <<'EOF'
-[Unit]
-Description=Unblock wifi for the TacticalFrog hotspot
-After=systemd-rfkill.service
-Before=NetworkManager.service
-
-[Service]
-Type=oneshot
-ExecStart=-/usr/sbin/rfkill unblock wifi
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl enable tacticalfrog-wifi-unblock.service
+  # The hotspot needs wifi, so radios are never blocked: systemd-rfkill would save a block and restore it at
+  # boot, and Raspberry Pi OS blocks them all to start with (rfkill default_state=0 in its modprobe.d, which
+  # edit_cmdline overrides)
+  systemctl mask systemd-rfkill.service systemd-rfkill.socket
   if is_pi && [ "$FROG_IMAGE" != 1 ]; then rfkill unblock wifi || warn "couldn't unblock wifi"; fi
 }
 
