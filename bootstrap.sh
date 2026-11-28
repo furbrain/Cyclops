@@ -71,7 +71,7 @@ image_common                        furbrain/image_common                     06
 image_transport_plugins             ros-perception/image_transport_plugins    f3376b5c38867a0b305f3d918fc5d3c4423e2f75
 imu_tools                           CCNYRoboticsLab/imu_tools                 69261f53be33cb489022cdedf217c7358905d888
 ros2-system-monitor                 AgoraRobotics/ros2-system-monitor         a77b8ed8241cb8741d8925c84d95647d39e24af7
-ros_mimu_calibrate                  furbrain/ros_mimu_calibrate               db56129db039dcbd4d0d80e79f34aa5ebb315d4c
+ros_mimu_calibrate                  furbrain/ros_mimu_calibrate               ddec79cda25d3adaeacfb3396bbe9636452ba607
 rosbridge_suite                     RobotWebTools/rosbridge_suite             b1f6b4c0009da86c39132ad36e73cc54ae196a4e
 tf2_web_republisher                 furbrain/tf2_web_republisher              8b8a46fb5cd0131dcd8f5044e7fa51af9d71e137
 vision_opencv                       ros-perception/vision_opencv              27de9ecf9862e6fba509b7e49e3c2511c7d11627
@@ -122,24 +122,6 @@ index 46c2ecc..50de257 100644
  endif()
  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
  
-EOF_PATCH
-  ;;
-  # subscriber.hpp only arrived in message_filters 4.11.6, and this ROS has 4.11.1 (a newer one in the workspace
-  # would hide /opt/ros's from orb_slam3). From 4.11.6 subscriber.h just includes subscriber.hpp: the same code.
-  ros_mimu_calibrate) cat <<'EOF_PATCH'
-diff --git a/src/collate_node.cpp b/src/collate_node.cpp
-index 26a2ed5..485f5cd 100644
---- a/src/collate_node.cpp
-+++ b/src/collate_node.cpp
-@@ -4,7 +4,7 @@
- #include <numeric>
- #include <vector>
- 
--#include "message_filters/subscriber.hpp"
-+#include "message_filters/subscriber.h"
- #include "message_filters/sync_policies/approximate_time.h"
- #include "message_filters/synchronizer.h"
- #include "rclcpp/rclcpp.hpp"
 EOF_PATCH
   ;;
   rosbridge_suite) cat <<'EOF_PATCH'
